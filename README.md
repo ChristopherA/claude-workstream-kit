@@ -4,6 +4,24 @@ A standalone, portable workstream system for [Claude Code](https://docs.anthropi
 
 Designed for Claude Fable 5: principle-level instructions instead of step enumerations, `/goal`-driven autonomous sessions, and delegation to cheap pinned subagents (Haiku scout, Sonnet worker, fresh-context verifier).
 
+## Why workstreams
+
+A Claude Code session is ephemeral. Its context vanishes at `/clear`, gets rounded off by auto-compaction, and dies with a closed terminal or a move to another machine. The work usually is not ephemeral: a feature lands across a week of sessions, a migration takes a dozen, a research question evolves for a month. Every session that starts without durable state pays a reconstruction tax — re-explaining the goal, re-discovering what was decided and why, sometimes re-litigating choices that were already settled.
+
+Claude Code ships several capabilities that each cover a slice of this, and several community patterns cover other slices. None of them give you project-scoped work state that lives in your repository:
+
+| Approach | Survives /clear + compaction | Lives in your repo | Moves with the repo | Resume pointer + closure |
+|---|---|---|---|---|
+| Re-explain each session | no | — | — | no |
+| Growing CLAUDE.md | yes | yes | yes | no |
+| Harness Tasks / plan mode | session-scoped | no | no | no |
+| Harness memory | yes | no (account-side) | no | lessons, not work state |
+| GitHub Issues / PRs | yes | service-side | needs network + auth | partial |
+| SPEC.md in the repo | yes | yes | yes | no |
+| **Workstreams (this kit)** | yes | yes | yes | yes |
+
+A workstream is the missing row: the goal, the task backlog, the decisions with their reasoning, and the conditions for being done — as two small markdown files committed to git, where they survive everything the harness can do and travel with the repo like tests or docs. The full argument, including what each alternative is genuinely good at and what a much larger predecessor system taught us to leave out, is in [docs/design.md](docs/design.md).
+
 ## What is a workstream?
 
 A workstream is a unit of multi-session work — a feature, an exploration, a migration — tracked in two small markdown files committed to your repo:
