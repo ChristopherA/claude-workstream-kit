@@ -38,5 +38,5 @@ After approval:
 1. Append to `.state/workstreams/ARCHIVE.md`: `- YYYY-MM-DD type/name -- <one-line outcome> (tag: ws/<name>)`
 2. `git tag -m "<one-line outcome>" ws/<name>` on the final state commit
 3. `git rm -r` the workstream directory
-4. Reset `.state/ACTIVE.md` to `workstream: none`
+4. Reset `.state/ACTIVE.md`: `workstream: none`, `task: none`, fresh Now/Next/Blockers
 5. Commit

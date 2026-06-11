@@ -29,17 +29,23 @@ if [ -n "${WS:-}" ] && [ "$WS" != "none" ]; then
     STATUS=$(grep '^status:' "$WS_FILE" | head -1 | cut -d' ' -f2 || true)
     echo "Active workstream: $WS (status: $STATUS, open tasks: $OPEN, open gates: $GATES)"
 
-    # Staleness: state updated long before the repo's last commit, or untouched 14+ days.
-    UPDATED=$(grep '^updated:' "$WS_FILE" | head -1 | cut -d' ' -f2 || true)
+    # Staleness: ACTIVE.md updated long before the repo's last commit (work
+    # happening outside the workstream), or workstream.md untouched 14+ days.
     NOW_S=$(date +%s)
-    if [ -n "$UPDATED" ]; then
-      UPD_S=$(date -j -f '%Y-%m-%d' "$UPDATED" +%s 2>/dev/null || date -d "$UPDATED" +%s 2>/dev/null || echo "$NOW_S")
-      AGE_D=$(( (NOW_S - UPD_S) / 86400 ))
+    ACT_UPD=$(grep '^updated:' "$STATE/ACTIVE.md" 2>/dev/null | head -1 | cut -d' ' -f2 || true)
+    WS_UPD=$(grep '^updated:' "$WS_FILE" | head -1 | cut -d' ' -f2 || true)
+    if [ -n "$ACT_UPD" ]; then
+      ACT_S=$(date -j -f '%Y-%m-%d' "$ACT_UPD" +%s 2>/dev/null || date -d "$ACT_UPD" +%s 2>/dev/null || echo "$NOW_S")
       LAST_COMMIT_S=$(git -C "$PROJECT_DIR" log -1 --format=%ct 2>/dev/null || echo "$NOW_S")
-      LAG_D=$(( (LAST_COMMIT_S - UPD_S) / 86400 ))
+      LAG_D=$(( (LAST_COMMIT_S - ACT_S) / 86400 ))
       if [ "$LAG_D" -gt 7 ]; then
-        echo "STALENESS: workstream state is ${LAG_D}d older than the last commit -- work may be happening outside the workstream. Reconcile before new task work."
-      elif [ "$AGE_D" -gt 14 ]; then
+        echo "STALENESS: ACTIVE.md is ${LAG_D}d older than the last commit -- work may be happening outside the workstream. Reconcile before new task work."
+      fi
+    fi
+    if [ -n "$WS_UPD" ]; then
+      WS_S=$(date -j -f '%Y-%m-%d' "$WS_UPD" +%s 2>/dev/null || date -d "$WS_UPD" +%s 2>/dev/null || echo "$NOW_S")
+      AGE_D=$(( (NOW_S - WS_S) / 86400 ))
+      if [ "$AGE_D" -gt 14 ]; then
         echo "STALENESS: workstream untouched for ${AGE_D}d. Reconcile: update, pause, or close."
       fi
     fi

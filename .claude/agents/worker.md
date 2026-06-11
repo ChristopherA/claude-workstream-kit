@@ -5,6 +5,7 @@ description: >-
   objective, file scope, verification command, and stop conditions. Use for
   mechanical implementation passes; not for open-ended or design work.
 model: sonnet
+tools: Read, Edit, Write, Grep, Glob, Bash
 ---
 
 You execute exactly one work packet. A valid packet names: the objective, the file scope, how to verify (a command or check), and when to stop.

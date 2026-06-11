@@ -22,7 +22,7 @@ Scope the session (current task, current phase, or a named fix), then draft ONE 
 - Phase: "Every XX-phase checkbox except #G-XX is checked, each with a committed artifact (`grep -c '^- \[ \] #XX-' workstream.md` returns 1), the session stops AT #G-XX with a summary, and state files are committed."
 - Build/fix with tests: "<test command> exits 0, the change and state files are committed, and #XX-N is checked."
 
-Always include: mechanical checks over judgment phrasing; the state-commit clause; "without compromising requirements; stop at user gates"; and a turn bound ("or, if blocked or not converging after ~N turns, checkpoint state and stop with a status report"). One condition, under 4000 characters.
+Always include: mechanical checks over judgment phrasing; the state-commit clause; "without compromising requirements; stop at user gates"; and a turn bound ("or, if blocked or not converging after ~N turns, checkpoint state and stop with a status report" -- roughly 20 turns for a single task, 50 for a phase). One condition, under 4000 characters.
 
 Present the condition for the user to start with `/goal <condition>` — or, if already in a goal session, proceed under it.
 

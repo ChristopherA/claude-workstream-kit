@@ -12,7 +12,7 @@ description: >-
 
 # Handoff
 
-Format: `.state/handoffs/from-<source>-<YYYYMMDDHHMMSS>.md` in the RECEIVER's project.
+Format: `.state/handoffs/from-<source>-<YYYYMMDD-HHMMSS>.md` in the RECEIVER's project.
 
 ```markdown
 ---
