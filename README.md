@@ -58,4 +58,4 @@ For teams that want handoffs with notifications, search, and ownership, GitHub I
 
 ## License
 
-License to be chosen by the repository owner.
+[BSD-2-Clause-Patent](LICENSE) — BSD 2-Clause with a patent grant.
