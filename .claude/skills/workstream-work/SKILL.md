@@ -12,11 +12,11 @@ description: >-
 
 # Workstream Work
 
-Read `.state/ACTIVE.md` and the active `workstream.md` first. If the session-start hook reported a staleness signal, reconcile before any task work: update the state to match reality, set `status: paused`, or recommend `/workstream-close`.
+Read `.state/ACTIVE.md` and the active `workstream.md` first. If the session-start hook reported a staleness signal, reconcile before any task work: update the state to match reality, set `status: paused`, or recommend `/workstream-close`. Also check coherence: if the backlog no longer reflects the accumulated Decisions and Learnings, or the critical path is not derivable from it, recommend `/workstream-review` before working — do not work a drifted backlog.
 
 ## Derive the goal condition
 
-Scope the session (current task, current phase, or a named fix), then draft ONE /goal condition — a measurable end state plus its check:
+Identify the critical path through the open backlog (the ordered tasks that unblock the rest); if it is not derivable from the backlog, that is a drift signal — recommend `/workstream-review` first. Scope the session to a task, phase, or named fix on that path, then draft ONE /goal condition — a measurable end state plus its check:
 
 - Single task: "Task #XX-N is checked in workstream.md with its output committed (cite the commit), ACTIVE.md Next names the following task, and state files are committed."
 - Phase: "Every XX-phase checkbox except #G-XX is checked, each with a committed artifact (`grep -c '^- \[ \] #XX-' workstream.md` returns 1), the session stops AT #G-XX with a summary, and state files are committed."
@@ -44,4 +44,4 @@ Every "done" claim cites its evidence: a commit hash, a passing command's output
 
 ## Session exit
 
-Check off completed tasks with one-line evidence notes, update ACTIVE.md (task, Now, Next, Blockers), commit state files. If the session ends at a gate, ACTIVE.md Blockers names the gate.
+Run the capture sweep (workstreams-rule) over the session against the durable files — detection / cascade / synthesis — and route each finding; capture should not depend on the user asking. Then check off completed tasks with one-line evidence notes, update ACTIVE.md (task, Now, Next, Blockers), and commit state files. If the session ends at a gate, ACTIVE.md Blockers names the gate.
