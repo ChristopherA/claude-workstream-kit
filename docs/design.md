@@ -89,7 +89,7 @@ Mature agent configurations die by accretion — more rules, more skills, more m
 
 - **No sync layer.** Updating means re-running `install.sh`. There is nothing to drift.
 - **No rule tiers.** One rule, always loaded, under two hundred lines total with the conventions file.
-- **No standing reflection machinery.** Lessons go to native memory as they occur; extraction happens once, at closure.
+- **No standing reflection machinery — but reflection at boundaries.** Lessons go to native memory as they occur, and a three-question capture sweep (detection, cascade, synthesis) runs at session boundaries and at closure. The sweep is a few questions, not an apparatus: capture-as-you-go plus closure-only extraction were tried and provably missed synthesis-level insights and cross-workstream cascades — the items that surface only when you step back at a boundary. That much reflection earns its place by the bar below; the heavyweight reflection loop the predecessor ran does not.
 - **No duplication of native capabilities** — the boundary table above is a commitment, not a current limitation.
 
 If the kit ever needs more than this, the bar for adding it is the same one everything else here had to clear: does it produce an artifact or a user decision that nothing native already produces?
