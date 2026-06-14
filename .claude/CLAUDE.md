@@ -20,7 +20,7 @@ At session start the hook prints `ACTIVE.md` plus a one-line status of the activ
 
 ## Session exit
 
-Before stopping: update ACTIVE.md (task, Now, Next, Blockers), check off completed backlog items, and **commit the state files**. Uncommitted state is invisible to the next session and to other machines.
+Before stopping: run the capture sweep (workstreams-rule) over the session and route each finding, update ACTIVE.md (task, Now, Next, Blockers), check off completed backlog items, and **commit the state files**. Uncommitted state is invisible to the next session and to other machines.
 
 ## Native capabilities the kit does not duplicate
 
