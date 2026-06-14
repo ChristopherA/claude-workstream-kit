@@ -28,7 +28,7 @@ for d in rules skills agents hooks; do
   mkdir -p "$TARGET/.claude/$d"
   cp -R "$KIT_DIR/.claude/$d/." "$TARGET/.claude/$d/"
 done
-chmod +x "$TARGET/.claude/hooks/session-start.sh"
+chmod +x "$TARGET/.claude/hooks/session-start.sh" "$TARGET/.claude/hooks/capture-nudge.sh"
 
 # --- CLAUDE.md: write fresh, or append once under markers -------------------
 if [ ! -f "$TARGET/.claude/CLAUDE.md" ]; then
@@ -57,22 +57,26 @@ else
   echo "  appended kit block to existing .claude/CLAUDE.md"
 fi
 
-# --- settings.json: merge hook registration ---------------------------------
-HOOK_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh'
+# --- settings.json: merge hook registrations --------------------------------
+SS_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh'
+CN_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/capture-nudge.sh'
 if [ ! -f "$TARGET/.claude/settings.json" ]; then
   cp "$KIT_DIR/.claude/settings.json" "$TARGET/.claude/settings.json"
-  echo "  wrote .claude/settings.json (session-start hook registered)"
-elif grep -q "session-start.sh" "$TARGET/.claude/settings.json"; then
-  echo "  settings.json already registers the session-start hook"
+  echo "  wrote .claude/settings.json (session-start + capture-nudge hooks registered)"
 elif command -v jq >/dev/null 2>&1; then
-  jq --arg cmd "$HOOK_CMD" \
-     '.hooks.SessionStart = ((.hooks.SessionStart // []) + [{"hooks":[{"type":"command","command":$cmd}]}])' \
-     "$TARGET/.claude/settings.json" > "$TARGET/.claude/settings.json.tmp"
+  # Per-hook idempotent merge: add each registration only if its command is absent.
+  jq --arg ss "$SS_CMD" --arg cn "$CN_CMD" '
+    .hooks //= {}
+    | (if any((.hooks.SessionStart // [])[]?.hooks[]?; .command == $ss) then . else .hooks.SessionStart = ((.hooks.SessionStart // []) + [{"hooks":[{"type":"command","command":$ss}]}]) end)
+    | (if any((.hooks.PreCompact // [])[]?.hooks[]?; .command == $cn) then . else .hooks.PreCompact = ((.hooks.PreCompact // []) + [{"hooks":[{"type":"command","command":$cn}]}]) end)
+    | (if any((.hooks.SessionEnd // [])[]?.hooks[]?; .command == $cn) then . else .hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{"hooks":[{"type":"command","command":$cn}]}]) end)
+  ' "$TARGET/.claude/settings.json" > "$TARGET/.claude/settings.json.tmp"
   mv "$TARGET/.claude/settings.json.tmp" "$TARGET/.claude/settings.json"
-  echo "  merged session-start hook into existing settings.json"
+  echo "  merged session-start + capture-nudge hooks into existing settings.json"
 else
-  echo "  ACTION REQUIRED: add to .claude/settings.json hooks.SessionStart:"
-  echo "    {\"hooks\":[{\"type\":\"command\",\"command\":$HOOK_CMD}]}"
+  echo "  ACTION REQUIRED: register these hooks in .claude/settings.json:"
+  echo "    SessionStart -> command: $SS_CMD"
+  echo "    PreCompact, SessionEnd -> command: $CN_CMD"
 fi
 
 # --- .state/ seed (never overwrite existing state) --------------------------
