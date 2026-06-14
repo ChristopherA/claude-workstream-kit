@@ -36,10 +36,11 @@ Because the state is plain files in git, it is portable across machines, account
 | Piece | Files |
 |---|---|
 | Conventions | `.claude/CLAUDE.md`, `.claude/rules/workstreams-rule.md` |
-| Lifecycle skills | `.claude/skills/workstream-create/`, `workstream-work/`, `workstream-close/` |
+| Lifecycle skills | `.claude/skills/workstream-create/`, `workstream-work/`, `workstream-review/`, `workstream-close/` |
 | Cross-project handoffs | `.claude/skills/handoff/` |
 | Tiered agents | `.claude/agents/scout.md` (haiku), `worker.md` (sonnet), `verifier.md` |
 | Session resume | `.claude/hooks/session-start.sh` + `settings.json` hook registration |
+| Boundary capture | workstreams-rule capture sweep + `.claude/hooks/capture-nudge.sh` (SessionEnd/PreCompact nudge) |
 | State seed | `.state/` (ACTIVE.md, workstreams/, handoffs/) |
 
 What the kit deliberately does NOT carry — use the native capability instead:
@@ -59,7 +60,7 @@ What the kit deliberately does NOT carry — use the native capability instead:
 ./install.sh /path/to/your/project
 ```
 
-Idempotent: safe to re-run for updates. It copies the `.claude/` payload, seeds `.state/` (never overwriting existing state), merges the session-start hook into the project's `settings.json` (or tells you the one line to add), and stamps `.claude/workstream-kit.version`.
+Idempotent: safe to re-run for updates. It copies the `.claude/` payload, seeds `.state/` (never overwriting existing state), merges the kit's hooks into the project's `settings.json` (or tells you what to add), and stamps `.claude/workstream-kit.version`.
 
 If your project already has a `.claude/CLAUDE.md`, the kit's conventions are appended under a marker block instead of overwriting.
 
@@ -67,8 +68,9 @@ If your project already has a `.claude/CLAUDE.md`, the kit's conventions are app
 
 1. **Create** — `/workstream-create`: a short interview (purpose, deletion criteria, first tasks), then the two state files are written and committed. Work never auto-starts.
 2. **Work** — `/workstream-work`: derives a `/goal` condition from the active backlog phase (mechanical checks: checkbox counts, test exit codes, commit presence), states the autonomous-session boundaries, and works the backlog — delegating scans to the scout, bounded packets to the worker, and verification to the verifier. Every progress claim cites its evidence. Stops at `#G-` user checkpoints.
-3. **Hand off** — `/handoff`: write a self-contained item file into another project's `.state/handoffs/`; receive by triaging your own inbox.
-4. **Close** — `/workstream-close`: narrative summary, learnings dispositioned to destinations outside `.state/`, per-criterion evidence at the user gate, then archive (one line in `ARCHIVE.md`, a git tag, the directory removed).
+3. **Review** — `/workstream-review`: periodic re-coherence for a long-running workstream — detect drift between the backlog and the accumulated decisions/learnings, surface stale framing assumptions, refresh the critical path, and audit cross-workstream placement, restructuring behind user gates. Runs on drift signals, not a schedule.
+4. **Hand off** — `/handoff`: write a self-contained item file into another project's `.state/handoffs/`; receive by triaging your own inbox.
+5. **Close** — `/workstream-close`: narrative summary, learnings dispositioned to destinations outside `.state/`, per-criterion evidence at the user gate, then archive (one line in `ARCHIVE.md`, a git tag, the directory removed).
 
 ## Team-scale alternative
 
