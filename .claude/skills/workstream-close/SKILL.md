@@ -25,7 +25,11 @@ Disposition every Learning and every Open Question — each one ends in exactly 
 - **Handed off**: sent to another project via `/handoff` (do it now, not "later").
 - **Dropped**: with stated rationale, in place.
 
-Deploy any durable artifacts still living under `.state/` (docs, reference material, decisions other projects need) to their permanent homes. Decisions stay in workstream.md — the archive tag preserves them; ARCHIVE.md will carry the pointer.
+Deploy any durable artifacts still living under `.state/` (docs, reference material, decisions other projects need) to their permanent homes. Decisions stay in workstream.md — the archive tag preserves them; ARCHIVE.md will carry the pointer. If a `notes.md` sits beside workstream.md, disposition every section — summarized into workstream.md, routed to a named home, or dropped by declaration — so nothing load-bearing dies with the archive.
+
+## Move 2.5 — Cross-workstream cascade
+
+Sweep this session — not just this workstream's recorded Learnings — for findings that belong to OTHER active workstreams or projects: a decision, a sibling fix, an open question raised in passing. Route each before archive: to another workstream's Backlog with provenance, or out as a handoff. Closure is the last chance; an insight not routed here dies in the tag.
 
 ## Move 3 — Deletion-criteria gate (USER decides)
 
