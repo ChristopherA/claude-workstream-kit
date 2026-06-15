@@ -76,6 +76,7 @@ Frontmatter is flat `key: value` only — it is parsed with `head` and `grep`, n
 - One tracker per tier: workstream.md Backlog for cross-session work; native Tasks/plan mode within a session. Never both for the same items.
 - State files are committed in the session that changes them — uncommitted state does not survive to other machines or future triage.
 - A workstream.md that outgrows a few hundred lines is a signal to split the workstream, not the file.
+- Size an `explore` workstream to a short arc — research to a checkpoint, then close — not the multi-phase backlog a `project` workstream carries. An oversized explore container invites scope drift, where real work happens untracked beside a stalled exploration task; when findings are ready to act on, close the exploration and open a `feature` or `project` workstream for the build.
 - Scripts that touch `.state/` normalize to absolute paths at entry.
 
 ## Capture sweep
