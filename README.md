@@ -2,7 +2,7 @@
 
 A standalone, portable workstream system for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Copy it into any project and that project gains durable, git-versioned work tracking that survives `/clear`, `/compact`, session ends, and account moves — with zero dependency on user-level (`~/.claude/`) configuration.
 
-Designed for Claude Fable 5: principle-level instructions instead of step enumerations, `/goal`-driven autonomous sessions, and delegation to cheap pinned subagents (Haiku scout, Sonnet worker, fresh-context verifier).
+Designed for frontier agentic models (Fable-, Opus-, and Sonnet-class): principle-level instructions instead of step enumerations, `/goal`-driven autonomous sessions, and delegation to cheap pinned subagents (Haiku scout, Sonnet worker, fresh-context verifier).
 
 ## Why workstreams
 
