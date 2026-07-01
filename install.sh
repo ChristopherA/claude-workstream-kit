@@ -1,18 +1,34 @@
 #!/bin/sh
 # Install (or update) the Claude Workstream Kit into a target project.
-# Usage: ./install.sh /path/to/project
+# Usage: ./install.sh [--status-line] /path/to/project
+#   --status-line  also register the opt-in workstream-aware status line
 # Idempotent: re-run to update the .claude/ payload; existing .state/ is never touched.
 set -eu
 
 # Normalize to absolute paths at entry.
 KIT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
-if [ $# -ne 1 ]; then
-  echo "Usage: $0 /path/to/project" >&2
+STATUS_LINE=0
+TARGET_ARG=""
+for arg in "$@"; do
+  case "$arg" in
+    --status-line) STATUS_LINE=1 ;;
+    -*) echo "ERROR: unknown option '$arg'" >&2
+        echo "Usage: $0 [--status-line] /path/to/project" >&2
+        exit 2 ;;
+    *) if [ -n "$TARGET_ARG" ]; then
+         echo "ERROR: multiple target paths given" >&2
+         exit 2
+       fi
+       TARGET_ARG="$arg" ;;
+  esac
+done
+if [ -z "$TARGET_ARG" ]; then
+  echo "Usage: $0 [--status-line] /path/to/project" >&2
   exit 2
 fi
-TARGET=$(CDPATH= cd -- "$1" 2>/dev/null && pwd) || {
-  echo "ERROR: target directory '$1' does not exist" >&2
+TARGET=$(CDPATH= cd -- "$TARGET_ARG" 2>/dev/null && pwd) || {
+  echo "ERROR: target directory '$TARGET_ARG' does not exist" >&2
   exit 2
 }
 
@@ -24,11 +40,11 @@ echo "Installing claude-workstream-kit $VERSION into $TARGET"
 
 # --- .claude/ payload (skills, agents, hooks, rule) -------------------------
 mkdir -p "$TARGET/.claude"
-for d in rules skills agents hooks; do
+for d in rules skills agents hooks scripts; do
   mkdir -p "$TARGET/.claude/$d"
   cp -R "$KIT_DIR/.claude/$d/." "$TARGET/.claude/$d/"
 done
-chmod +x "$TARGET/.claude/hooks/session-start.sh" "$TARGET/.claude/hooks/capture-nudge.sh"
+chmod +x "$TARGET/.claude/hooks/session-start.sh" "$TARGET/.claude/hooks/capture-nudge.sh" "$TARGET/.claude/scripts/status-line.sh"
 
 # --- CLAUDE.md: write fresh, or append once under markers -------------------
 if [ ! -f "$TARGET/.claude/CLAUDE.md" ]; then
@@ -77,6 +93,26 @@ else
   echo "  ACTION REQUIRED: register these hooks in .claude/settings.json:"
   echo "    SessionStart -> command: $SS_CMD"
   echo "    PreCompact, SessionEnd -> command: $CN_CMD"
+fi
+
+# --- statusLine: opt-in via --status-line -----------------------------------
+# Not registered by default -- adopters may run their own status line. statusLine
+# commands get no $CLAUDE_PROJECT_DIR, so the command derives the project dir from
+# the JSON on stdin and re-pipes it to the project-local script.
+if [ "$STATUS_LINE" -eq 1 ]; then
+  SL_CMD='i=$(cat); d=$(printf %s "$i" | jq -r .workspace.project_dir); printf %s "$i" | sh "$d/.claude/scripts/status-line.sh"'
+  if command -v jq >/dev/null 2>&1; then
+    # Set-if-absent: register only when no status line exists (never clobber).
+    jq --arg cmd "$SL_CMD" '
+      if .statusLine then . else .statusLine = {"type":"command","command":$cmd} end
+    ' "$TARGET/.claude/settings.json" > "$TARGET/.claude/settings.json.tmp"
+    mv "$TARGET/.claude/settings.json.tmp" "$TARGET/.claude/settings.json"
+    echo "  registered opt-in status line (or kept an existing one) in settings.json"
+  else
+    echo "  ACTION REQUIRED: install jq and re-run with --status-line, or add this"
+    echo "  statusLine command to .claude/settings.json manually:"
+    printf '    %s\n' "$SL_CMD"
+  fi
 fi
 
 # --- .state/ seed (never overwrite existing state) --------------------------
