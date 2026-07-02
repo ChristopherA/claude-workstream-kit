@@ -19,12 +19,18 @@ Read `.state/ACTIVE.md` and the active `workstream.md` first. If the session-sta
 Identify the critical path through the open backlog (the ordered tasks that unblock the rest); if it is not derivable from the backlog, that is a drift signal — recommend `/workstream-review` first. Scope the session to a task, phase, or named fix on that path, then draft ONE /goal condition — a measurable end state plus its check:
 
 - Single task: "Task #XX-N is checked in workstream.md with its output committed (cite the commit), ACTIVE.md Next names the following task, and state files are committed."
-- Phase: "Every XX-phase checkbox except #G-XX is checked, each with a committed artifact (`grep -c '^- \[ \] #XX-' workstream.md` returns 1), the session stops AT #G-XX with a summary, and state files are committed."
+- Phase: "Every XX-phase checkbox except #G-XX is checked, each work task with a committed artifact (`grep -cE '^- \[ \] #(XX-|G-XX)' workstream.md` returns 1 — only the gate remains open), the session stops AT #G-XX with a summary, and state files are committed." (The gate ID is `#G-XX`, which `#XX-` alone does not match; the pattern must include the gate, or the count reads 0 when the phase is done.)
 - Build/fix with tests: "<test command> exits 0, the change and state files are committed, and #XX-N is checked."
 
 Always include: mechanical checks over judgment phrasing; the state-commit clause; "without compromising requirements; stop at user gates"; and a turn bound ("or, if blocked or not converging after ~N turns, checkpoint state and stop with a status report" -- roughly 20 turns for a single task, 50 for a phase). One condition, under 4000 characters.
 
-Present the condition for the user to start with `/goal <condition>` — or, if already in a goal session, proceed under it.
+Present the derived condition. Then — unless already in a goal session (just proceed under the active condition) — ask the user how to proceed, with AskUserQuestion:
+
+- **Copy to clipboard** (recommended): put the full `/goal <condition>` on the clipboard (`pbcopy` on macOS; otherwise print it in a fenced block) for the user to paste, so the harness stop-hook enforces it.
+- **Process interactively**: work toward the condition now, in this session, without arming a `/goal` hook.
+- **Refine the goal together**: adjust scope, checks, or the turn bound before committing to it.
+
+Copy the exact text — a mistyped or mis-pasted condition is unenforceable. Do not set the goal yourself; `/goal` is the user's to issue.
 
 ## Autonomous boundaries
 
