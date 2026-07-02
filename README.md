@@ -57,13 +57,22 @@ What the kit deliberately does NOT carry — use the native capability instead:
 
 ## Install
 
+Clone the kit and run its installer against your project:
+
 ```sh
-./install.sh /path/to/your/project
+git clone https://github.com/ChristopherA/claude-workstream-kit
+claude-workstream-kit/install.sh /path/to/your/project
 ```
 
 Idempotent: safe to re-run for updates. It copies the `.claude/` payload, seeds `.state/` (never overwriting existing state), merges the kit's hooks into the project's `settings.json` (or tells you what to add), and stamps `.claude/workstream-kit.version`.
 
 If your project already has a `.claude/CLAUDE.md`, the kit's conventions are appended under a marker block instead of overwriting.
+
+## Upgrading
+
+There is no sync layer: upgrading is re-running `install.sh` from a newer copy, and your `.state/` is never touched. Paste this to your agent:
+
+> Upgrade the claude-workstream-kit in this project. If I have a local clone of github.com/ChristopherA/claude-workstream-kit, `cd` there and `git pull`; otherwise clone it. Then run its `install.sh` against this project's root, show me the diff to `.claude/`, and commit it.
 
 ## Status line (opt-in)
 
@@ -76,6 +85,10 @@ It is **off by default** — adopters may already run their own — so enable it
 ```
 
 The script is always copied into `.claude/scripts/`; the flag additionally registers it in `settings.json`, and only when no status line is already set, so it never overrides one you run. Enable it later by re-running with the flag; remove it by deleting the `statusLine` block from `.claude/settings.json`.
+
+Or paste this to your agent:
+
+> Enable the workstream kit's status line in this project: run the kit's `install.sh --status-line` against this project's root, then commit the `settings.json` change.
 
 ## Lifecycle
 
