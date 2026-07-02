@@ -88,7 +88,7 @@ The script is always copied into `.claude/scripts/`; the flag additionally regis
 
 Or paste this to your agent:
 
-> Enable the workstream kit's status line in this project: run the kit's `install.sh --status-line` against this project's root, then commit the `settings.json` change.
+> Enable the workstream kit's status line in this project. If I have a local clone of github.com/ChristopherA/claude-workstream-kit, `cd` there (`git pull` for the latest); otherwise clone it. Then run its `install.sh --status-line` against this project's root and commit the `settings.json` change.
 
 ## Lifecycle
 
