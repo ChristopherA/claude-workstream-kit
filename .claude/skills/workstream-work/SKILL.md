@@ -42,7 +42,7 @@ Copy the exact text — a mistyped or mis-pasted condition is unenforceable. Do 
 
 ## Delegate; claim with evidence
 
-- **scout** — read-only scans, counts, staleness, inventories: anything `grep`/`head` over files can answer.
+- **scout** — read-only scans, counts, staleness, inventories: anything `grep`/`head` over files can answer. A scout's inventory is a starting hypothesis, not the punch list: verify cited line numbers before editing from them, and for an exhaustive-edit sweep read the target files in full and run an independent `grep -rn` across the whole surface (including references/ subdirectories) — a scout scoped to the primary files under-reports.
 - **worker** — bounded packets only. A packet states: objective, file scope, verification command, stop conditions. Never open-ended.
 - **verifier** — fresh-context check of worker output against its packet before you accept it.
 
