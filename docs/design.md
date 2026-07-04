@@ -70,6 +70,8 @@ Newer Claude models follow short, principle-level instructions reliably — and 
 
 This was validated directly: in the kit's acceptance tests, fully autonomous sessions ran the create/work/close lifecycle and honored every user-authority constraint — no auto-starting work after creation, no auto-passing checkpoint gates, no self-certified closure — from the skill text alone.
 
+**Spend the strongest model where judgment concentrates.** The delegate agents already price the mechanical work (a Haiku-class scout; Sonnet-class worker and verifier); the main loop is where top-tier cost accrues. Deep re-coherence, design decisions, and gate evidence benefit from the strongest available model at high effort; working a settled backlog runs well a tier down, or at lower effort — on current frontier models, lower effort still outperforms prior generations at full effort. This is operator guidance, not configuration: the kit names no model and works unchanged on whatever the session runs.
+
 ## Work should end well
 
 Most tracking systems handle starting and doing; few handle ending. Unclosed work is where knowledge dies — decisions buried in stale files, lessons never extracted, "done" never actually verified. The kit treats closure as a first-class phase:
