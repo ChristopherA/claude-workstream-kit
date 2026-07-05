@@ -81,6 +81,16 @@ Most tracking systems handle starting and doing; few handle ending. Unclosed wor
 - **Learnings must reach a destination** outside the workstream — applied to a named file, handed off to another project, or dropped with stated rationale — before archive.
 - **Archive is a git tag plus one index line**, so closed work stays recoverable and searchable without staying loaded.
 
+## Reviewing artifacts for fitness
+
+Any long-lived artifact — a skill, a rules file, a template, this document — drifts as the ecosystem and the project evolve. Strong models run a fitness review natively from a well-framed request, assembling whatever standards apply; the kit ships no review machinery. What is worth writing down is the judgment frame:
+
+- **Name the finding**: *fit* (aligned, no action), *drifted* (correct when written; practice moved on), *stale* (references things that no longer exist), *incomplete* (missing something current standards require), or *novel* (an outside pattern the project lacks).
+- **Check evolution, not just content**: were decisions made after the artifact's last update that affect it? An artifact can be internally consistent and still wrong about the present.
+- **Compare against current standards, not artifact-vs-artifact**: when weighing outside content against your own, both may be stale; the reference point is what is current, not each other.
+- **Adapt, never adopt**: external patterns get mapped into the project's own conventions, not pasted in.
+- **Every finding gets a disposition** — fixed now, routed to a backlog with a named home, or dismissed with rationale. A finding without a disposition is an untracked gap.
+
 ## Autonomous sessions
 
 Durable, mechanically-checkable state is what makes goal-driven autonomy safe. The work skill derives a `/goal` condition from the backlog ("every Build-phase checkbox is checked, each with a committed artifact, and state files are committed"), states blast-radius boundaries (edits and commits proceed; user gates and anything shared-visible stop), and delegates mechanical passes to pinned cheap agents — a read-only scout, a worker that takes bounded packets, a fresh-context verifier that checks the worker's output against its spec. The state files are both the input (condition derivation) and the output (evidence-bearing checkboxes) of that loop.
