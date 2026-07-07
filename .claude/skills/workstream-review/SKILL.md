@@ -23,7 +23,7 @@ Drift signals, not a schedule: the session-start hook reports staleness; the bac
 
 ## Move 1 — Drift scan
 
-Read workstream.md and ACTIVE.md. Compare the Backlog against the Decisions and Learnings: does every settled Decision show in task wording and status? Has any Learning's integration target rotted or already been satisfied? Is the critical path derivable from the backlog, or only implicit? List the drift you find. If there is none, stop here and say so.
+Read workstream.md and ACTIVE.md. Compare the Backlog against the Decisions and Learnings: does every settled Decision show in task wording and status? Has any Learning's integration target rotted, already been satisfied, or — the subtler case — been captured but never applied? A Learning that names an integration target yet carries no disposition marker (DONE / routed / dropped), especially when its siblings all carry one, is presumptively unexecuted: verify it against the named file, not against the backlog's silence. Is the critical path derivable from the backlog, or only implicit? List the drift you find. If there is none, stop here and say so.
 
 ## Move 2 — Assumption surface
 
