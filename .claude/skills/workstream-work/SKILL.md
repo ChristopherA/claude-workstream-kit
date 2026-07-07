@@ -26,11 +26,11 @@ Always include: mechanical checks over judgment phrasing; the state-commit claus
 
 Present the derived condition. Then — unless already in a goal session (just proceed under the active condition) — ask the user how to proceed, with AskUserQuestion:
 
-- **Copy to clipboard** (recommended): put the full `/goal <condition>` on the clipboard (`pbcopy` on macOS; otherwise print it in a fenced block) for the user to paste, so the harness stop-hook enforces it.
+- **Copy to clipboard** (recommended): on selection, place the full `/goal <condition>` on the clipboard (`pbcopy` on macOS; on any other platform print it in a fenced block instead) for the user to paste, so the harness stop-hook enforces it.
 - **Process interactively**: work toward the condition now, in this session, without arming a `/goal` hook.
 - **Refine the goal together**: adjust scope, checks, or the turn bound before committing to it.
 
-Copy the exact text — a mistyped or mis-pasted condition is unenforceable. Do not set the goal yourself; `/goal` is the user's to issue.
+Never touch the clipboard until the user selects **Copy to clipboard** — it is a shared resource that may hold unrelated content, so presenting the condition or the question must not write it. On selection, copy the exact text — a mistyped or mis-pasted condition is unenforceable. Do not set the goal yourself; `/goal` is the user's to issue.
 
 ## Autonomous boundaries
 
