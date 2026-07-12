@@ -102,6 +102,16 @@ Each install writes two stamps under `.claude/`:
 
 They certify which kit release and which commit produced the payload now on disk. They do **not** certify that the payload is unmodified since install (local edits leave the stamp untouched — `--dry-run` is what detects those), nor that it is the newest kit (a stamp records the source at install time; compare its `source:` commit against the kit you hold to judge currency). The version can read current while the payload sits a commit or two behind: installing from a mid-stream checkout does this, and so does a content change shipped under an unchanged version number. Recording the source commit alongside the version is what makes that difference visible.
 
+### Versioning
+
+While the kit is pre-1.0, `VERSION` moves by the kind of change a release carries:
+
+- a new feature bumps the minor version (`0.4.0` to `0.5.0`);
+- a fix or clarification bumps the patch version (`0.5.0` to `0.5.1`);
+- the major version stays at `0`.
+
+`VERSION` marks curated releases. Between releases the `workstream-kit.source` stamp records the exact commit, so a project installed from a mid-stream checkout still reports precise provenance even when the version number has not moved.
+
 ## Status line (opt-in)
 
 The kit ships a self-contained status line that shows `project » branch » workstream` and the percent of context remaining before auto-compaction, reading the active workstream from `.state/ACTIVE.md`. It needs only `jq`.
