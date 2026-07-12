@@ -64,15 +64,43 @@ git clone https://github.com/ChristopherA/claude-workstream-kit
 claude-workstream-kit/install.sh /path/to/your/project
 ```
 
-Idempotent: safe to re-run for updates. It copies the `.claude/` payload, seeds `.state/` (never overwriting existing state), merges the kit's hooks into the project's `settings.json` (or tells you what to add), and stamps `.claude/workstream-kit.version`.
+Idempotent: safe to re-run for updates. It copies the `.claude/` payload, seeds `.state/` (never overwriting existing state), merges the kit's hooks into the project's `settings.json` (or tells you what to add), and stamps the installed version and source commit. Run it with `--dry-run` (alias `--check`) first to see exactly what a real run would change; it writes nothing and exits non-zero when anything is out of sync.
 
 If your project already has a `.claude/CLAUDE.md`, the kit's conventions are appended under a marker block instead of overwriting.
 
 ## Upgrading
 
-There is no sync layer: upgrading is re-running `install.sh` from a newer copy, and your `.state/` is never touched. Paste this to your agent:
+There is no sync layer: upgrading is re-running `install.sh` from a newer copy, and your `.state/` is never touched. Always update by running the installer, not by hand-copying files. The installer runs under `#!/bin/sh`, so it is immune to the macOS interactive `cp -i` / `mv -i` aliases that silently no-op a copy in a non-interactive shell and leave you thinking an update applied when it did not.
 
-> Upgrade the claude-workstream-kit in this project. If I have a local clone of github.com/ChristopherA/claude-workstream-kit, `cd` there and `git pull`; otherwise clone it. Then run its `install.sh` against this project's root, show me the diff to `.claude/`, and commit it.
+Preview first with `--dry-run` (alias `--check`). It compares the kit against your project file by file, reports what a real run would change, and exits without writing:
+
+```sh
+./install.sh --dry-run /path/to/your/project   # preview, writes nothing
+./install.sh           /path/to/your/project   # apply
+```
+
+Paste this to your agent:
+
+> Upgrade the claude-workstream-kit in this project. If I have a local clone of github.com/ChristopherA/claude-workstream-kit, `cd` there and `git pull`; otherwise clone it. Run its `install.sh --dry-run` against this project's root and show me the report. If it looks right, run it again without `--dry-run`, show me the diff to `.claude/`, and commit it.
+
+### What the dry run reports
+
+For each kit-managed file it prints one line:
+
+- **in sync** — your copy matches the kit.
+- **instance-behind** — your copy is an older kit version; a real run updates it. Safe to apply.
+- **instance-ahead** — your copy was edited locally and matches no kit version. A real run would overwrite that edit, so port it back into the kit before you apply.
+
+The `instance-ahead` case is why the dry run exists. An improvement made directly to an installed copy is invisible until something compares it against the kit, and a blind re-install erases it.
+
+### Version and source stamps
+
+Each install writes two stamps under `.claude/`:
+
+- `workstream-kit.version` — the released version, e.g. `0.4.0`.
+- `workstream-kit.source` — the exact source commit installed from (`source:` short SHA, `ref:` `git describe`).
+
+They certify which kit release and which commit produced the payload now on disk. They do **not** certify that the payload is unmodified since install (local edits leave the stamp untouched — `--dry-run` is what detects those), nor that it is the newest kit (a stamp records the source at install time; compare its `source:` commit against the kit you hold to judge currency). The version can read current while the payload sits a commit or two behind: installing from a mid-stream checkout does this, and so does a content change shipped under an unchanged version number. Recording the source commit alongside the version is what makes that difference visible.
 
 ## Status line (opt-in)
 
