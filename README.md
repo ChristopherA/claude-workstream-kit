@@ -93,6 +93,12 @@ For each kit-managed file it prints one line:
 
 The `instance-ahead` case is why the dry run exists. An improvement made directly to an installed copy is invisible until something compares it against the kit, and a blind re-install erases it.
 
+The version and source stamps are checked too:
+
+- **stamp-behind** — the payload matches the kit, but the recorded version is behind or the `.source` stamp is missing. A real run updates only the stamp, so it is safe to apply. It still exits non-zero, so a fleet upgrade that keys on the exit code does not skip a project that is a release behind on nothing but its stamp.
+
+A source commit merely older than the kit you hold, while the version matches, is reported as currency rather than drift: the dry run stays in sync and exits zero, because between releases the `.source` stamp is provenance to compare, not a required update (see Version and source stamps below).
+
 ### Version and source stamps
 
 Each install writes two stamps under `.claude/`:

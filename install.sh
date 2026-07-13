@@ -199,14 +199,35 @@ if [ "$DRY_RUN" -eq 1 ]; then
     fi
   fi
 
-  # Stamp that a real install WOULD write (never written in a dry run).
-  echo "  stamp (not written in --dry-run):"
-  echo "        .claude/workstream-kit.version -> $VERSION"
-  echo "        .claude/workstream-kit.source  -> source: $SRC_SHA, ref: $SRC_DESC"
+  # Version + source stamps a real install WOULD write, compared against the
+  # target's current stamps. A version stamp behind the kit VERSION, or an absent
+  # .source, is "stamp-behind" -- out of sync (a real install rewrites it), but a
+  # SAFE stamp-only apply when the payload is otherwise in sync. A source commit
+  # merely older than kit HEAD while the version matches is CURRENCY (reported
+  # above as "kit is N ahead"), not drift -- it stays exit 0.
+  sdrift=0
+  stamp_reason=""
+  if [ "$tgt_ver" != "$VERSION" ]; then
+    sdrift=1
+    stamp_reason="version $tgt_ver -> $VERSION"
+  fi
+  if [ ! -f "$TARGET/.claude/workstream-kit.source" ]; then
+    sdrift=1
+    stamp_reason="${stamp_reason:+$stamp_reason; }.source absent -> would be created"
+  fi
+  if [ "$sdrift" -eq 1 ]; then
+    echo "  ~ stamp-behind ($stamp_reason) -- SAFE stamp-only apply"
+    echo "        real install would write .version -> $VERSION, .source -> source: $SRC_SHA, ref: $SRC_DESC"
+  else
+    echo "  = stamp current (version $VERSION); a real install refreshes .source to $SRC_SHA (provenance only)"
+  fi
 
-  if [ "$drift" -eq 0 ]; then
-    echo "In sync: no file changes; CLAUDE.md and settings.json merges are no-ops. Nothing written."
+  if [ "$drift" -eq 0 ] && [ "$sdrift" -eq 0 ]; then
+    echo "In sync: payload, merges, and version stamp match the kit; a real install would make no required change (it may refresh .source provenance -- see any currency note above). This dry run made no changes."
     exit 0
+  elif [ "$drift" -eq 0 ]; then
+    echo "Stamp-behind: payload and merges match the kit, but the version/source stamp is behind -- a re-install updates only the stamp (safe stamp-only apply). This dry run made no changes."
+    exit 1
   else
     echo "Drift above. Re-run without --dry-run to apply; route any 'instance-ahead' file to the kit FIRST. Nothing written."
     exit 1
