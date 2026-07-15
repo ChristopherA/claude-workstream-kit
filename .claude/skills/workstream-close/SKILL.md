@@ -6,7 +6,9 @@ description: >-
   WHEN: the user says "close workstream", "/workstream-close", or the
   backlog is complete and deletion criteria look satisfiable.
   WHEN NOT: work still in progress (keep working); pausing
-  (set status: paused in workstream.md); creating (use /workstream-create).
+  (set status: paused in workstream.md); capturing a session at a
+  /clear, /compact, or pause boundary (use /workstream-capture);
+  creating (use /workstream-create).
 ---
 
 # Workstream Close
