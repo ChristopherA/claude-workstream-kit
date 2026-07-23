@@ -13,7 +13,7 @@
 # Writes /tmp/claude-{session_id}-context.json for programmatic context access.
 # Sessions read this file to make context budget decisions.
 #
-# Color thresholds match context-budget rule (usable_consumed_pct):
+# Color thresholds by usable context consumed (usable_consumed_pct):
 #   <40% consumed - Green (normal)
 #   40-59% consumed - Yellow (wrap up)
 #   >=60% consumed - Red + warning (compact/clear)
@@ -159,7 +159,7 @@ fi
 
 # Display remaining_to_compact — percentage of usable context still available.
 # High = lots of room (green), low = running out (red).
-# Color thresholds mirror context-budget-rule.md (40%/60%/80% consumed).
+# Color thresholds at 40%/60%/80% usable context consumed.
 echo "$line1"
 if [ "$usable_consumed" -ge 60 ]; then
     printf '%s%b%s%s%b %s\n' "$model_prefix" "$RED" "$remaining_to_compact" "%" "$RESET" "⚠️${cost_suffix}"
