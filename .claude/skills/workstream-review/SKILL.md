@@ -37,6 +37,10 @@ For each open task, ask whether it belongs in this workstream or another. Mispla
 
 Make the backlog reflect what is now known: add a critical-path note if the order is implicit; reframe task wording a Decision has overtaken (never renumber IDs); mark superseded Decisions in place; split an over-grown workstream rather than the file. Mechanical fixes (a rotted pointer, a stale status) proceed; substantive restructures are presented for approval with the drift evidence behind them.
 
+## Optional move — Set-level deliverable review
+
+When the workstream's deliverable is a multi-document set headed to an approval gate, review the SET, not just each document: per-document review structurally misses defects that live between documents — divergent vocabularies with no mapping, one document's acceptance gates depending on a sibling's deferred feature, a table breaching a sibling's stated doctrine, deferral loops where each document points a decision at the others, and cross-cutting claims no document verified. Run two passes before the gate: your own fresh-eye read of the whole set, front-to-back and back-to-front; and a fresh-context subagent prompted adversarially with no workstream priors, over the whole set. Calibrate the subagent's output: verify its quoted evidence before acting on it, and expect its severity ratings to run hot — the findings tend to be real, the labels inflated.
+
 ## Move 5 — Record
 
 Commit the restructured state. Update ACTIVE.md with what the review changed and the next action. Route any cross-workstream work this surfaced before finishing — capture should not wait for the user to ask.
