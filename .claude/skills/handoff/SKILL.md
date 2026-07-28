@@ -33,7 +33,8 @@ Self-contained context and the requested action.
 1. Gather the items. The self-containment test for each: could someone act on it with NO access to this conversation or this repo? Include file contents, decisions, and rationale inline as needed.
 2. Confirm the destination project path with the user — writing into another project is a cross-project action and gets its own confirmation.
 3. Write the file (`mkdir -p <dest>/.state/handoffs/` first). One file per destination; bundle multiple items.
-4. If the destination project does not exist yet, do NOT create a holding pen — record the items in the sender's own workstream.md (backlog or open question) until it does.
+4. Commit the file in the receiver's repo (scoped: `git -C <dest> add` the file, then commit only it). An uncommitted handoff is invisible to the receiver's other machines and one `git clean` from gone — state files are committed in the session that writes them, and that includes state written into another project. If the receiver's repo has staged work, do not sweep it up; commit only the handoff path.
+5. If the destination project does not exist yet, do NOT create a holding pen — record the items in the sender's own workstream.md (backlog or open question) until it does.
 
 ## Receive
 
