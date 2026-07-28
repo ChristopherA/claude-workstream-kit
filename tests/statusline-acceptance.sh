@@ -1,6 +1,7 @@
 #!/bin/sh
-# Acceptance test for the opt-in status line. Mechanical -- no Claude Code
-# session required. Run from anywhere: tests/statusline-acceptance.sh
+# Acceptance test for the status line (registered by default, set-if-absent).
+# Mechanical -- no Claude Code session required. Run from anywhere:
+# tests/statusline-acceptance.sh
 set -eu
 
 KIT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -15,17 +16,12 @@ rm -rf "$PROJ"
 mkdir -p "$PROJ" && cd "$PROJ"
 git init -q -b main
 
-echo "== Default install (no flag): script present, statusLine NOT registered"
+echo "== Default install: script present, statusLine registered, hooks intact"
 "$KIT_DIR/install.sh" "$PROJ" >/dev/null
-check "script copied even without the flag" "[ -x .claude/scripts/status-line.sh ]"
-check "default install does NOT register statusLine" "! jq -e .statusLine .claude/settings.json >/dev/null 2>&1"
-check "hooks present after default install" "jq -e .hooks.SessionStart .claude/settings.json >/dev/null"
-
-echo "== Opt-in install (--status-line): statusLine registered, hooks intact"
-"$KIT_DIR/install.sh" --status-line "$PROJ" >/dev/null
-check "statusLine registered" "jq -e '.statusLine.command | test(\"status-line.sh\")' .claude/settings.json >/dev/null"
+check "script copied" "[ -x .claude/scripts/status-line.sh ]"
+check "statusLine registered by default" "jq -e '.statusLine.command | test(\"status-line.sh\")' .claude/settings.json >/dev/null"
 check "statusLine type is command" "[ \"\$(jq -r .statusLine.type .claude/settings.json)\" = command ]"
-check "hooks still intact (not clobbered)" "jq -e .hooks.SessionStart .claude/settings.json >/dev/null"
+check "hooks present after install" "jq -e .hooks.SessionStart .claude/settings.json >/dev/null"
 
 # Mock statusLine stdin payload; project_dir is what the registered command resolves against.
 printf 'workstream: feature/demo\n' > .state/ACTIVE.md
@@ -42,15 +38,15 @@ echo "== Script renders correctly when invoked directly too"
 OUT2=$(printf '%s' "$INPUT" | sh .claude/scripts/status-line.sh)
 if printf '%s' "$OUT2" | grep -q 'feature/demo'; then echo "PASS: direct invocation renders workstream"; else echo "FAIL: direct invocation renders workstream"; RESULT=1; fi
 
-echo "== Idempotent: re-run with flag does not change settings.json"
+echo "== Idempotent: re-run does not change settings.json"
 jq -S . .claude/settings.json > before.json
-"$KIT_DIR/install.sh" --status-line "$PROJ" >/dev/null
+"$KIT_DIR/install.sh" "$PROJ" >/dev/null
 jq -S . .claude/settings.json > after.json
-check "opt-in merge is idempotent" "diff -q before.json after.json >/dev/null"
+check "statusLine merge is idempotent" "diff -q before.json after.json >/dev/null"
 
 echo "== Never clobber a pre-existing statusLine (set-if-absent)"
 jq '.statusLine={type:"command",command:"custom-sl"}' .claude/settings.json > ss.tmp && mv ss.tmp .claude/settings.json
-"$KIT_DIR/install.sh" --status-line "$PROJ" >/dev/null
+"$KIT_DIR/install.sh" "$PROJ" >/dev/null
 check "existing statusLine preserved" "[ \"\$(jq -r .statusLine.command .claude/settings.json)\" = custom-sl ]"
 
 cd /

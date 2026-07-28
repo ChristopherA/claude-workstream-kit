@@ -42,7 +42,7 @@ Because the state is plain files in git, it is portable across machines, account
 | Session resume | `.claude/hooks/session-start.sh` + `settings.json` hook registration |
 | Boundary capture | workstreams-rule capture sweep + `.claude/skills/workstream-capture/` + `.claude/hooks/capture-nudge.sh` (SessionEnd/PreCompact nudge) |
 | State seed | `.state/` (ACTIVE.md, workstreams/, handoffs/) |
-| Status line (opt-in) | `.claude/scripts/status-line.sh`, enabled with `install.sh --status-line` |
+| Status line | `.claude/scripts/status-line.sh`, registered set-if-absent by `install.sh` |
 
 What the kit deliberately does NOT carry — use the native capability instead:
 
@@ -118,21 +118,11 @@ While the kit is pre-1.0, `VERSION` moves by the kind of change a release carrie
 
 `VERSION` marks curated releases. Between releases the `workstream-kit.source` stamp records the exact commit, so a project installed from a mid-stream checkout still reports precise provenance even when the version number has not moved.
 
-## Status line (opt-in)
+## Status line
 
-The kit ships a self-contained status line that shows `project » branch » workstream` and the percent of context remaining before auto-compaction, reading the active workstream from `.state/ACTIVE.md`. It needs only `jq`.
+The kit ships a self-contained status line that shows `project » branch » workstream` and the percent of context remaining before auto-compaction, reading the active workstream from `.state/ACTIVE.md`. It also writes a per-session context JSON to `/tmp` that sessions read for context-budget decisions. It needs only `jq`.
 
-It is **off by default** — adopters may already run their own — so enable it with the flag:
-
-```sh
-./install.sh --status-line /path/to/your/project
-```
-
-The script is always copied into `.claude/scripts/`; the flag additionally registers it in `settings.json`, and only when no status line is already set, so it never overrides one you run. Enable it later by re-running with the flag; remove it by deleting the `statusLine` block from `.claude/settings.json`.
-
-Or paste this to your agent:
-
-> Enable the workstream kit's status line in this project. If I have a local clone of github.com/ChristopherA/claude-workstream-kit, `cd` there (`git pull` for the latest); otherwise clone it. Then run its `install.sh --status-line` against this project's root and commit the `settings.json` change.
+Install registers it in `settings.json` automatically — but only when no `statusLine` is already set, so a status line you already run is never overridden. Remove it by deleting the `statusLine` block from `.claude/settings.json` — but note a later re-install will register it again once the slot is empty, so to stay opted out across updates, point `statusLine` at your own command instead of leaving the slot absent.
 
 ## Lifecycle
 

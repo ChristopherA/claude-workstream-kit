@@ -1,8 +1,7 @@
 #!/bin/sh
 # Install (or update) the Claude Workstream Kit into a target project.
-# Usage: ./install.sh [--dry-run] [--status-line] /path/to/project
+# Usage: ./install.sh [--dry-run] /path/to/project
 #   --dry-run    (alias --check) report per-file drift and exit WITHOUT writing
-#   --status-line  also register the opt-in workstream-aware status line
 # Idempotent: re-run to update the .claude/ payload; existing .state/ is never touched.
 # --dry-run compares the kit payload against the target and reports, per file,
 # whether the target is in sync, behind the kit (stale), or ahead of it (locally
@@ -12,14 +11,12 @@ set -eu
 # Normalize to absolute paths at entry.
 KIT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
-USAGE="Usage: $0 [--dry-run] [--status-line] /path/to/project"
-STATUS_LINE=0
+USAGE="Usage: $0 [--dry-run] /path/to/project"
 DRY_RUN=0
 TARGET_ARG=""
 for arg in "$@"; do
   case "$arg" in
     --dry-run|--check) DRY_RUN=1 ;;
-    --status-line) STATUS_LINE=1 ;;
     -*) echo "ERROR: unknown option '$arg'" >&2
         echo "$USAGE" >&2
         exit 2 ;;
@@ -187,15 +184,13 @@ if [ "$DRY_RUN" -eq 1 ]; then
     echo "  ? .claude/settings.json  jq absent -- cannot check the hook merge"
   fi
 
-  # Status-line merge, only when the flag is present (set-if-absent, never clobber).
-  if [ "$STATUS_LINE" -eq 1 ]; then
-    if [ -f "$tsj" ] && command -v jq >/dev/null 2>&1; then
-      if jq -e '.statusLine' "$tsj" >/dev/null 2>&1; then
-        echo "  = statusLine  already set (--status-line would keep it, never clobber)"
-      else
-        echo "  ~ statusLine  would be registered (none set)"
-        drift=1
-      fi
+  # Status-line merge (set-if-absent, never clobber).
+  if [ -f "$tsj" ] && command -v jq >/dev/null 2>&1; then
+    if jq -e '.statusLine' "$tsj" >/dev/null 2>&1; then
+      echo "  = statusLine  already set (kept as-is, never clobbered)"
+    else
+      echo "  ~ statusLine  would be registered (none set)"
+      drift=1
     fi
   fi
 
@@ -286,24 +281,22 @@ else
   echo "    PreCompact, SessionEnd -> command: $CN_CMD"
 fi
 
-# --- statusLine: opt-in via --status-line -----------------------------------
-# Not registered by default -- adopters may run their own status line. statusLine
-# commands get no $CLAUDE_PROJECT_DIR, so the command derives the project dir from
-# the JSON on stdin and re-pipes it to the project-local script.
-if [ "$STATUS_LINE" -eq 1 ]; then
-  SL_CMD='i=$(cat); d=$(printf %s "$i" | jq -r .workspace.project_dir); printf %s "$i" | sh "$d/.claude/scripts/status-line.sh"'
-  if command -v jq >/dev/null 2>&1; then
-    # Set-if-absent: register only when no status line exists (never clobber).
-    jq --arg cmd "$SL_CMD" '
-      if .statusLine then . else .statusLine = {"type":"command","command":$cmd} end
-    ' "$TARGET/.claude/settings.json" > "$TARGET/.claude/settings.json.tmp"
-    mv "$TARGET/.claude/settings.json.tmp" "$TARGET/.claude/settings.json"
-    echo "  registered opt-in status line (or kept an existing one) in settings.json"
-  else
-    echo "  ACTION REQUIRED: install jq and re-run with --status-line, or add this"
-    echo "  statusLine command to .claude/settings.json manually:"
-    printf '    %s\n' "$SL_CMD"
-  fi
+# --- statusLine: workstream-aware status line (set-if-absent) ----------------
+# Registered on every install, but only when the target has no status line of its
+# own -- an existing statusLine is never clobbered. statusLine commands get no
+# $CLAUDE_PROJECT_DIR, so the command derives the project dir from the JSON on
+# stdin and re-pipes it to the project-local script.
+SL_CMD='i=$(cat); d=$(printf %s "$i" | jq -r .workspace.project_dir); printf %s "$i" | sh "$d/.claude/scripts/status-line.sh"'
+if command -v jq >/dev/null 2>&1; then
+  jq --arg cmd "$SL_CMD" '
+    if .statusLine then . else .statusLine = {"type":"command","command":$cmd} end
+  ' "$TARGET/.claude/settings.json" > "$TARGET/.claude/settings.json.tmp"
+  mv "$TARGET/.claude/settings.json.tmp" "$TARGET/.claude/settings.json"
+  echo "  registered status line (or kept an existing one) in settings.json"
+else
+  echo "  ACTION REQUIRED: install jq and re-run, or add this statusLine"
+  echo "  command to .claude/settings.json manually:"
+  printf '    %s\n' "$SL_CMD"
 fi
 
 # --- .state/ seed (never overwrite existing state) --------------------------
