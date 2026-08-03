@@ -28,13 +28,13 @@ Always include: mechanical checks over judgment phrasing; the state-commit claus
 
 **`/goal` is a poor fit for user-gated interactive work** — provisioning that needs repeated sudo passwords, GUI steps, device approvals, or biometric taps. The Stop hook re-fires every turn while the condition is unmet, so it churns at each gate (and overnight, if the user steps away). For such work, present the plan and drive it step-by-step **without** setting a `/goal`. If a goal is already set and you hit a user gate the user can't clear soon, recommend they run `/goal clear` (it does not auto-clear until met). Reserve `/goal` for work that is mostly autonomous between checks.
 
-Present the derived condition. Then — unless already in a goal session (just proceed under the active condition) — ask the user how to proceed, with AskUserQuestion:
+Summarize in chat what reaching the condition will **achieve against the backlog** — which tasks close, what artifact lands, which gate the session stops at, and what state the workstream is in afterward. Do not summarize the condition's own wording: the user is deciding whether that outcome is the right scope for the session, and a paraphrase of the goal text answers a question they did not ask. Hold the condition text itself back until they choose. Then — unless already in a goal session (just proceed under the active condition) — ask the user how to proceed, with AskUserQuestion:
 
-- **Copy to clipboard** (recommended): on selection, place the full `/goal <condition>` on the clipboard (`pbcopy` on macOS; on any other platform print it in a fenced block instead) for the user to paste, so the harness stop-hook enforces it.
+- **Copy to clipboard** (recommended): on selection, place the full `/goal <condition>` on the clipboard (`pbcopy` on macOS) **and** print that same text in the chat in a fenced code block, so the user can paste from either. Where no clipboard tool exists, the fenced block is the delivery.
 - **Process interactively**: work toward the condition now, in this session, without arming a `/goal` hook.
 - **Refine the goal together**: adjust scope, checks, or the turn bound before committing to it.
 
-Never touch the clipboard until the user selects **Copy to clipboard** — it is a shared resource that may hold unrelated content, so presenting the condition or the question must not write it. On selection, copy the exact text — a mistyped or mis-pasted condition is unenforceable. Do not set the goal yourself; `/goal` is the user's to issue.
+Never touch the clipboard until the user selects **Copy to clipboard** — it is a shared resource that may hold unrelated content, so neither the outcome summary nor the question itself may write it. On selection, the clipboard and the fenced block carry the exact same text — a mistyped or mis-pasted condition is unenforceable. Do not set the goal yourself; `/goal` is the user's to issue.
 
 ## Autonomous boundaries
 
