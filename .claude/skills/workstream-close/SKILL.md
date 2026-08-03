@@ -27,19 +27,23 @@ Disposition every Learning and every Open Question — each one ends in exactly 
 - **Handed off**: sent to another project via `/handoff` (do it now, not "later").
 - **Dropped**: with stated rationale, in place.
 
+Verify each recorded disposition instead of trusting it — a Learning's claim is reliable in proportion to what it cites. One citing a **commit** ("integrated at `<sha>`") can be spot-checked and usually holds. One citing a **task** ("integration target: `<file>`, at #XX-N") is aspirational until that task actually ran, and a closure task deferred session after session takes every Learning routed to it down with it. Sweep all of them rather than reconstructing what an earlier session checked: an already-applied item simply reads present, so a full pass is self-correcting and cheaper than working out where the last one stopped. Verify with `rg --hidden` whenever the named target sits under a dot-directory — a default ripgrep sweep skips `.claude/` and returns falsely clean.
+
 Deploy any durable artifacts still living under `.state/` (docs, reference material, decisions other projects need) to their permanent homes. Decisions stay in workstream.md — the archive tag preserves them; ARCHIVE.md will carry the pointer. If a `notes.md` sits beside workstream.md, disposition every section — summarized into workstream.md, routed to a named home, or dropped by declaration — so nothing load-bearing dies with the archive.
 
 ## Move 2.5 — Cross-workstream cascade
 
 Sweep this session — not just this workstream's recorded Learnings — for findings that belong to OTHER active workstreams or projects: a decision, a sibling fix, an open question raised in passing. Route each before archive: to another workstream's Backlog with provenance, or out as a handoff. Closure is the last chance; an insight not routed here dies in the tag.
 
+An origin's word for a routing is not evidence that the routing exists. For every item recorded as absorbed, routed, or covered downstream — here or in the Decisions — grep the DESTINATION for it. If the receiving task or its Deletion Criteria do not name it, it is not routed: edit them so they do, then continue. This is cheap and it is the one check that catches an absorption declared at the origin and accepted nowhere else.
+
 ## Move 3 — Deletion-criteria gate (USER decides)
 
-For each deletion criterion, show the criterion and its evidence (file, commit, test output). Unsatisfied criteria mean the workstream is not ready — say so and stop. When all criteria have evidence, ask the user to approve closure. Never self-certify.
+For each deletion criterion, show the criterion and its evidence (file, commit, test output). A criterion declared covered by a downstream gate is satisfied only if that gate names it — check the destination, not the declaration; a criterion whose whole point is a judgment call is not discharged by a receiving task's mechanical checks. Unsatisfied criteria mean the workstream is not ready — say so and stop. When all criteria have evidence, ask the user to approve closure. Never self-certify.
 
 ## Move 4 — Archive
 
-After approval:
+After approval, `ls` the workstream directory before removing anything: `workstream.md` is not always the only file there, and whatever else sits beside it needs a disposition (Move 2) rather than a discovery at `git rm`. Then:
 
 1. Append to `.state/workstreams/ARCHIVE.md`: `- YYYY-MM-DD type/name -- <one-line outcome> (tag: ws/<name>)`
 2. `git tag -m "<one-line outcome>" ws/<name>` on the final state commit
