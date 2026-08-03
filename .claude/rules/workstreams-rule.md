@@ -61,7 +61,7 @@ Frontmatter is flat `key: value` only — it is parsed with `head` and `grep`, n
 ## Conventions
 
 - **Task IDs**: `#XX-N` where XX is a 2-3 letter phase code unique in the workstream. IDs are stable references; never renumber. Sub-tasks `#XX-Na`; deferred `#XX-Nd` with a "Blocked by / unblocks when" line.
-- **Gates**: `#G-XX` tasks are USER CHECKPOINTS. They are decided by the user, presented with a substantive summary and evidence. Autonomous sessions stop at them.
+- **Gates**: `#G-XX` tasks are USER CHECKPOINTS. They are decided by the user, presented with a substantive summary and evidence. Autonomous sessions stop at them. The summary has to reach the user before the decision does: text written between tool calls is not guaranteed to render, so finish the stage's tool calls first and let the summary open the message that carries the question. A gate decided against a summary the user never saw is not a gate.
 - **Checkboxes** are the progress mechanism: `- [ ]` open, `- [x]` done with a one-line completion note (date + evidence). Counts come from `grep -c '^- \[ \]'`.
 - **Decisions record reasoning**, not just outcomes. A decision that routes work to a future task also updates that task's description in the same commit. When a later decision supersedes an earlier one, mark the earlier in place at that moment (e.g. `~~superseded by D7~~`) so a stale decision never reads as current.
 - **Learnings are insights, not work items.** Route work to the Backlog; give each learning an integration target and disposition it at closure — or, in a never-closing workstream, the moment it is resolved (see Constraints).
