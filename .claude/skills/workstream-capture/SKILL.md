@@ -29,3 +29,17 @@ Then close the boundary cleanly:
 - Commit the state files, signed and scoped to `.state/`; do not sweep unrelated working changes into the commit.
 
 When everything is captured and committed, say it is safe to cross the boundary and name what `Next` points at, so the next session knows where `/workstream-work` picks up. If nothing this session needs capturing, say so plainly -- do not invent items to look thorough.
+
+## Context status, last
+
+If the kit's status line is installed it writes a per-session JSON file that carries this session's context budget. Read the newest record for this project and report it as the **very last line** of the capture, so the decision the user is about to make -- `/clear`, `/compact`, or keep going -- is made against a number rather than a guess:
+
+```sh
+find /tmp/ -maxdepth 1 -name 'claude-*-context.json' -exec jq -s --arg p "$PWD" \
+  '[.[]|select(.project_dir==$p)]|sort_by(.updated)|last
+   |if . then "context: \(.usable_consumed_pct)% of usable consumed, \(.remaining_pct)% of window remaining" else empty end' {} +
+```
+
+The trailing slash on `/tmp/` is required where `/tmp` is a symlink (macOS): `find /tmp` without it descends nothing and returns falsely empty. No output means no status line or no record for this project -- say nothing about context in that case rather than reporting zero.
+
+Report the two numbers and what they imply: under 40% consumed, crossing is optional and there is room to keep working; 40-59%, cross now while capture is fresh; 60% or more, cross immediately -- auto-compact is close enough to interrupt the next task mid-write.
