@@ -118,6 +118,8 @@ While the kit is pre-1.0, `VERSION` moves by the kind of change a release carrie
 
 `VERSION` marks curated releases. Between releases the `workstream-kit.source` stamp records the exact commit, so a project installed from a mid-stream checkout still reports precise provenance even when the version number has not moved.
 
+A release is soft until its tag reaches the remote. While `git ls-remote --tags origin` does not show it, approved work arriving late folds into the pending release — re-cutting costs a deleted local tag and a reset. Once the tag is public, the same work takes a new patch release instead, because a project may already have installed from it.
+
 ## Status line
 
 The kit ships a self-contained status line that shows `project » branch » workstream` and the percent of context remaining before auto-compaction, reading the active workstream from `.state/ACTIVE.md`. It also writes a per-session context JSON to `/tmp` that sessions read for context-budget decisions. It needs only `jq`.
