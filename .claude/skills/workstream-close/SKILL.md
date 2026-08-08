@@ -50,5 +50,5 @@ After approval, `ls` the workstream directory before removing anything: `workstr
 1. Append to `.state/workstreams/ARCHIVE.md`: `- YYYY-MM-DD type/name -- <one-line outcome> (tag: ws/<name>)`
 2. `git tag -m "<one-line outcome>" ws/<name>` on the final state commit
 3. `git rm -r` the workstream directory
-4. Reset `.state/ACTIVE.md`: `workstream: none`, `task: none`, fresh Now/Next/Blockers
+4. Reset `.state/ACTIVE.md` **only if it names the workstream being closed**: `workstream: none`, `task: none`, fresh Now/Next/Blockers. If it points somewhere else — most often a successor that has already inherited this workstream's residue — leave it and say in the closure notes that it was left, so the deviation is visible rather than inferred. Resetting a live pointer discards the next session's resume target immediately after the closure summary named it.
 5. Commit
