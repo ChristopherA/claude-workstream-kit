@@ -29,6 +29,13 @@ if [ -n "${WS:-}" ] && [ "$WS" != "none" ]; then
     STATUS=$(grep '^status:' "$WS_FILE" | head -1 | cut -d' ' -f2 || true)
     echo "Active workstream: $WS (status: $STATUS, open tasks: $OPEN, open gates: $GATES)"
 
+    # Size: a completion note is one line however long it runs, so line count
+    # understates reading cost. Warn on bytes, well before a single read fails.
+    WS_BYTES=$(wc -c < "$WS_FILE" | tr -d ' ')
+    if [ "$WS_BYTES" -gt 65536 ]; then
+      echo "SIZE: workstream.md is $((WS_BYTES / 1024))KB -- past comfortable single-read size. Condense completed records (/workstream-review) or split the workstream."
+    fi
+
     # Staleness: ACTIVE.md updated long before the repo's last commit (work
     # happening outside the workstream), or workstream.md untouched 14+ days.
     NOW_S=$(date +%s)

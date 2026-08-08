@@ -75,7 +75,7 @@ Frontmatter is flat `key: value` only — it is parsed with `head` and `grep`, n
 - Never-closing workstreams (`maintain`, or any without a closure milestone) extract each Learning to its destination the moment it is resolved, not at a closure that never comes, and re-check their standing-health Deletion Criteria each review cycle.
 - One tracker per tier: workstream.md Backlog for cross-session work; native Tasks/plan mode within a session. Never both for the same items.
 - State files are committed in the session that changes them — uncommitted state does not survive to other machines or future triage.
-- A workstream.md that outgrows a few hundred lines is a signal to split the workstream, not the file.
+- A workstream.md that outgrows a few hundred lines is a signal to split the workstream, not the file. Judge that by reading cost rather than line count: a completion note is one line however long it runs, so a file can sit inside a line threshold while having become too large to read in a single pass.
 - Size an `explore` workstream to a short arc — research to a checkpoint, then close — not the multi-phase backlog a `project` workstream carries. An oversized explore container invites scope drift, where real work happens untracked beside a stalled exploration task; when findings are ready to act on, close the exploration and open a `feature` or `project` workstream for the build.
 - Scripts that touch `.state/` normalize to absolute paths at entry.
 
