@@ -30,7 +30,7 @@ Self-contained context and the requested action.
 
 ## Create
 
-1. Gather the items. The self-containment test for each: could someone act on it with NO access to this conversation or this repo? Include file contents, decisions, and rationale inline as needed.
+1. Gather the items. The self-containment test for each: could someone act on it with NO access to this conversation or this repo? Include file contents, decisions, and rationale inline as needed. An item asking the receiver to adopt a boundary, constraint, or ownership split carries one instruction before the writing: grep the target for the clause that currently contradicts it. A boundary appended while the broader permission it narrows stays in place leaves two passages equally authoritative, and the broader one wins in practice.
 2. Confirm the destination project path with the user — writing into another project is a cross-project action and gets its own confirmation.
 3. Write the file (`mkdir -p <dest>/.state/handoffs/` first). One file per destination; bundle multiple items.
 4. Commit the file in the receiver's repo (scoped: `git -C <dest> add` the file, then commit only it). An uncommitted handoff is invisible to the receiver's other machines and one `git clean` from gone — state files are committed in the session that writes them, and that includes state written into another project. If the receiver's repo has staged work, do not sweep it up; commit only the handoff path.
