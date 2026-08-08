@@ -11,12 +11,14 @@ set -eu
 # Normalize to absolute paths at entry.
 KIT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
-USAGE="Usage: $0 [--dry-run] /path/to/project"
+USAGE="Usage: $0 [--dry-run] [--force] /path/to/project"
 DRY_RUN=0
+FORCE=0
 TARGET_ARG=""
 for arg in "$@"; do
   case "$arg" in
     --dry-run|--check) DRY_RUN=1 ;;
+    --force) FORCE=1 ;;
     -*) echo "ERROR: unknown option '$arg'" >&2
         echo "$USAGE" >&2
         exit 2 ;;
@@ -227,6 +229,36 @@ if [ "$DRY_RUN" -eq 1 ]; then
     echo "Drift above. Re-run without --dry-run to apply; route any 'instance-ahead' file to the kit FIRST. Nothing written."
     exit 1
   fi
+fi
+
+# --- refuse to overwrite locally modified payload files ---------------------
+# The dry run reports drift direction to whoever asks for it. This fires
+# whether or not anyone asked, because the real run is where an unrouted
+# local improvement is actually lost.
+if [ "$FORCE" -eq 0 ] && [ "$KIT_IS_GIT" -eq 1 ]; then
+  ahead_file=$(mktemp)
+  for d in rules skills agents hooks scripts; do
+    find "$KIT_DIR/.claude/$d" -type f
+  done | sort | while IFS= read -r f; do
+    rel=${f#"$KIT_DIR"/}
+    tf="$TARGET/$rel"
+    if [ ! -f "$tf" ]; then
+      continue
+    elif cmp -s "$f" "$tf"; then
+      continue
+    fi
+    case "$(classify_direction "$rel" "$tf")" in
+      instance-ahead*) echo "  $rel" >> "$ahead_file" ;;
+    esac
+  done
+  if [ -s "$ahead_file" ]; then
+    echo "ERROR: refusing to overwrite locally modified payload files:" >&2
+    cat "$ahead_file" >&2
+    echo "Route them to the kit first, or re-run with --force to discard them." >&2
+    rm -f "$ahead_file"
+    exit 1
+  fi
+  rm -f "$ahead_file"
 fi
 
 echo "Installing claude-workstream-kit $VERSION ($SRC_DESC) into $TARGET"

@@ -64,7 +64,7 @@ git clone https://github.com/ChristopherA/claude-workstream-kit
 claude-workstream-kit/install.sh /path/to/your/project
 ```
 
-Idempotent: safe to re-run for updates. It copies the `.claude/` payload, seeds `.state/` (never overwriting existing state), merges the kit's hooks into the project's `settings.json` (or tells you what to add), and stamps the installed version and source commit. Run it with `--dry-run` (alias `--check`) first to see exactly what a real run would change; it writes nothing and exits non-zero when anything is out of sync.
+Idempotent: safe to re-run for updates. It copies the `.claude/` payload, seeds `.state/` (never overwriting existing state), merges the kit's hooks into the project's `settings.json` (or tells you what to add), and stamps the installed version and source commit. A re-run stops rather than overwriting a payload file you edited locally, so an unrouted improvement is not lost by re-running without looking (`--force` discards it deliberately). Run it with `--dry-run` (alias `--check`) first to see exactly what a real run would change; it writes nothing and exits non-zero when anything is out of sync.
 
 If your project already has a `.claude/CLAUDE.md`, the kit's conventions are appended under a marker block instead of overwriting.
 
@@ -89,9 +89,9 @@ For each kit-managed file it prints one line:
 
 - **in sync** — your copy matches the kit.
 - **instance-behind** — your copy is an older kit version; a real run updates it. Safe to apply.
-- **instance-ahead** — your copy was edited locally and matches no kit version. A real run would overwrite that edit, so port it back into the kit before you apply.
+- **instance-ahead** — your copy was edited locally and matches no kit version. Port it back into the kit before you apply.
 
-The `instance-ahead` case is why the dry run exists. An improvement made directly to an installed copy is invisible until something compares it against the kit, and a blind re-install erases it.
+The `instance-ahead` case is why the dry run exists. An improvement made directly to an installed copy is invisible until something compares it against the kit. A real run refuses to overwrite such a file: it lists what it found and exits non-zero, so the loss cannot happen by simply not looking. Route the edit into the kit, or pass `--force` to discard it deliberately.
 
 The version and source stamps are checked too:
 
@@ -106,7 +106,7 @@ Each install writes two stamps under `.claude/`:
 - `workstream-kit.version` — the released version, e.g. `0.4.0`.
 - `workstream-kit.source` — the exact source commit installed from (`source:` short SHA, `ref:` `git describe`).
 
-They certify which kit release and which commit produced the payload now on disk. They do **not** certify that the payload is unmodified since install (local edits leave the stamp untouched — `--dry-run` is what detects those), nor that it is the newest kit (a stamp records the source at install time; compare its `source:` commit against the kit you hold to judge currency). The version can read current while the payload sits a commit or two behind: installing from a mid-stream checkout does this, and so does a content change shipped under an unchanged version number. Recording the source commit alongside the version is what makes that difference visible.
+They certify which kit release and which commit produced the payload now on disk. They do **not** certify that the payload is unmodified since install (local edits leave the stamp untouched — `--dry-run` reports them, and a real run refuses to overwrite them), nor that it is the newest kit (a stamp records the source at install time; compare its `source:` commit against the kit you hold to judge currency). The version can read current while the payload sits a commit or two behind: installing from a mid-stream checkout does this, and so does a content change shipped under an unchanged version number. Recording the source commit alongside the version is what makes that difference visible.
 
 ### Versioning
 
