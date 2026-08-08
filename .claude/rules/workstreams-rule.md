@@ -65,7 +65,7 @@ Frontmatter is flat `key: value` only — it is parsed with `head` and `grep`, n
 - **Checkboxes** are the progress mechanism: `- [ ]` open, `- [x]` done with a one-line completion note (date + evidence). Counts come from `grep -c '^- \[ \]'`.
 - **Decisions record reasoning**, not just outcomes. A decision that routes work to a future task also updates that task's description in the same commit. When a later decision supersedes an earlier one, mark the earlier in place at that moment (e.g. `~~superseded by D7~~`) so a stale decision never reads as current.
 - **Learnings are insights, not work items.** Route work to the Backlog; give each learning an integration target and disposition it at closure — or, in a never-closing workstream, the moment it is resolved (see Constraints).
-- **ARCHIVE.md**: closure appends one line per workstream: `- YYYY-MM-DD type/name -- outcome (tag: ws/<name>)`.
+- **`.state/workstreams/ARCHIVE.md`**: closure appends one line per workstream: `- YYYY-MM-DD type/name -- outcome (tag: ws/<name>)`. Cite the ledger by its full path. An unqualified "ARCHIVE.md" can resolve to a stale duplicate elsewhere under `.state/`, and a check run against the wrong file reports correctly-recorded closures as missing.
 
 ## Constraints
 

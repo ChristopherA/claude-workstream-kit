@@ -133,7 +133,7 @@ Install registers it in `settings.json` automatically — but only when no `stat
 3. **Capture** — `/workstream-capture`: at a session boundary (`/clear`, `/compact`, or a pause), sweep the session for anything decided, learned, or flagged that is not yet durable, route each finding, update the resume pointer, and commit state. `/clear` fires no hook, so this is the sweep that would otherwise be skipped.
 4. **Review** — `/workstream-review`: periodic re-coherence for a long-running workstream — detect drift between the backlog and the accumulated decisions/learnings, surface stale framing assumptions, refresh the critical path, and audit cross-workstream placement, restructuring behind user gates. Runs on drift signals, not a schedule.
 5. **Hand off** — `/handoff`: write a self-contained item file into another project's `.state/handoffs/`; receive by triaging your own inbox.
-6. **Close** — `/workstream-close`: narrative summary, learnings dispositioned to destinations outside `.state/`, per-criterion evidence at the user gate, then archive (one line in `ARCHIVE.md`, a git tag, the directory removed).
+6. **Close** — `/workstream-close`: narrative summary, learnings dispositioned to destinations outside `.state/`, per-criterion evidence at the user gate, then archive (one line in `.state/workstreams/ARCHIVE.md`, a git tag, the directory removed).
 
 ## Team-scale alternative
 
