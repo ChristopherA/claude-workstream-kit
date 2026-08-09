@@ -255,6 +255,10 @@ if [ "$FORCE" -eq 0 ] && [ "$KIT_IS_GIT" -eq 1 ]; then
     echo "ERROR: refusing to overwrite locally modified payload files:" >&2
     cat "$ahead_file" >&2
     echo "Route them to the kit first, or re-run with --force to discard them." >&2
+    echo "If a change of yours was already adopted upstream, this is expected: the kit may" >&2
+    echo "carry it reworded, or in a different file, so your copy no longer matches. Check the" >&2
+    echo "current release for the substance before assuming it is unrouted -- if it is there," >&2
+    echo "--force discards a redundant copy rather than your work." >&2
     rm -f "$ahead_file"
     exit 1
   fi
