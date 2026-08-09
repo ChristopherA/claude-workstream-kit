@@ -1,0 +1,77 @@
+---
+name: workstream-extract
+description: >-
+  Drains an accreting workstream: extracts durable content to permanent homes,
+  condenses what is spent, moves completed phases to an in-file archive, and
+  re-checks standing-health criteria. The periodic half of closure, for
+  workstreams that are not closing.
+  WHEN: a workstream.md has accreted — resolved Learnings with no disposition,
+  a completed phase, an undispositioned notes.md, durable artifacts still under
+  `.state/`, or the session-start hook's SIZE line; also called by
+  /workstream-review and /workstream-close.
+  WHEN NOT: the workstream is actually closing (use /workstream-close, which
+  calls this); the backlog no longer matches what has been decided (that is
+  drift — use /workstream-review); capturing one session at a boundary
+  (/workstream-capture).
+---
+
+# Workstream Extract
+
+A workstream accumulates faster than anyone drains it, and nothing in the toolset fires on accumulation. Closure drains a workstream once, at the end; the workstreams that need draining most are the ones that never reach it. This is that drain, run on symptoms instead of on an ending: durable content out to permanent homes, spent reasoning condensed, finished phases moved out of the live reader's way, standing criteria re-checked against current evidence.
+
+Review asks whether the PLAN is right. Extract asks whether the RECORD has been drained. Both are periodic and they fire on different symptoms, so run whichever the symptoms name — neither implies the other.
+
+## When it fires
+
+Not a schedule. Any of these is enough:
+
+- A Learning is resolved but carries no disposition marker (applied / handed off / dropped), especially where its siblings carry one. In a never-closing workstream that marker is owed the moment the Learning resolves, not at a closure that never comes.
+- A phase has no open tasks left, so its completed records now compete with live ones for the reader.
+- The session-start hook prints its SIZE line, or the file feels heavy while measuring light — the checkbox convention puts a completion note on one line however long it runs, so line count under-reads the cost.
+- A `notes.md` sits beside workstream.md with sections nobody has dispositioned.
+- A durable artifact — a doc, reference material, a spec another project needs — is still living under `.state/`.
+- A never-closing workstream's standing-health Deletion Criteria have gone a cycle or more unverified.
+
+If none holds, say so and stop. A drain that moves nothing means the symptoms were absent, not that the workstream is clean.
+
+## Move 1 — Extract
+
+Every Learning and Open Question ends in exactly one of: **applied** to a named file outside `.state/` (cite it; make the edit now if it is missing), **handed off** via `/handoff` (send it now, not "later"), or **dropped** with stated rationale, in place. Mark the disposition on the entry itself so the next pass can see it.
+
+Verify each recorded disposition rather than trusting it. A Learning citing a commit can be spot-checked and usually holds. One citing a task is aspirational until that task ran. One citing an Open Question never lands at all, because an OQ resolves into a decision rather than an artifact — treat it as unrouted and write the substance to a file. Sweep every entry instead of reconstructing where the last pass stopped: an already-applied item simply reads present, so a full pass is self-correcting. Use `rg --hidden` whenever the named target sits under a dot-directory; a default sweep skips `.claude/` and returns falsely clean.
+
+Then sweep outward. Findings belonging to OTHER workstreams or projects — a decision made in passing, a sibling fix, a question raised and left — go to that workstream's Backlog with provenance, or out as a handoff. For anything recorded as absorbed or covered downstream, grep the DESTINATION: if the receiving task or its criteria do not name it, it is not routed. Edit them so they do.
+
+Finally, move durable artifacts out of `.state/` to their permanent homes, and disposition every `notes.md` section — summarized into workstream.md, routed to a named home, or dropped by declaration.
+
+## Move 2 — Condense
+
+Only after Move 1, and the order is load-bearing: trimming before extracting destroys the insight you were about to route, and the trim looks successful either way. Always extract, then trim.
+
+The criterion is whether the content still does work, not its age or completion. A shipped proposal is **spent** — its wording now lives wherever it shipped, where it is authoritative, and its reasoning lives in its Decision — so the block condenses to a line naming the proposal, the Decision, and the release. A protocol is **reusable** — it governs the next instance as much as it governed the last — so it survives verbatim. The test is whether a future session would consult it. Git holds the full drafting history for whatever the record drops.
+
+Mark a superseded Decision in place rather than deleting it; a stale Decision that reads as current is worse than a long file.
+
+When a script does the rewriting, diff the STRUCTURE as well as the content — extract the heading set before and after and compare it. A splice that cuts one line short drops a heading while every content check still passes.
+
+## Move 3 — Archive completed phases in place
+
+Completed task records are frozen provenance: condensing them rewrites history and deleting them loses it, so neither Move 2 nor an archive tag is the right instrument. Move them instead. Add an `## Archive` section at the end of workstream.md and relocate each fully-completed phase's backlog block under it, heading intact, checkboxes and completion notes verbatim. The phase stops competing with live work for attention and stays resolvable in place, at its original IDs, without a tag to look in.
+
+Move a phase only when every task in it is checked. A phase with one open task stays live — a partly-archived phase hides work.
+
+## Move 4 — Criteria evidence
+
+Re-check each Deletion Criterion against current evidence: file, commit, or command output. In a closing workstream this is the material for the user gate, which stays with `/workstream-close`. In a never-closing one it is the standing-health check the rule requires each cycle and nothing else runs — the criteria are health conditions rather than an exit, and a criterion that has drifted out of true is the finding.
+
+A criterion satisfied by a downstream gate is satisfied only if that gate names it. Check the destination, not the declaration. A note that parks an item against a PENDING or WINDING-DOWN destination is a deferral, not a disposition: re-verify each cycle that the destination is still real and reachable.
+
+## Invocation paths
+
+- **From `/workstream-review`**, when the drift scan surfaces accretion symptoms rather than plan drift. Review restructures the backlog; this drains the record. Run both when both sets of symptoms are present.
+- **From `/workstream-close`**, as the periodic half of a true close. Closure keeps the narrative summary, the deletion-criteria user gate, and the archive; extraction and cascade are this skill.
+- **From `/workstream-close` on a `maintain` workstream that should not close.** A request to close a workstream with no closure milestone is usually right about the need and wrong about the operation — the file has grown unreadable and the reflex is to end it. Say so, and offer this instead of closure. Closing a continuous identity to escape its accumulated record is churn.
+
+## Record
+
+Commit the drained state in the session that changes it, and update ACTIVE.md with what moved and what is next. Report what was extracted, what was condensed, what was archived in place, and every criterion that failed its re-check — a drain that names nothing it moved did not run.
