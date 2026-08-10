@@ -81,9 +81,11 @@ Most tracking systems handle starting and doing; few handle ending. Unclosed wor
 - **Learnings must reach a destination** outside the workstream — applied to a named file, handed off to another project, or dropped with stated rationale — before archive.
 - **Archive is a git tag plus one index line**, so closed work stays recoverable and searchable without staying loaded.
 
+The half of closure that never needed an ending — dispositioning learnings, moving artifacts out of the state tree, gathering criteria evidence — is factored into a periodic extract skill, so the workstreams that never close still get it.
+
 ## Reviewing artifacts for fitness
 
-Any long-lived artifact — a skill, a rules file, a template, this document — drifts as the ecosystem and the project evolve. Strong models run a fitness review natively from a well-framed request, assembling whatever standards apply; the kit ships no review machinery. What is worth writing down is the judgment frame:
+Any long-lived artifact — a skill, a rules file, a template, this document — drifts as the ecosystem and the project evolve. Strong models run a fitness review natively from a well-framed request, assembling whatever standards apply; the kit ships no machinery for it. What is worth writing down is the judgment frame:
 
 - **Name the finding**: *fit* (aligned, no action), *drifted* (correct when written; practice moved on), *stale* (references things that no longer exist), *incomplete* (missing something current standards require), or *novel* (an outside pattern the project lacks).
 - **Check evolution, not just content**: were decisions made after the artifact's last update that affect it? An artifact can be internally consistent and still wrong about the present.
@@ -101,7 +103,7 @@ Mature agent configurations die by accretion — more rules, more skills, more m
 
 - **No sync layer.** Updating means re-running `install.sh`. There is nothing to drift.
 - **No rule tiers.** One rule, always loaded, under two hundred lines total with the conventions file.
-- **No standing reflection machinery — but reflection at boundaries.** Lessons go to native memory as they occur, and a three-question capture sweep (detection, cascade, synthesis) runs at session boundaries and at closure. The sweep is a few questions, not an apparatus: capture-as-you-go plus closure-only extraction were tried and provably missed synthesis-level insights and cross-workstream cascades — the items that surface only when you step back at a boundary. That much reflection earns its place by the bar below; the heavyweight reflection loop the predecessor ran does not.
+- **No scheduled reflection machinery — reflection fires on signals.** Lessons go to native memory as they occur; a three-question capture sweep (detection, cascade, synthesis) runs at session boundaries and at closure; and two periodic skills fire on symptoms — review when the plan has drifted, extract when the record has accreted. Each earned its place the same way: capture-as-you-go plus closure-only extraction were tried first and provably missed things — synthesis-level insights, cross-workstream cascades, and standing obligations the rule legislated while nothing ran them. What the kit still refuses is the schedule: nothing runs because an interval elapsed, and a session with no symptoms does no reflection. That much clears the bar below; the heavyweight reflection loop the predecessor ran does not.
 - **No duplication of native capabilities** — the boundary table above is a commitment, not a current limitation.
 
 If the kit ever needs more than this, the bar for adding it is the same one everything else here had to clear: does it produce an artifact or a user decision that nothing native already produces?
