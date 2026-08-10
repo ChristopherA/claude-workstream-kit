@@ -21,9 +21,13 @@ Work accumulates decisions and learnings faster than the backlog is restructured
 
 Drift signals, not a schedule: the session-start hook reports staleness; the backlog no longer reflects recent Decisions or Learnings; an intake stream has accreted; the critical path is implicit; or a never-closing workstream has gone several cycles without one. If none holds, say so and stop — a review that changes nothing is the wrong cadence, not a clean bill.
 
+Those are signals that the PLAN has drifted. A workstream whose RECORD has not been drained — resolved Learnings carrying no disposition, a completed phase, durable artifacts still under `.state/`, the hook's SIZE line — is `/workstream-extract`'s case, not this one. The two are independent: either can fire alone, and when both do, run both. Do not restructure a backlog to relieve a file that is merely undrained; the reader's problem is the accumulation, and moving live tasks around does not touch it.
+
 ## Move 1 — Drift scan
 
 Read workstream.md and ACTIVE.md. Compare the Backlog against the Decisions and Learnings: does every settled Decision show in task wording and status? Has any Learning's integration target rotted, already been satisfied, or — the subtler case — been captured but never applied? A Learning that names an integration target yet carries no disposition marker (DONE / routed / dropped), especially when its siblings all carry one, is presumptively unexecuted: verify it against the named file, not against the backlog's silence. Is the critical path derivable from the backlog, or only implicit? List the drift you find. If there is none, stop here and say so.
+
+Several undispositioned Learnings at once is not drift but accretion, and the remedy is `/workstream-extract` rather than a restructure. Hand it over and continue the scan; the two passes compose in either order.
 
 ## Move 2 — Assumption surface
 
@@ -35,7 +39,7 @@ For each open task, ask whether it belongs in this workstream or another. Mispla
 
 ## Move 4 — Restructure (USER decides substantive changes)
 
-Make the backlog reflect what is now known: add a critical-path note if the order is implicit; reframe task wording a Decision has overtaken (never renumber IDs); mark superseded Decisions in place; split an over-grown workstream rather than the file. Mechanical fixes (a rotted pointer, a stale status) proceed; substantive restructures are presented for approval with the drift evidence behind them.
+Make the backlog reflect what is now known: add a critical-path note if the order is implicit; reframe task wording a Decision has overtaken (never renumber IDs); mark superseded Decisions in place; split an over-grown workstream rather than the file. Splitting is this skill's call and a substantive one — but try `/workstream-extract` first when the growth is completed records rather than live scope, since a workstream that is merely undrained does not need two identities. Mechanical fixes (a rotted pointer, a stale status) proceed; substantive restructures are presented for approval with the drift evidence behind them.
 
 ## Optional move — Set-level deliverable review
 
