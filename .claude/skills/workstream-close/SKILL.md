@@ -32,7 +32,7 @@ Present, in prose: (1) the Purpose verbatim from workstream.md, (2) what was act
 
 Run `/workstream-extract`. It dispositions every Learning and Open Question as applied, handed off, or dropped; verifies each recorded disposition against the named file rather than trusting it; sweeps outward for findings belonging to other workstreams or projects; moves durable artifacts out of `.state/`; dispositions any `notes.md` beside workstream.md; and gathers the per-criterion evidence Move 4 needs. Its condensation and in-file archive moves are optional under a close — the tag preserves the file either way, though condensing first is a kindness to anyone who returns to it.
 
-Two things are yours, not the extract skill's, because only an ending has them. Tell the extract run about the first and do the second yourself once it returns.
+Two things only an ending has. The first constrains that run and its closure path states it too; the second is yours to do once it returns.
 
 **This is the last run.** Nothing may be deferred to a later pass, because there is no later pass: an insight not routed now dies in the tag. A disposition that names a future task is not a disposition here — extract's periodic mode tolerates one, and closure does not.
 
@@ -40,7 +40,7 @@ Two things are yours, not the extract skill's, because only an ending has them. 
 
 ## Move 4 — Deletion-criteria gate (USER decides)
 
-For each deletion criterion, show the criterion and the evidence Move 3 gathered: file, commit, or command output. Extract's own Move 4 applies the destination check to anything a downstream gate supposedly covers; what is left to judge here is whether the evidence answers the criterion, and a criterion whose whole point is a judgment call is not discharged by a receiving task's mechanical checks. Unsatisfied criteria mean the workstream is not ready — say so and stop. When all criteria have evidence, ask the user to approve closure. Never self-certify.
+For each deletion criterion, show the criterion and the evidence Move 3 gathered: file, commit, or command output. A criterion parked against a downstream gate counts only if that gate names it — extract's Move 4 checks that at the destination rather than taking the declaration's word, so an unnamed one arrives here as unsatisfied. What is left to judge is whether the evidence answers the criterion, and a criterion whose whole point is a judgment call is not discharged by a receiving task's mechanical checks. Unsatisfied criteria mean the workstream is not ready — say so and stop. When all criteria have evidence, ask the user to approve closure. Never self-certify.
 
 ## Move 5 — Archive
 

@@ -69,8 +69,8 @@ A criterion satisfied by a downstream gate is satisfied only if that gate names 
 ## Invocation paths
 
 - **From `/workstream-review`**, when the drift scan surfaces accretion symptoms rather than plan drift. Review restructures the backlog; this drains the record. Run both when both sets of symptoms are present.
-- **From `/workstream-close`**, as the periodic half of a true close. Closure keeps the narrative summary, the deletion-criteria user gate, the archive, and its own inward sweep for references that break when the directory is removed; extraction and the outward cascade are this skill.
-- **From `/workstream-close` on a `maintain` workstream that should not close.** A request to close a workstream with no closure milestone is usually right about the need and wrong about the operation — the file has grown unreadable and the reflex is to end it. Say so, and offer this instead of closure. Closing a continuous identity to escape its accumulated record is churn.
+- **From `/workstream-close`**, as the periodic half of a true close. Closure keeps the narrative summary, the deletion-criteria user gate, the archive, and its own inward sweep for references that break when the directory is removed; extraction and the outward cascade are this skill. Under a close this is the LAST run: nothing may be deferred, and a disposition naming a future task is not a disposition, because the tag lands before that task does.
+- **From `/workstream-close` on a workstream that should not close.** Closure's own first move turns that request around and sends it here. Arriving by this path, expect a file whose bulk is completed records rather than live scope, and expect Move 3 and Move 4 to be the substance of the run.
 
 ## Record
 
