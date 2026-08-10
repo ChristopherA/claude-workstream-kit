@@ -36,7 +36,7 @@ If none holds, say so and stop. A drain that moves nothing means the symptoms we
 
 ## Move 1 — Extract
 
-Every Learning and Open Question ends in exactly one of: **applied** to a named file outside `.state/` (cite it; make the edit now if it is missing), **handed off** via `/handoff` (send it now, not "later"), or **dropped** with stated rationale, in place. Mark the disposition on the entry itself so the next pass can see it.
+Every resolved Learning and settled Open Question ends in exactly one of: **applied** to a named file outside `.state/` (cite it; make the edit now if it is missing), **handed off** via `/handoff` (send it now, not "later"), or **dropped** with stated rationale, in place. Mark the disposition on the entry itself so the next pass can see it. An entry still live — an open question waiting on the task named to resolve it — stays: dispositioning it early hides open work, the same damage Move 3 refuses for a phase with an open task.
 
 Verify each recorded disposition rather than trusting it. A Learning citing a commit can be spot-checked and usually holds. One citing a task is aspirational until that task ran. One citing an Open Question never lands at all, because an OQ resolves into a decision rather than an artifact — treat it as unrouted and write the substance to a file. Sweep every entry instead of reconstructing where the last pass stopped: an already-applied item simply reads present, so a full pass is self-correcting. Use `rg --hidden` whenever the named target sits under a dot-directory; a default sweep skips `.claude/` and returns falsely clean.
 
