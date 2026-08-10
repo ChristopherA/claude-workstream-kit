@@ -36,7 +36,7 @@ Because the state is plain files in git, it is portable across machines, account
 | Piece | Files |
 |---|---|
 | Conventions | `.claude/CLAUDE.md`, `.claude/rules/workstreams-rule.md` |
-| Lifecycle skills | `.claude/skills/workstream-create/`, `workstream-work/`, `workstream-capture/`, `workstream-review/`, `workstream-close/` |
+| Lifecycle skills | `.claude/skills/workstream-create/`, `workstream-work/`, `workstream-capture/`, `workstream-review/`, `workstream-extract/`, `workstream-close/` |
 | Cross-project handoffs | `.claude/skills/handoff/` |
 | Tiered agents | `.claude/agents/scout.md` (haiku), `worker.md` (sonnet), `verifier.md` |
 | Session resume | `.claude/hooks/session-start.sh` + `settings.json` hook registration |
@@ -132,8 +132,9 @@ Install registers it in `settings.json` automatically — but only when no `stat
 2. **Work** — `/workstream-work`: derives a `/goal` condition from the active backlog phase (mechanical checks: checkbox counts, test exit codes, commit presence), states the autonomous-session boundaries, and works the backlog — delegating scans to the scout, bounded packets to the worker, and verification to the verifier. Every progress claim cites its evidence. Stops at `#G-` user checkpoints.
 3. **Capture** — `/workstream-capture`: at a session boundary (`/clear`, `/compact`, or a pause), sweep the session for anything decided, learned, or flagged that is not yet durable, route each finding, update the resume pointer, and commit state. `/clear` fires no hook, so this is the sweep that would otherwise be skipped.
 4. **Review** — `/workstream-review`: periodic re-coherence for a long-running workstream — detect drift between the backlog and the accumulated decisions/learnings, surface stale framing assumptions, refresh the critical path, and audit cross-workstream placement, restructuring behind user gates. Runs on drift signals, not a schedule.
-5. **Hand off** — `/handoff`: write a self-contained item file into another project's `.state/handoffs/`; receive by triaging your own inbox.
-6. **Close** — `/workstream-close`: narrative summary, learnings dispositioned to destinations outside `.state/`, per-criterion evidence at the user gate, then archive (one line in `.state/workstreams/ARCHIVE.md`, a git tag, the directory removed).
+5. **Extract** — `/workstream-extract`: the periodic drain, for a workstream that has accreted rather than drifted — durable content out to permanent homes, spent reasoning condensed, completed phases moved to an in-file archive, standing criteria re-checked against current evidence. It is the half of closure that never needed an ending, which is why a `maintain` workstream that never closes still gets it. Runs on accretion symptoms, and under a close.
+6. **Hand off** — `/handoff`: write a self-contained item file into another project's `.state/handoffs/`; receive by triaging your own inbox.
+7. **Close** — `/workstream-close`: narrative summary, extraction delegated to `/workstream-extract`, per-criterion evidence at the user gate, then archive (one line in `.state/workstreams/ARCHIVE.md`, a git tag, the directory removed). Asked to close a workstream with no closure milestone, it offers extraction instead.
 
 ## Team-scale alternative
 

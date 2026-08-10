@@ -33,7 +33,7 @@ if [ -n "${WS:-}" ] && [ "$WS" != "none" ]; then
     # understates reading cost. Warn on bytes, well before a single read fails.
     WS_BYTES=$(wc -c < "$WS_FILE" | tr -d ' ')
     if [ "$WS_BYTES" -gt 65536 ]; then
-      echo "SIZE: workstream.md is $((WS_BYTES / 1024))KB -- past comfortable single-read size. Condense completed records (/workstream-review) or split the workstream."
+      echo "SIZE: workstream.md is $((WS_BYTES / 1024))KB -- past comfortable single-read size. Drain it with /workstream-extract, or split the workstream (/workstream-review) if what grew is live scope."
     fi
 
     # Staleness: ACTIVE.md updated long before the repo's last commit (work
