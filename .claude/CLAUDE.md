@@ -14,7 +14,7 @@ At session start the hook prints `ACTIVE.md` plus a one-line status of the activ
 
 - **Interactive or autonomous** — both are supported. For autonomous sessions, `/workstream-work` derives a `/goal` condition from the active backlog phase and states the session boundaries.
 - **One tracker per tier**: the workstream.md Backlog is the durable cross-session tracker; use native Tasks or plan mode for within-session steps. Never mirror one into the other.
-- **Grounded claims**: a task is "done" only with citable evidence — a commit, a passing command, a count. Claims without evidence don't close checkboxes.
+- **Grounded claims**: a task is "done" only with citable evidence — a commit, a passing command, a count. Claims without evidence don't close checkboxes. The checkbox is authoritative for the task and never for the world: an unchecked box says nobody ticked it, not that the thing did not happen, so an external not-done — printed, booked, mailed, installed, upgraded — is a claim about the world and gets the world checked before it is reported.
 - **Delegate mechanical work**: scout (read-only scans/counts), worker (bounded packets), verifier (fresh-context check) — defined in `.claude/agents/`.
 - **User gates**: `#G-` checkpoint tasks stop autonomous work and get a substantive summary. Never auto-pass them.
 

@@ -131,10 +131,14 @@ Install registers it in `settings.json` automatically — but only when no `stat
 1. **Create** — `/workstream-create`: a short interview (purpose, deletion criteria, first tasks), then the two state files are written and committed. Work never auto-starts.
 2. **Work** — `/workstream-work`: derives a `/goal` condition from the active backlog phase (mechanical checks: checkbox counts, test exit codes, commit presence), states the autonomous-session boundaries, and works the backlog — delegating scans to the scout, bounded packets to the worker, and verification to the verifier. Every progress claim cites its evidence. Stops at `#G-` user checkpoints.
 3. **Capture** — `/workstream-capture`: at a session boundary (`/clear`, `/compact`, or a pause), sweep the session for anything decided, learned, or flagged that is not yet durable, route each finding, update the resume pointer, and commit state. `/clear` fires no hook, so this is the sweep that would otherwise be skipped.
-4. **Review** — `/workstream-review`: periodic re-coherence for a long-running workstream — detect drift between the backlog and the accumulated decisions/learnings, surface stale framing assumptions, refresh the critical path, and audit cross-workstream placement, restructuring behind user gates. Runs on drift signals, not a schedule.
+4. **Review** — `/workstream-review`: periodic re-coherence for a long-running workstream — detect drift between the backlog and the accumulated decisions/learnings, scan for what is recorded and no longer true, surface stale framing assumptions, refresh the critical path, and audit cross-workstream placement, restructuring behind user gates. Runs on drift signals, not a schedule.
 5. **Extract** — `/workstream-extract`: the periodic drain, for a workstream that has accreted rather than drifted — durable content out to permanent homes, spent reasoning condensed, completed phases moved to an in-file archive, standing criteria re-checked against current evidence. It is the half of closure that never needed an ending, which is why a `maintain` workstream that never closes still gets it. Runs on accretion symptoms, and under a close.
 6. **Hand off** — `/handoff`: write a self-contained item file into another project's `.state/handoffs/`; receive by triaging your own inbox.
 7. **Close** — `/workstream-close`: narrative summary, extraction delegated to `/workstream-extract`, per-criterion evidence at the user gate, then archive (one line in `.state/workstreams/ARCHIVE.md`, a git tag, the directory removed). Asked to close a workstream with no closure milestone, it offers extraction instead.
+
+## Reporting a gap in the kit
+
+Open an issue on this repository. Do not send a handoff: this repo is itself kit-installed, so it carries a tracked `.state/handoffs/` inbox, and a handoff committed there is committed to a public repository — while handoffs routinely name the private projects they come from. The inbox stays tracked because an uncommitted handoff does not reach the receiver's other machines, so the destination is documented rather than the inbox disabled.
 
 ## Team-scale alternative
 
