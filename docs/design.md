@@ -56,7 +56,7 @@ The pattern across the right column: nothing native is **project-scoped, git-ver
 The kit's entire state model is one `workstream.md` per workstream (purpose, backlog, decisions, learnings, deletion criteria) plus one `ACTIVE.md` per project (what's active, current task, next action, blockers).
 
 - **Git is the durability and portability layer.** Anything the harness does to a session leaves the files untouched; cloning the repo moves the entire work state; the commit history *is* the progress journal, which is why the files don't carry one.
-- **Flat frontmatter and checkboxes are the parse layer.** `head` reads the status; `grep -c '^- \[ \]'` counts open tasks; a Haiku-class scout or a `/goal` evaluator can verify state without a YAML library. Cheap reads are what make delegation and autonomous verification practical.
+- **Flat frontmatter and checkboxes are the parse layer.** `head` reads the status; `grep -cE '^- \[ \] #'` counts open tasks (the task-ID anchor, so standing Deletion Criteria are not counted as backlog); a Haiku-class scout or a `/goal` evaluator can verify state without a YAML library. Cheap reads are what make delegation and autonomous verification practical.
 - **Two files is the floor, so two files is the design.** The predecessor used four-plus files per workstream; in practice the extra files held either journal content (git already has it) or session state (one pointer file per project suffices). A workstream.md that outgrows a few hundred lines signals the *workstream* should split, not the file.
 
 ## Built for strong models
