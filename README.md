@@ -64,9 +64,32 @@ git clone https://github.com/ChristopherA/claude-workstream-kit
 claude-workstream-kit/install.sh /path/to/your/project
 ```
 
-Idempotent: safe to re-run for updates. It copies the `.claude/` payload, seeds `.state/` (never overwriting existing state), merges the kit's hooks into the project's `settings.json` (or tells you what to add), and stamps the installed version and source commit. A re-run stops rather than overwriting a payload file you edited locally, so an unrouted improvement is not lost by re-running without looking (`--force` discards it deliberately). Run it with `--dry-run` (alias `--check`) first to see exactly what a real run would change; it writes nothing and exits non-zero when anything is out of sync.
+Idempotent: safe to re-run for updates. It copies the `.claude/` payload, seeds `.state/` (never overwriting existing state), merges the kit's hooks into the project's `settings.json` (or tells you what to add), and stamps the installed version and source commit. A re-run stops rather than overwriting a payload file you edited locally, so an unrouted improvement is not lost by re-running without looking (`--force` discards it deliberately). Run it with `--dry-run` (alias `--check`) first to see exactly what a real run would change; it writes nothing and exits non-zero when anything is out of sync (1 for drift or a behind stamp, 3 when the payload cannot be tracked in your project).
 
 If your project already has a `.claude/CLAUDE.md`, the kit's conventions are appended under a marker block instead of overwriting.
+
+### Payload visibility
+
+The payload has to be trackable by your project's git, because the whole point is that the work tracking travels with the repo. If your `.gitignore` hides `.claude/`, the install still writes every file and none of it can be committed — so `--dry-run` reports them as `untrackable` and exits 3 instead of saying "In sync", and a real run names them and withdraws its own "commit the new files" advice.
+
+That combination is worth naming, because it presents as success: `.state/` is seeded separately from the payload, so a project that tracks `.state/` while ignoring `.claude/` gets the case where **the state travels and the machinery does not**. A clone on another machine holds `ACTIVE.md` and `workstream.md` with no session hook, no rule, and no skills — readable as text, with nothing operating on them.
+
+One trap when relaxing the pattern: a bare `settings.json` line, common in a secrets denylist, matches `.claude/settings.json` at any depth, and **the last matching pattern wins**, so the negation has to come after the entry it undoes:
+
+```gitignore
+settings.json                 # denylist entry
+!.claude/settings.json        # negation AFTER it -- the payload file is trackable
+```
+
+Reversing those two lines leaves the file ignored.
+
+### What the overwrite refusal does and does not cover
+
+A re-run refuses to overwrite a payload file you edited locally, and `--force` discards it deliberately. That guarantee covers `install.sh` and **cannot cover the same file arriving over git**, because git's protection against clobbering a working-tree file does not extend to an ignored one.
+
+Run as a paired collision, differing only in whether the path is ignored: with `.claude/` ignored, a local hand-edited payload file shows nothing in `git status`, and `git pull` reports a fast-forward, exits 0, and the local content is gone — no error, no conflict, no prompt. With the identical collision on a path that is merely untracked, `git pull` refuses with "untracked working tree files would be overwritten by merge", exits 1, and the content survives. Ignoring the path is exactly what removes the protection.
+
+Tracking the payload is therefore not only how the kit travels; it is the condition that restores git's own safety net under it.
 
 ## Upgrading
 

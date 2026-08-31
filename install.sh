@@ -2,6 +2,9 @@
 # Install (or update) the Claude Workstream Kit into a target project.
 # Usage: ./install.sh [--dry-run] /path/to/project
 #   --dry-run    (alias --check) report per-file drift and exit WITHOUT writing
+#   --force      overwrite locally modified payload files instead of refusing
+# Exit codes: 0 in sync / installed, 1 drift or stamp-behind, 2 usage,
+#             3 payload untrackable in the target (see ignored_payload_paths).
 # Idempotent: re-run to update the .claude/ payload; existing .state/ is never touched.
 # --dry-run compares the kit payload against the target and reports, per file,
 # whether the target is in sync, behind the kit (stale), or ahead of it (locally
@@ -93,6 +96,41 @@ classify_direction() {
   echo "instance-ahead: locally modified, route it to the kit before re-install"
 }
 
+# Payload paths the TARGET's git cannot track. The kit's stated value is
+# durability that travels with the repo like tests or docs, and a payload hidden
+# by the target's .gitignore defeats exactly that while presenting as success:
+# every file is written, the run reports done, and none of it can be committed.
+#
+# Only check-ignore answers this. `git status --porcelain` and `git diff` are
+# both EMPTY over an ignored file, so a guard built on "uncommitted changes"
+# sees nothing and concludes the overwrite is safe -- inverting precisely where
+# the cost is highest, since a committed edit is recoverable and an ignored one
+# never was. check-ignore does not report a path the target already tracks
+# (tracking beats a matching pattern), so a force-added payload stays silent.
+#
+# Prints repo-relative paths, one per line; empty when the target is not a git
+# repo, which is a target with nothing to track rather than a defect.
+ignored_payload_paths() {
+  if ! git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1; then
+    return 0
+  fi
+  {
+    for ip_d in rules skills agents hooks scripts; do
+      find "$KIT_DIR/.claude/$ip_d" -type f
+    done | while IFS= read -r ip_f; do echo "${ip_f#"$KIT_DIR"/}"; done
+    # The merged files and the provenance stamps live under .claude/ too, so an
+    # ignored .claude/ takes the version and source stamps with it.
+    echo ".claude/CLAUDE.md"
+    echo ".claude/settings.json"
+    echo ".claude/workstream-kit.version"
+    echo ".claude/workstream-kit.source"
+  } | sort | while IFS= read -r ip_rel; do
+    if git -C "$TARGET" check-ignore -q "$ip_rel" 2>/dev/null; then
+      echo "$ip_rel"
+    fi
+  done
+}
+
 # --- --dry-run: compare only, write nothing, then exit ----------------------
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "DRY RUN: kit $VERSION ($SRC_DESC) vs $TARGET"
@@ -143,6 +181,19 @@ if [ "$DRY_RUN" -eq 1 ]; then
   rm -f "$payload_list"
   echo "  payload: $checked files checked, $((checked - pdrift)) in sync, $pdrift drifted"
   [ "$pdrift" -eq 0 ] || drift=1
+
+  # A third condition beside in-sync and drift: a payload the target CANNOT
+  # track. These files may match the kit byte for byte and still be invisible
+  # to git, so it is reported on its own rather than folded into drift.
+  untrackable=0
+  ign_list=$(mktemp)
+  ignored_payload_paths > "$ign_list"
+  if [ -s "$ign_list" ]; then
+    untrackable=1
+    echo "  ! untrackable: $(wc -l < "$ign_list" | tr -d ' ') payload path(s) ignored by the target's git:"
+    sed 's/^/        /' "$ign_list"
+  fi
+  rm -f "$ign_list"
 
   # CLAUDE.md marker block.
   tcm="$TARGET/.claude/CLAUDE.md"
@@ -219,7 +270,10 @@ if [ "$DRY_RUN" -eq 1 ]; then
     echo "  = stamp current (version $VERSION); a real install refreshes .source to $SRC_SHA (provenance only)"
   fi
 
-  if [ "$drift" -eq 0 ] && [ "$sdrift" -eq 0 ]; then
+  if [ "$untrackable" -eq 1 ]; then
+    echo "Untrackable: the target's git ignores the payload paths listed above, so an install there cannot be committed and the kit does not travel with the repo -- on another machine the state files arrive with no hook, no rule and no skills to operate on them. Make .claude/ trackable (see README, 'Payload visibility'), then re-run. This dry run made no changes."
+    exit 3
+  elif [ "$drift" -eq 0 ] && [ "$sdrift" -eq 0 ]; then
     echo "In sync: payload, merges, and version stamp match the kit; a real install would make no required change (it may refresh .source provenance -- see any currency note above). This dry run made no changes."
     exit 0
   elif [ "$drift" -eq 0 ]; then
@@ -248,13 +302,22 @@ if [ "$FORCE" -eq 0 ] && [ "$KIT_IS_GIT" -eq 1 ]; then
       continue
     fi
     case "$(classify_direction "$rel" "$tf")" in
-      instance-ahead*) echo "  $rel" >> "$ahead_file" ;;
+      instance-ahead*)
+        if git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1 &&
+           ! git -C "$TARGET" ls-files --error-unmatch "$rel" >/dev/null 2>&1; then
+          echo "  $rel  (UNTRACKED in the target -- no baseline to restore from)" >> "$ahead_file"
+        else
+          echo "  $rel" >> "$ahead_file"
+        fi
+        ;;
     esac
   done
   if [ -s "$ahead_file" ]; then
     echo "ERROR: refusing to overwrite locally modified payload files:" >&2
     cat "$ahead_file" >&2
     echo "Route them to the kit first, or re-run with --force to discard them." >&2
+    echo "A line marked UNTRACKED has no copy in the target's git, so --force discards it" >&2
+    echo "permanently -- the recovery this message otherwise assumes does not exist there." >&2
     echo "If a change of yours was already adopted upstream, this is expected: the kit may" >&2
     echo "carry it reworded, or in a different file, so your copy no longer matches. Check the" >&2
     echo "current release for the substance before assuming it is unrouted -- if it is there," >&2
@@ -263,6 +326,21 @@ if [ "$FORCE" -eq 0 ] && [ "$KIT_IS_GIT" -eq 1 ]; then
     exit 1
   fi
   rm -f "$ahead_file"
+fi
+
+if [ "$FORCE" -eq 1 ]; then
+  force_ign=$(mktemp)
+  ignored_payload_paths | while IFS= read -r fi_rel; do
+    if [ -f "$TARGET/$fi_rel" ] && ! cmp -s "$KIT_DIR/$fi_rel" "$TARGET/$fi_rel"; then
+      echo "  $fi_rel" >> "$force_ign"
+    fi
+  done
+  if [ -s "$force_ign" ]; then
+    echo "WARNING: --force is about to overwrite payload files the target's git never tracked:" >&2
+    cat "$force_ign" >&2
+    echo "There is no committed baseline for these, so the discard is permanent." >&2
+  fi
+  rm -f "$force_ign"
 fi
 
 echo "Installing claude-workstream-kit $VERSION ($SRC_DESC) into $TARGET"
@@ -348,5 +426,27 @@ mkdir -p "$TARGET/.state/workstreams" "$TARGET/.state/handoffs"
 printf '%s\n' "$VERSION" > "$TARGET/.claude/workstream-kit.version"
 printf 'version: %s\nsource: %s\nref: %s\n' "$VERSION" "$SRC_SHA" "$SRC_DESC" \
   > "$TARGET/.claude/workstream-kit.source"
+
+post_ign=$(mktemp)
+ignored_payload_paths > "$post_ign"
+if [ -s "$post_ign" ]; then
+  echo
+  echo "WARNING: the target's git ignores these installed payload paths:" >&2
+  sed 's/^/  /' "$post_ign" >&2
+  echo "The usual 'commit the new files' step cannot be followed for them: they are" >&2
+  echo "installed and invisible to git, so the kit does not travel with the repo. A" >&2
+  echo "clone elsewhere gets .state/ with no hook, no rule and no skills to run on it." >&2
+  echo "Relax the target's .gitignore for .claude/ and re-run -- see README, 'Payload" >&2
+  echo "visibility'. Note also that this installer's refusal to overwrite a locally" >&2
+  echo "modified payload file CANNOT extend to the same file arriving over git: an" >&2
+  echo "ignored path loses git's own protection, so a pull replaces it silently and" >&2
+  echo "exits 0. Tracking the payload is what restores that protection." >&2
+  # The closing line must not repeat an instruction this warning just said
+  # cannot be followed.
+  echo "Done, but the payload above is not committable as the target stands. Fix its .gitignore, re-run, then commit."
+  rm -f "$post_ign"
+  exit 0
+fi
+rm -f "$post_ign"
 
 echo "Done. Commit the new files, then start a Claude Code session and run /workstream-create."
