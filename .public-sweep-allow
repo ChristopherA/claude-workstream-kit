@@ -1,0 +1,78 @@
+# Allowlist for check-public-artifact.sh.
+#
+# This repository DOCUMENTS the workstream convention, so its published examples
+# are the exact strings the sweep must flag in every other repo. Entries are
+# scoped to a file AND to the specific example identifier, never to a whole file:
+# a genuine leak appearing in one of these same files -- a private project name,
+# an absolute workspace path, a real task ID -- still reports.
+#
+# The sweep prints the number of lines it suppressed on every run, so growth here
+# is visible rather than inferred. Keep it that way: widen an entry only when a
+# hit is genuinely published content, and never to quieten a real finding.
+
+# The state-file format rule, which shows a task pointer, a backlog and a gate.
+^\.claude/rules/workstreams-rule\.md:[0-9]+:.*#(DR-[0-9]|G-DR)\b
+^\.claude/rules/workstreams-rule\.md:[0-9]+:.*#MG-2\b
+
+# The workstream template ships the Completion phase as literal tasks.
+^\.claude/skills/workstream-create/templates/workstream\.md:[0-9]+:.*#CL-[123]\b
+
+# The acceptance test drives a demo workstream end to end, so it names that
+# workstream's own tasks and its state path. Both are fixtures, not references.
+^tests/va3-acceptance\.sh:[0-9]+:.*#(BD-[0-9]|G-BD)\b
+^tests/va3-acceptance\.sh:[0-9]+:.*\.state/workstreams/project/greeting-script\b
+
+# The offline hook fixture builds three demo workstreams and generates their
+# task lines, so it names fixture IDs and fixture state paths.
+^tests/session-start-acceptance\.sh:[0-9]+:.*#(BD-[0-9]+|G-B)
+^tests/session-start-acceptance\.sh:[0-9]+:.*\$T/\.state/workstreams/
+
+# --- range-mode forms --------------------------------------------------------
+# `--range` is the mode the pre-push sweep uses, and it labels every hit with
+# the RANGE rather than the file, so none of the file-anchored entries above can
+# match there. These repeat the same exemptions anchored on content instead.
+#
+# They are necessarily broader than the file-scoped forms, so each is pinned to
+# the exact published string it exempts rather than to a bare identifier: a
+# pattern like `#BD-[0-9]+` alone would suppress a genuine reference anywhere in
+# the tree. The durable fix belongs in the sweep script -- emitting file:line in
+# range mode would let one file-anchored entry serve both modes -- and that
+# script is not this repository's to change.
+
+# The workstream template ships the Completion phase as literal task lines.
+:[0-9]+:[-+ ]?- \[[ x]\] #CL-[123]: (Disposition all Learnings|Verify deletion criteria|Archive \(`\.state/workstreams/ARCHIVE\.md` line)
+
+# The Task IDs bullet IS the convention's definition; its examples are the form
+# being defined, not references to anything.
+:[0-9]+:[-+ ]?- \*\*Task IDs\*\*: `#XX-N`
+
+# Acceptance-test fixtures: generated task lines and temp-directory state paths.
+:[0-9]+:[-+ ]?.*echo "- \[[ x]\] #(BD-[0-9]+|G-B)
+:[0-9]+:[-+ ]?task: "#BD-1 - first task"
+:[0-9]+:[-+ ]?.*"\$T/\.state/workstreams/
+:[0-9]+:[-+ ]?.*\.state/workstreams/project/greeting-script\b
+
+# This file's own entries quote the identifiers they exempt, so a diff that adds
+# or edits one reports every string it names.
+#
+# Exempted by SHAPE -- a line whose content begins with a regex anchor, `^` for
+# the file-anchored form or `:[0-9]+:` for the range-anchored one. Comments and
+# prose in this file are NOT exempt, so a private name written into a comment
+# here still reports; that was verified by injecting two.
+#
+# The tighter alternative, one exemption per entry naming its literal text, was
+# tried and does not terminate: each entry that exempts an entry is itself an
+# entry quoting the same identifier, so the file grows a new hit every time it
+# grows a line. This shape terminates.
+#
+# THE HOLE IT LEAVES, stated because a suppression nobody can see is the failure
+# this whole file risks: a private task ID written INTO AN ENTRY in this file
+# would be hidden, since the entry matches by shape regardless of content.
+# Nowhere else -- the same ID in a comment here, or anywhere in the tree,
+# reports. Entries are read when added, and the sweep prints its suppression
+# count every run, which is the compensating visibility. The real fix is for the
+# sweep to emit file:lineno in range mode; a single `^\.public-sweep-allow:`
+# entry would then cover this file by path and this block would be deleted.
+^\.public-sweep-allow:[0-9]+:
+:[0-9]+:[-+ ]?\^[\\a-zA-Z]
+:[0-9]+:[-+ ]?:\[0-9\]\+:
