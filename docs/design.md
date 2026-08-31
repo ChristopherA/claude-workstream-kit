@@ -79,7 +79,7 @@ Most tracking systems handle starting and doing; few handle ending. Unclosed wor
 - **Deletion criteria** are written at creation: falsifiable conditions for archiving the workstream.
 - **Closure presents per-criterion evidence** to the user, who decides; the model never self-certifies.
 - **Learnings must reach a destination** outside the workstream — applied to a named file, handed off to another project, or dropped with stated rationale — before archive.
-- **Archive is a git tag plus one index line**, so closed work stays recoverable and searchable without staying loaded.
+- **Archive is a git tag plus one index line**, so closed work stays recoverable and searchable without staying loaded — provided the tag is pushed. The index line cites a tag by name and nothing else, so an unpushed tag leaves the citation resolvable only on the machine that closed the workstream.
 
 The half of closure that never needed an ending — dispositioning learnings, moving artifacts out of the state tree, gathering criteria evidence — is factored into a periodic extract skill, so the workstreams that never close still get it.
 

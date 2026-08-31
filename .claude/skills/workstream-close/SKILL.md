@@ -51,3 +51,16 @@ After approval, `ls` the workstream directory before removing anything: `workstr
 3. `git rm -r` the workstream directory
 4. Reset `.state/ACTIVE.md` **only if it names the workstream being closed**: `workstream: none`, `task: none`, fresh Now/Next/Blockers. If it points somewhere else — most often a successor that has already inherited this workstream's residue — leave it and say in the closure notes that it was left, so the deviation is visible rather than inferred. Resetting a live pointer discards the next session's resume target immediately after the closure summary named it.
 5. Commit
+6. Push the tag — a separate gate, never folded into the commit above. `ARCHIVE.md` hands a reader a tag NAME and nothing else, so for a closed workstream that tag is the only resolvable route back to a record the working tree no longer holds. The tagged commit ships with the state commits, so the record is reachable by SHA, but no clone can get to the SHA from the ledger: the line reads as resolvable and is not. Pushing is shared-visible, so surface it with the closure summary and push only on the user's go — and while it is unpushed, say plainly in the summary that the ledger line does not resolve outside this machine yet.
+
+   Take the same moment to catch earlier closures that have been dangling since:
+
+   ```sh
+   comm -23 <(git tag -l 'ws/*' | sort) \
+            <(git ls-remote --tags <remote> 'refs/tags/ws/*' \
+              | sed -n 's|.*refs/tags/\(.*\)|\1|p' | grep -v '\^{}$' | sort)
+   ```
+
+   Anything it prints is a closure tag that exists only here. **The `^{}` filter is load-bearing.** An annotated tag appears twice in `ls-remote` output — once as the tag ref, once dereferenced — so an unfiltered remote listing reads roughly double and ALWAYS looks like "the remote has more than local, nothing is missing". That false clean has already been reported as "established practice, tags are pushed" against a repo where eleven closure tags had never left the machine that closed them, each one cited by an `ARCHIVE.md` row. Measured on a repo where every tag WAS pushed: 10 unfiltered remote lines for 5 real tags.
+
+   This check belongs at closure and not in the session-start hook: `git ls-remote` is a network call that would add latency to every session start and can hang offline, while closure is rare and already online at the moment it matters.
