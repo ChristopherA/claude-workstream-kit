@@ -135,8 +135,8 @@ They certify which kit release and which commit produced the payload now on disk
 
 While the kit is pre-1.0, `VERSION` moves by the kind of change a release carries:
 
-- a new feature bumps the minor version (`0.4.0` to `0.5.0`);
-- a fix or clarification bumps the patch version (`0.5.0` to `0.5.1`);
+- a new SKILL bumps the minor version (`0.4.0` to `0.5.0`) -- a new capability the kit did not have, not merely a large change;
+- everything else bumps the patch version (`0.5.0` to `0.5.1`), including rule and skill text however substantial the diff: reworded guidance is a clarification, not a feature;
 - the major version stays at `0`.
 
 `VERSION` marks curated releases. Between releases the `workstream-kit.source` stamp records the exact commit, so a project installed from a mid-stream checkout still reports precise provenance even when the version number has not moved.
