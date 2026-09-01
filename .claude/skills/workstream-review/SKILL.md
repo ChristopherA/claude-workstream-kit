@@ -40,6 +40,15 @@ Start where it is cheapest: a Decision naming a filesystem path is checkable in 
 
 The exposed case is the workstream nobody is reading — paused, idle, or merely quiet — which cannot mark what it does not see and is also the one most likely to be cited from elsewhere rather than opened. If this review covers a workstream that names another's artifacts, check those too.
 
+**Check that cited task IDs still resolve.** A reference of the form `#XX-N` reads as resolvable whether or not anything defines it, so this rots exactly like a stale path and with the same absence of an event. The question is NOT "is this ID defined in this project" -- run that and you drown, because the convention explicitly endorses references that cross into other workstreams, into closed ones reachable only by archive tag, and into other projects entirely. The question is **does the reference name a home, and does that home contain it**. A bare ID that names no home is the defect the conventions describe. A homed one whose home exists and holds the task is correct. The case that bites is between them: a reference naming a home that EXISTS while the task inside it does not, which is the closed-or-paused workstream surviving the thing it named.
+
+Two matcher details decide whether this is usable, both learned by running it:
+
+- Treat any word boundary after the ID as a definition, not just a colon. A backlog that writes its completed tasks as `- [x] #XX-N (dated note in parentheses)` is conforming, and a matcher demanding `#XX-N:` scores every one of them as undefined.
+- Require the ID to contain a digit, or every metavariable in the prose -- `#XX-N`, `#RS-N`, `#SW-n` -- is reported as a dangling reference.
+
+Without both, the check runs at roughly 80 percent false positives and gets ignored, which is worse than not running it. With both, one measured corpus of 209 cited IDs produced 25 undefined-here references, every one legitimately homed, and exactly one true defect. **Report classes, never a count**: "one reference names a home that does not contain it" is actionable, and "26 unresolved IDs" is noise that will be dismissed on sight.
+
 ## Move 3 — Assumption surface
 
 Name the framing assumptions the backlog carries — especially ones baked into task descriptions that a later Decision may have overtaken. For each load-bearing assumption that is unclear or possibly stale, put the analysis to the user and ask one question at a time. Do not restructure on an assumption you have not surfaced; an option set the user reframes in free text is the signal the framing, not the options, was wrong.
