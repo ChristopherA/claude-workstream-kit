@@ -31,18 +31,22 @@ file_epoch() {
   echo "$_e"
 }
 
-# Counts anchor on the task-ID form. A bare `^- \[ \]` also matches Deletion
+# Counts anchor on the task-ID form, and tolerate leading indentation so an
+# indented sub-task is not silently dropped -- the rule says such lines sit at
+# top level, and the counter no longer punishes the file that ignores it. This
+# stops UNDER-COUNTING; it does not make a checkbox a unit of pending work.
+# A bare `^- \[ \]` also matches Deletion
 # Criteria, which are standing conditions rather than backlog items, so it
 # overstates remaining work by however many criteria a workstream carries --
 # for every workstream, permanently.
-count_open()  { grep -cE '^- \[ \] #'   "$1" 2>/dev/null || true; }
-count_gates() { grep -cE '^- \[ \] #G-' "$1" 2>/dev/null || true; }
+count_open()  { grep -cE '^ *- \[ \] #'   "$1" 2>/dev/null || true; }
+count_gates() { grep -cE '^ *- \[ \] #G-' "$1" 2>/dev/null || true; }
 
 # Criteria are counted in their own section and reported SEPARATELY rather than
 # folded into the task count: a satisfied-but-unticked criterion is a signal
 # worth seeing, not noise to hide.
 count_criteria() {
-  awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} f && /^- \[ \]/ {n++} END {print n+0}' "$1"
+  awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} f && /^ *- \[ \]/ {n++} END {print n+0}' "$1"
 }
 
 file_kb() { echo $(( $(wc -c < "$1" | tr -d ' ') / 1024 )); }
