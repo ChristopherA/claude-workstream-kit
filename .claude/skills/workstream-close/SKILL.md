@@ -53,6 +53,16 @@ After approval, `ls` the workstream directory before removing anything: `workstr
 5. Commit
 6. Push the tag — a separate gate, never folded into the commit above. `ARCHIVE.md` hands a reader a tag NAME and nothing else, so for a closed workstream that tag is the only resolvable route back to a record the working tree no longer holds. The tagged commit ships with the state commits, so the record is reachable by SHA, but no clone can get to the SHA from the ledger: the line reads as resolvable and is not. Pushing is shared-visible, so surface it with the closure summary and push only on the user's go — and while it is unpushed, say plainly in the summary that the ledger line does not resolve outside this machine yet.
 
+   **First, is there a remote at all?** `git remote get-url <remote>` failing means there is nowhere to push and nothing to compare against — a repo with no elsewhere, not a defect. Its `ARCHIVE.md` rows are not broken: with no clone anywhere, the tag resolves wherever the repo exists. Say that in the closure summary and skip both the push and the sweep below. Do NOT run the sweep anyway to see what it says: with no remote it exits 0, sends its `fatal:` to stderr where the pipeline discards it, and prints EVERY local tag as dangling — measured on a repo holding ten closure tags, which reported all ten. That is the same false reading as the doubling below, pointed the other way, and it is the worse one, because it invents work rather than hiding it. If a remote is ever added, the backfill is owed at that moment: every row that resolved locally becomes machine-local the day the repo acquires an elsewhere.
+
+   **Then, does the remote already have the tagged commit?** This is a PRECONDITION to check, not a fact to assume. When it holds, the push adds a ref and nothing else. When it does not, the push publishes that commit and its unpushed ancestors through a tag, without the branch that should carry them — a materially different act, and the user's to decide separately. It is not an exotic case: any repo that closes workstreams faster than it pushes has it.
+
+   ```sh
+   git branch -r --contains "$(git rev-list -n1 ws/<name>)"
+   ```
+
+   Empty output means the commit is not on the remote. Split the gate rather than offering one list: the ref-only tags as a set, and each tag that would carry unpushed commits on its own, with its count from `git rev-list --count <remote>/<branch>..ws/<name>`, so the user is deciding about publishing history rather than about repairing a pointer. **`git push --dry-run` cannot see this** — it prints `* [new tag]` for both cases — so the containment check is the only pre-flight that catches it. Measured across four consumer repos: sixteen of seventeen dangling tags were ref-only, and the seventeenth would have carried seven commits out of a branch sitting 84 ahead of its remote.
+
    Take the same moment to catch earlier closures that have been dangling since:
 
    ```sh
