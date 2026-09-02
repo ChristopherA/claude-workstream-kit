@@ -4,8 +4,8 @@
 # Run from anywhere: <kit-checkout>/tests/va3-acceptance.sh
 #
 # It runs on a fully configured account as well as a clean one -- user-level
-# rules simply load into the three sessions -- and it takes between ten and
-# twenty-five minutes as measured across runs, so start it in the background
+# rules simply load into the three sessions -- and it has taken between nine
+# and twenty-five minutes across the runs so far, so start it in the background
 # as soon as the tree it should test is committed, rather than at the push
 # gate where it becomes the thing everything waits on. The install step copies
 # the kit at start, so a run tests what the tree held when it began. It is the
