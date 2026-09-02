@@ -37,27 +37,25 @@ Other projects are out: a handoff this project SENT lives in another project's i
 
 In main context: run the hook, read ACTIVE.md and PROJECT.md, take the three git reads. Note the workstream count, each status and flag, the inbox count and oldest age, and whether ACTIVE.md's pointer names a workstream and task that exist. This is cheap and bounded, and it is the frame every later move hangs on.
 
-## Move 2 — One scout per workstream
+## Move 2 — The record, one command per field
 
-Launch one `scout` per `workstream.md`, all in one message so they run in parallel, each with the packet below verbatim and its file path filled in. The scout is the read-only agent the kit ships, and one file per scout is the unit for a reason of size: a project's state tree runs to hundreds of kilobytes, and one workstream file alone can exceed what main context should spend on a read whose product is a dozen lines of record. Per the scout's own rule it returns raw occurrences with file and line and no verdict; the calls are made in Move 3.
+In main context, derive the record below for every `workstream.md`, with the commands given and over all files at once. Each is line-anchored, so its output is small whatever the file's size — the largest file is never read whole, only grepped — and deterministic, which is what a record has to be before anything is built on it. The first run of this skill sent one scout per file for the same record: the scouts took a minute or more each, returned summaries where lines were asked for, dropped a gate and a task, and loosened the patterns, while two commands in main context derived every record exactly. Delegation moved to Move 5, where reading beats grep.
 
-The packet:
+The record, per file:
 
-> Read `<path>` only. Return the following record, every field, with `not found` for any field the file lacks. Cite line numbers from `grep -n`, never from memory. No verdicts, and no summaries beyond what each field asks.
->
-> 1. **Purpose**: the first sentence under `## Purpose`, and the sentence containing "Done means" or, absent that, the last sentence of the section.
-> 2. **Phases**: every `### <Name> (<XX>)` heading under `## Backlog`, each with its open count from `grep -cE '^ *- \[ \] #<XX>-'` and its gate count from `grep -cE '^ *- \[ \] #G-<XX>'`.
-> 3. **First open task**: the first line matching `^ *- \[ \] #`, verbatim.
-> 4. **Open gates**: every line matching `^ *- \[ \] #G-`, verbatim, and for each whether it contains the capitalised word `SATISFIED` or `READY`, or the phrase `criterion is met` — case-sensitive on the capitals, since lower-case "satisfied" occurs in ordinary prose about a gate; report the match, not what it means.
-> 5. **Hold lines**: every line matching, case-insensitively and on word boundaries, `\bheld\b|\bhold\b|blocked (by|on)|unblocks when|\bwait(s|ing)? (for|on)\b|not before|sequenced after`, with line numbers — the boundaries matter, because `hold` sits inside `threshold` and `household`; where a line exceeds 300 characters, the 300 around the match. Run the pattern as given: a line that reads like a hold but does not match is not reported here.
-> 6. **Cross-workstream references**: every occurrence of `(explore|feature|fix|project|maintain)/[a-z0-9-]+`, with or without a preposition before it, and every `ws/[a-z0-9-]+` tag, each with the identifier that precedes it on the line if any (`#[A-Z]+-[0-9]+[a-z]?`, `D[0-9]+`, `L[0-9]+`, `OQ-[0-9]+`), with line numbers. `docs` is left out of the type list because `docs/` also names a directory; add it back only for a project that has a docs-type workstream.
-> 7. **Critical path**: the paragraph beginning `**Critical path` verbatim, from that line to the next blank line since the paragraph may be hard-wrapped, or `not found`.
-> 8. **Latest Decision**: the highest-numbered `### D<n>` heading, verbatim, and the count of `### D` headings.
-> 9. **Learnings**: every line matching `^- L[0-9]+`, verbatim, trimmed to 200 characters.
-> 10. **Deletion criteria**: the count of `- [ ]` and of `- [x]` lines under `## Deletion Criteria`.
-> 11. **Size**: `wc -c` of the file.
+1. **Purpose**: the first sentence under `## Purpose`, and the sentence containing "Done means" or, absent that, the last sentence of the section (`awk '/^## Purpose/{f=1;next} /^## /{f=0} f'`).
+2. **Phases**: every `### <Name> (<XX>)` heading under `## Backlog`, each with `grep -cE '^ *- \[ \] #<XX>-'` and `grep -cE '^ *- \[ \] #G-<XX>'`. Their sum must equal `grep -cE '^ *- \[ \] #'` for the file; a shortfall is a task sitting outside any phase heading, reported as such.
+3. **First open task**: `grep -nE '^ *- \[ \] #' | head -1`.
+4. **Open gates**: `grep -nE '^ *- \[ \] #G-'`, and for each whether it contains the capitalised word `SATISFIED` or `READY`, or the phrase `criterion is met` — case-sensitive on the capitals, since lower-case "satisfied" occurs in ordinary prose about a gate.
+5. **Hold lines**: open task lines, critical-path paragraphs and ACTIVE.md matching, case-insensitively and on word boundaries, `\bheld\b|\bhold\b|blocked (by|on)|unblocks when|\bwait(s|ing)? (for|on)\b|not before|sequenced after` — the boundaries matter, because `hold` sits inside `threshold` and `household` — with a hundred characters of context either side of the match. A grep asked for that much context can exceed its engine's complexity limit and print nothing; python's `re` does not.
+6. **Cross-workstream references**: on the same lines, every `(explore|feature|fix|project|maintain)/[a-z0-9-]+` and every `ws/[a-z0-9-]+` tag, each with the identifier that precedes it on the line if any (`#[A-Z]+-[0-9]+[a-z]?`, `D[0-9]+`, `L[0-9]+`, `OQ-[0-9]+`). `docs` is left out of the type list because `docs/` also names a directory; add it back only for a project that has a docs-type workstream. A target that is neither a directory under `.state/workstreams/` nor a name in `ARCHIVE.md` belongs to another project and is reported as out of reach in Move 5.
+7. **Critical path**: the paragraph beginning `**Critical path`, from that line to the next blank line since it may be hard-wrapped (`awk '/^\*\*Critical path/{p=1} p&&/^$/{exit} p'`), or `not found`.
+8. **Latest Decision**: the highest-numbered `### D<n>` heading and the count — the numeric maximum, since the headings are not in file order.
+9. **Learnings**: `grep -cE '^- L[0-9]+'`, and among those lines the ones carrying no disposition word (APPLIED, ROUTED, DROPPED, DISPOSITION), as raw lines.
+10. **Deletion criteria**: the counts of `- [ ]` and of `- [x]` lines under `## Deletion Criteria`.
+11. **Size**: `wc -c`.
 
-Verify what comes back before building on it. In main context, before any synthesis, derive the two cheapest fields for every file with one command each — `grep -cE '^ *- \[ \] #'` for the open count and `grep -nE '^ *- \[ \] #G-'` for the gate lines — and hold each record against them: a record whose phase counts do not sum to the file's count, or whose gate list differs, is discarded and its fields re-derived in main context rather than repaired by hand. In the first run against a real project, one scout in eight reported no open gate on a file whose one open gate carried satisfied-text, one dropped a task from a phase count, and several returned summaries where the packet asked for lines; the two greps caught the first two. A scout's record is a starting hypothesis, and a line number is checked with `sed -n` before it is cited in the statement.
+Records are data, not verdicts: a line that reads like a hold but does not match the pattern is not a hold line, and what any occurrence means is decided in Move 3 with the line in view. Check a line number with `sed -n` before citing it.
 
 ## Move 3 — Cross-workstream synthesis
 
@@ -93,7 +91,9 @@ Chat, in this shape and this order, and nothing written anywhere:
 3. **Critical paths across workstreams.** Each chain as an ordered list of tasks with their workstream, and for each join the edge that makes it (file and line). Independent chains side by side. The sentence about the pointer.
 4. **Awaiting the user.** Satisfied-but-unpresented gates first, then the rest, each with its workstream and the decision it asks for in words rather than codes.
 5. **Disagreements.** Each with both texts and the owner.
-6. **What this could not see.** Sources on the list that were absent or unreadable, scouts that returned nothing, references into other projects, and the standing gap: priority among independent chains.
+6. **What this could not see.** Sources on the list that were absent or unreadable, a cited line the verifier could not open, references into other projects, and the standing gap: priority among independent chains.
+
+Before the statement is delivered, hand it and the records to one fresh-context `scout` with this packet verbatim: "Here is a status statement and the records it was built from. For every file and line the statement cites, open that line and report MATCH or the line's actual text. For every row of the roster, run `grep -cE '^ *- \[ \] #'` and `grep -nE '^ *- \[ \] #G-'` on that workstream's file now and report whether the row's counts agree. Report occurrences only, never a verdict on the statement." A citation that comes back as anything but MATCH is corrected or dropped before delivery. This is where a sub-agent earns its place — reading a cited line against a claim is the check a grep cannot make — and the first run showed the reverse assignment fails: scouts sent to derive the record summarized and dropped lines, while the derivation in main context was exact.
 
 Bound the length by leaving things out, not by compressing: a workstream's detail beyond its next task and its gates does not belong here, and a reader who wants it opens the file. Task IDs are pointers, not names — every ID in the statement carries a few words saying what it is.
 
