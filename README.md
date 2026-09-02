@@ -42,7 +42,7 @@ Because the state is plain files in git, it is portable across machines, account
 | Tiered agents | `.claude/agents/scout.md` (haiku), `worker.md` (sonnet), `verifier.md` |
 | Session resume | `.claude/hooks/session-start.sh` + `settings.json` hook registration |
 | Boundary capture | workstreams-rule capture sweep + `.claude/skills/workstream-capture/` + `.claude/hooks/capture-nudge.sh` (SessionEnd/PreCompact nudge) |
-| State seed | `.state/` (ACTIVE.md, workstreams/, handoffs/) |
+| State seed | `.state/` (ACTIVE.md, PROJECT.md, workstreams/, handoffs/) |
 | Status line | `.claude/scripts/status-line.sh`, registered set-if-absent by `install.sh` |
 
 What the kit deliberately does NOT carry — use the native capability instead:

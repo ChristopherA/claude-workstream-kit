@@ -417,6 +417,7 @@ fi
 mkdir -p "$TARGET/.state/workstreams" "$TARGET/.state/handoffs"
 [ -f "$TARGET/.state/handoffs/.gitkeep" ] || touch "$TARGET/.state/handoffs/.gitkeep"
 [ -f "$TARGET/.state/ACTIVE.md" ] || cp "$KIT_DIR/.state-seed/ACTIVE.md" "$TARGET/.state/ACTIVE.md"
+[ -f "$TARGET/.state/PROJECT.md" ] || cp "$KIT_DIR/.state-seed/PROJECT.md" "$TARGET/.state/PROJECT.md"
 [ -f "$TARGET/.state/workstreams/ARCHIVE.md" ] || cp "$KIT_DIR/.state-seed/workstreams/ARCHIVE.md" "$TARGET/.state/workstreams/ARCHIVE.md"
 
 # --- version + source stamps -------------------------------------------------
