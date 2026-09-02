@@ -24,9 +24,11 @@ Read the workstream's `type` and its Deletion Criteria before anything else. A `
 
 Say so, and offer `/workstream-extract` instead — it drains the record, moves completed phases to an in-file archive, and re-checks the standing criteria, which is what the request was after. Closing a continuous identity to escape its accumulated record is churn, and the successor inherits the accumulation within a few cycles. Proceed below only if the user, told that, still wants the workstream ended.
 
+The opposite case is a closure that does not look like one. A workstream ABSORBED by a decision taken elsewhere — its scope carried on by a successor rather than finished — is a closure too, and runs this skill rather than being declared closed in the successor's Decisions: the declaration is container-level, and only Move 2's map checks it at the task level.
+
 ## Move 2 — Narrative summary
 
-Present, in prose: (1) the Purpose verbatim from workstream.md, (2) what was actually accomplished, with pointers to the artifacts and commits, (3) why it is ready to close, (4) what remains open after archive and where each open item goes. Lead with anything NOT done.
+Present, in prose: (1) the Purpose verbatim from workstream.md, (2) what was actually accomplished, with pointers to the artifacts and commits, (3) why it is ready to close, (4) what remains open after archive and where each open item goes — as a task-level map, each open task named against the successor task that now holds it or dropped by name, never a container-level statement that the scope moved: an absorbed workstream's tasks vanish from the working tree the moment its directory is removed, so a task the map missed is unrecoverable by reading. Lead with anything NOT done.
 
 ## Move 3 — Extraction (delegated)
 
@@ -40,7 +42,7 @@ Two things only an ending has. The first constrains that run and its closure pat
 
 ## Move 4 — Deletion-criteria gate (USER decides)
 
-For each deletion criterion, show the criterion and the evidence Move 3 gathered: file, commit, or command output. A criterion parked against a downstream gate counts only if that gate names it — extract's Move 4 checks that at the destination rather than taking the declaration's word, so an unnamed one arrives here as unsatisfied. What is left to judge is whether the evidence answers the criterion, and a criterion whose whole point is a judgment call is not discharged by a receiving task's mechanical checks. Unsatisfied criteria mean the workstream is not ready — say so and stop. When all criteria have evidence, ask the user to approve closure. Never self-certify.
+For each deletion criterion, show the criterion and the evidence Move 3 gathered — file, commit, or command output — in the message itself, since output printed from a tool call is displayed to you and not reliably to the user. A criterion parked against a downstream gate counts only if that gate names it — extract's Move 4 checks that at the destination rather than taking the declaration's word, so an unnamed one arrives here as unsatisfied. What is left to judge is whether the evidence answers the criterion, and a criterion whose whole point is a judgment call is not discharged by a receiving task's mechanical checks. Unsatisfied criteria mean the workstream is not ready — say so and stop. When all criteria have evidence, ask the user to approve closure. Never self-certify.
 
 ## Move 5 — Archive
 
