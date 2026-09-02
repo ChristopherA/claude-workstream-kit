@@ -28,17 +28,33 @@ items: 2
 Self-contained context and the requested action.
 ```
 
+The two halves are split across two actors who cannot see each other's session, so each half carries a pre-flight that assumes nothing about the other: the sender cannot know what the receiver already holds, and the receiver cannot know whether the sender's steps ran.
+
 ## Create
 
-1. Gather the items. The self-containment test for each: could someone act on it with NO access to this conversation or this repo? Its canonical failure is the bare task ID: `#ID-4` sends the receiver to grep your repo, which is the one thing the test forbids, and it slips through deep in a document whose earlier references were all named correctly — partial adoption reads as adoption. Include file contents, decisions, and rationale inline as needed. An item asking the receiver to adopt a boundary, constraint, or ownership split carries one instruction before the writing: grep the target for the clause that currently contradicts it. A boundary appended while the broader permission it narrows stays in place leaves two passages equally authoritative, and the broader one wins in practice.
-2. Confirm the destination project path with the user — writing into another project is a cross-project action and gets its own confirmation.
-3. Write the file (`mkdir -p <dest>/.state/handoffs/` first). One file per destination; bundle multiple items.
-4. Commit the file in the receiver's repo (scoped: `git -C <dest> add` the file, then commit only it). An uncommitted handoff is invisible to the receiver's other machines and one `git clean` from gone — state files are committed in the session that writes them, and that includes state written into another project. If the receiver's repo has staged work, do not sweep it up; commit only the handoff path.
-5. If the destination project does not exist yet, do NOT create a holding pen — record the items in the sender's own workstream.md (backlog or open question) until it does.
+Pre-flight, before writing into another project:
+
+1. **Read what the receiver already tracks.** Any step that proposes to write into another party's tracker reads that tracker first: the receiver's `.state/workstreams/` including paused ones, its `ACTIVE.md`, and its inbox. "The receiver needs this" is a claim about the receiver and stays a claim about the sender's intent until the receiver's state is read. The grep is seconds and a duplicate is permanent, because a handoff is committed into the receiver's history and a later correction does not remove the original.
+2. **Self-containment, per item.** Could someone act on it with NO access to this conversation or this repo? Its canonical failure is the bare task ID: `#ID-4` sends the receiver to grep your repo, which is the one thing the test forbids, and it slips through deep in a document whose earlier references were all named correctly — partial adoption reads as adoption. Include file contents, decisions, and rationale inline as needed. An item asking the receiver to adopt a boundary, constraint, or ownership split carries one instruction before the writing: grep the target for the clause that currently contradicts it. A boundary appended while the broader permission it narrows stays in place leaves two passages equally authoritative, and the broader one wins in practice.
+3. **Confirm the destination with the user, and its visibility.** Writing into another project is a cross-project action and gets its own confirmation. If the destination repository is public, say so before writing: handoffs routinely name the private projects they come from, and a file committed into a public repository's inbox is one authorized push from permanent public history. The sender is the party least placed to notice, because by the time anyone asks, the file is already committed there. (A finding about the kit itself goes to an issue on its repository, not into its inbox.)
+
+Then:
+
+4. **Write the file** (`mkdir -p <dest>/.state/handoffs/` first). One file per destination; bundle multiple items. If the destination project does not exist yet, do NOT create a holding pen — record the items in the sender's own workstream.md (backlog or open question) until it does.
+5. **Commit it in the receiver's repo as a FILING**, scoped to the one path (`git -C <dest> add` the file, then commit only it; if the receiver's repo has staged work, do not sweep it up). Title the commit as what its diff proves — "File a handoff: <title>" — and never as a receive: a commit that adds a handoff and deletes none is a filing by the sender, however accurately its message describes the item, and titled "Receive ..." it tells the log the work was done while the file still sits untriaged in the inbox. `git show --stat <sha>` reporting insertions only is conclusive.
+6. **Say which guarantee you delivered.** The commit buys durability — survival against `git clean`, a place in history; only a push buys reach, the receiver's other machines. Committed and unpushed, the handoff arrives only for a receiver session on this machine. Surface the push decision to the user with what it would publish (every other commit on that branch), and never push on this skill's say-so: a push is shared-visible and needs its own approval.
+7. **Correcting an item still in flight is an edit in place**, not an appended correction. While the file sits untriaged, rewrite the item: the reader cannot see your conversation, so they cannot tell which of two contradicting passages was written later, and triage is exactly the moment they have least context to adjudicate. The window closes at triage; after that, a correction is a new item.
 
 ## Receive
 
-1. Read each file in this project's `.state/handoffs/`.
-2. Triage per item, with the user when interactive: **do now** (small, in scope), **route** to a workstream backlog as `- [ ] #XX-N: <task> (from <source>, <date>)`, or **decline** with rationale — if the sender needs to know, reply with a handoff back.
-3. Delete each fully processed file; items routed into a backlog count as processed.
-4. An aging inbox (hook reports oldest age) is state to reconcile, not background noise — triage before new task work.
+Pre-flight, before triage:
+
+1. **Read each file in `.state/handoffs/`, and check it is preserved before anything destroys it**: `git ls-files <path>`. A file that arrived uncommitted leaves no record once deleted — the deletion shows in `git status` as nothing, because git never had it — and the one that matters most is the one that refutes something this project already committed. Commit it first, as a filing; never reconstruct a missing one from memory, since a hand-retyped file presented as the received original is worse than an honest pointer.
+2. **List `.state/workstreams/`, including paused ones**, before proposing any routing destination. Conversational salience never surfaces a paused workstream, and that is the class that gets duplicated; the creation skill's duplicate check catches only the route that passes through it.
+3. **Verify a claim before it becomes a task description.** Not every sentence — the claims you are about to write down: a mechanism or environment claim, a count, a list of paths and line numbers. Check them against this tree by content, never by line number, because the receiver's own edits shift lines in the gap between sending and receiving and a careful sender's "measured, not estimated" does not survive it. An item framed as a correction to the receiver's own file carries borrowed authority — it arrives with evidence, it is about your mistake, and agreeing feels cooperative — and gets probed the same way.
+
+Then:
+
+4. **Triage per item**, with the user when interactive: **do now** (small, in scope), **route** to a workstream backlog as `- [ ] #XX-N: <task> (from <source>, <date>)`, or **decline** with rationale — if the sender needs to know, reply with a handoff back.
+5. **Delete each fully processed file** — items routed into a backlog count as processed — and commit as a RECEIVE: the diff deletes the file, and the title says what was triaged. A receive commit that deletes nothing is a filing wearing the wrong name.
+6. **An aging inbox** (the hook reports oldest age) is state to reconcile, not background noise — triage before new task work.
