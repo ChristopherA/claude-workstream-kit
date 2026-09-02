@@ -24,7 +24,7 @@ Run the workstreams-rule **capture sweep** over this session against the durable
 
 Then close the boundary cleanly:
 
-- Update `ACTIVE.md` -- `task`, `Now`, `Next`, `Blockers` -- so the next session resumes in one read.
+- Update `ACTIVE.md` -- `task`, `Now`, `Next`, `Blockers` -- so the next session resumes in one read. Name any reference that crosses a workstream or project boundary -- a task, a gate, a Learning, a Decision -- with a few words saying what it is, in ACTIVE.md and in what you say to the user alike. A bare ID conceals the staleness of what it points at, since a reader given the code cannot audit the content; the convention holds where text is re-read and leaks where it is composed fresh each turn, which is exactly here.
 - Check off any Backlog items completed this session, each with its one-line evidence (a commit, a passing command, a count).
 - Mark any Learning that RESOLVED this session -- its integration target shipped, its handoff sent, its question settled -- with its disposition now, in the same commit. A never-closing workstream extracts each Learning the moment it resolves, and the drain that would otherwise do it is periodic; this is the skill that runs at that moment.
 - Commit the state files, signed and scoped to `.state/`; do not sweep unrelated working changes into the commit.

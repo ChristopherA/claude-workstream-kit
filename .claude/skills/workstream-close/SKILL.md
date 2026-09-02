@@ -28,7 +28,7 @@ The opposite case is a closure that does not look like one. A workstream ABSORBE
 
 ## Move 2 — Narrative summary
 
-Present, in prose: (1) the Purpose verbatim from workstream.md, (2) what was actually accomplished, with pointers to the artifacts and commits, (3) why it is ready to close, (4) what remains open after archive and where each open item goes — as a task-level map, each open task named against the successor task that now holds it or dropped by name, never a container-level statement that the scope moved: an absorbed workstream's tasks vanish from the working tree the moment its directory is removed, so a task the map missed is unrecoverable by reading. Lead with anything NOT done.
+Present, in prose: (1) the Purpose verbatim from workstream.md, (2) what was actually accomplished, with pointers to the artifacts and commits, (3) why it is ready to close, (4) what remains open after archive and where each open item goes — as a task-level map, each open task named against the successor task that now holds it or dropped by name, never a container-level statement that the scope moved: an absorbed workstream's tasks vanish from the working tree the moment its directory is removed, so a task the map missed is unrecoverable by reading. Lead with anything NOT done. Name any reference that crosses a workstream or project boundary — a task, a gate, a Learning, a Decision — with a few words saying what it is, in ACTIVE.md and in what you say to the user alike. A bare ID conceals the staleness of what it points at, since a reader given the code cannot audit the content; the convention holds where text is re-read and leaks where it is composed fresh each turn, which is exactly here.
 
 ## Move 3 — Extraction (delegated)
 

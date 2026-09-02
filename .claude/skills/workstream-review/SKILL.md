@@ -71,4 +71,4 @@ When the workstream's deliverable is a multi-document set headed to an approval 
 
 ## Move 6 — Record
 
-Commit the restructured state. Update ACTIVE.md with what the review changed and the next action. Route any cross-workstream work this surfaced before finishing — capture should not wait for the user to ask.
+Commit the restructured state. Update ACTIVE.md with what the review changed and the next action. Name any reference that crosses a workstream or project boundary — a task, a gate, a Learning, a Decision — with a few words saying what it is, in ACTIVE.md and in what you say to the user alike. A bare ID conceals the staleness of what it points at, since a reader given the code cannot audit the content; the convention holds where text is re-read and leaks where it is composed fresh each turn, which is exactly here. Route any cross-workstream work this surfaced before finishing — capture should not wait for the user to ask.
