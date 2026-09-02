@@ -4,10 +4,20 @@
 # Run from anywhere: <kit-checkout>/tests/va3-acceptance.sh
 #
 # It runs on a fully configured account as well as a clean one -- user-level
-# rules simply load into the three sessions -- and it takes roughly 25 minutes
-# while spawning three sessions, so start it in the background at the BEGINNING
-# of a release build rather than at the push gate, where it becomes the thing
-# everything waits on. It is the only end-to-end coverage of the closure path.
+# rules simply load into the three sessions -- and it takes between ten and
+# twenty-five minutes as measured across runs, so start it in the background
+# as soon as the tree it should test is committed, rather than at the push
+# gate where it becomes the thing everything waits on. The install step copies
+# the kit at start, so a run tests what the tree held when it began. It is the
+# only end-to-end coverage of the closure path.
+#
+# The suite is also an intake channel for guidance defects: the unattended
+# work session hits them, and the closure session records them as the
+# fixture's own Learnings and applies them to its installed skill copies. Read
+# Session C's output and the fixture's Learnings (in its git log, since the
+# closure archives the workstream file) before deleting the fixture -- both
+# findings from the first two runs were visible only there, while the summary
+# said ALL CHECKS PASS.
 #
 # Prerequisites (one-time, interactive):
 #   1. Claude Code installed:  curl -fsSL https://claude.ai/install.sh | bash
