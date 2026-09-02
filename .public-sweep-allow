@@ -46,6 +46,15 @@
 # being defined, not references to anything.
 :[0-9]+:[-+ ]?- \*\*Task IDs\*\*: `#XX-N`
 
+# The end-to-end test's closure prompt names the demo workstream's own gate,
+# completion tasks and archive tag as the scenario it drives. Pinned to the
+# prompt's exact opening words, and to the one hunk header that quotes the
+# gate-check label, so an edit to that line does not report its own fixtures.
+# Same hole as every line-level entry: a private name written INTO that prompt
+# would be hidden; the prompt is read whenever it is edited.
+:[0-9]+:[-+ ]?claude -p --dangerously-skip-permissions 'As the user I approve the #G-BD gate: the deliverable works\.
+:[0-9]+:@@ .*@@ check "stopped AT gate \(G-BD unchecked\)"
+
 # Acceptance-test fixtures: generated task lines and temp-directory state paths.
 :[0-9]+:[-+ ]?.*echo "- \[[ x]\] #(BD-[0-9]+|G-B)
 :[0-9]+:[-+ ]?task: "#BD-1 - first task"
