@@ -18,7 +18,7 @@ A session is about to cross a boundary -- most often `/clear`, then `/workstream
 
 Run the workstreams-rule **capture sweep** over this session against the durable files, and act on each finding -- do not just list them:
 
-1. **Detection** -- what was decided, learned, or flagged this session that is not yet in the active `workstream.md`, `ACTIVE.md`, memory, or a commit? And what ARRIVED: a handoff filed into `.state/handoffs/` while the session ran is already a commit, so this question cannot see it -- list the inbox and read `git log` for commits this session did not author before answering; a session that writes "inbox empty" from memory is wrong within minutes of a concurrent session filing one.
+1. **Detection** -- what was decided, learned, or flagged this session that is not yet in the active `workstream.md`, `ACTIVE.md`, memory, or a commit? And what ARRIVED: a handoff filed into `.state/handoffs/` while the session ran is already a commit, so this question cannot see it -- list the inbox and read `git log` for commits this session did not author before answering, since the session-start hook reported the inbox once and cannot fire again.
 2. **Cascade** -- for each item, where does it belong: this workstream's Backlog, Decisions, or Learnings; another workstream's backlog; another project (a `/handoff`); or a named file? Route it there now.
 3. **Synthesis** -- what general rule or pattern do this session's instances suggest, and does it extend or supersede an existing Decision or Learning? Capture that too.
 
