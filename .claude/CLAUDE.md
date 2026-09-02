@@ -1,6 +1,6 @@
 # Workstream Conventions
 
-This project tracks multi-session work as **workstreams**: durable state in git-versioned files under `.state/`. Formats and constraints: `.claude/rules/workstreams-rule.md`.
+This project tracks multi-session work as **workstreams**: durable state in git-versioned files under `.state/`. Formats and constraints: `.claude/rules/workstreams-rule.md`. The kit's files under `.claude/` — this block, the rule, the workstream skills, the hooks, the agents — are installed artifacts of claude-workstream-kit: a change one of them needs is reported upstream as an issue on that repository the same session, and a local edit is expected to be overwritten by the next install.
 
 ## Session resume
 
