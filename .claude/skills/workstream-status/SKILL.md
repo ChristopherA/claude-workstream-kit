@@ -48,16 +48,16 @@ The packet:
 > 1. **Purpose**: the first sentence under `## Purpose`, and the sentence containing "Done means" or, absent that, the last sentence of the section.
 > 2. **Phases**: every `### <Name> (<XX>)` heading under `## Backlog`, each with its open count from `grep -cE '^ *- \[ \] #<XX>-'` and its gate count from `grep -cE '^ *- \[ \] #G-<XX>'`.
 > 3. **First open task**: the first line matching `^ *- \[ \] #`, verbatim.
-> 4. **Open gates**: every line matching `^ *- \[ \] #G-`, verbatim, and for each whether it contains `SATISFIED`, `READY`, or `criterion is met` — report the match, not what it means.
-> 5. **Hold lines**: every line matching, case-insensitively, `held|hold|blocked by|unblocks when|wait(s|ing)? (for|on)|not before|sequenced after`, with line numbers; where a line exceeds 300 characters, the 300 around the match.
-> 6. **Cross-workstream references**: every occurrence of `(in|from|to|of|at) (explore|feature|fix|project|maintain|docs)/[a-z0-9-]+` and every `ws/[a-z0-9-]+` tag, each with the identifier that precedes it on the line if any (`#[A-Z]+-[0-9]+[a-z]?`, `D[0-9]+`, `L[0-9]+`, `OQ-[0-9]+`), with line numbers.
-> 7. **Critical path**: the paragraph beginning `**Critical path.**` verbatim, or `not found`.
+> 4. **Open gates**: every line matching `^ *- \[ \] #G-`, verbatim, and for each whether it contains the capitalised word `SATISFIED` or `READY`, or the phrase `criterion is met` — case-sensitive on the capitals, since lower-case "satisfied" occurs in ordinary prose about a gate; report the match, not what it means.
+> 5. **Hold lines**: every line matching, case-insensitively and on word boundaries, `\bheld\b|\bhold\b|blocked (by|on)|unblocks when|\bwait(s|ing)? (for|on)\b|not before|sequenced after`, with line numbers — the boundaries matter, because `hold` sits inside `threshold` and `household`; where a line exceeds 300 characters, the 300 around the match. Run the pattern as given: a line that reads like a hold but does not match is not reported here.
+> 6. **Cross-workstream references**: every occurrence of `(explore|feature|fix|project|maintain)/[a-z0-9-]+`, with or without a preposition before it, and every `ws/[a-z0-9-]+` tag, each with the identifier that precedes it on the line if any (`#[A-Z]+-[0-9]+[a-z]?`, `D[0-9]+`, `L[0-9]+`, `OQ-[0-9]+`), with line numbers. `docs` is left out of the type list because `docs/` also names a directory; add it back only for a project that has a docs-type workstream.
+> 7. **Critical path**: the paragraph beginning `**Critical path` verbatim, from that line to the next blank line since the paragraph may be hard-wrapped, or `not found`.
 > 8. **Latest Decision**: the highest-numbered `### D<n>` heading, verbatim, and the count of `### D` headings.
 > 9. **Learnings**: every line matching `^- L[0-9]+`, verbatim, trimmed to 200 characters.
 > 10. **Deletion criteria**: the count of `- [ ]` and of `- [x]` lines under `## Deletion Criteria`.
 > 11. **Size**: `wc -c` of the file.
 
-Verify what comes back before building on it: a scout's record is a starting hypothesis, and a line number is checked with `sed -n` before it is cited in the statement.
+Verify what comes back before building on it. In main context, before any synthesis, derive the two cheapest fields for every file with one command each — `grep -cE '^ *- \[ \] #'` for the open count and `grep -nE '^ *- \[ \] #G-'` for the gate lines — and hold each record against them: a record whose phase counts do not sum to the file's count, or whose gate list differs, is discarded and its fields re-derived in main context rather than repaired by hand. In the first run against a real project, one scout in eight reported no open gate on a file whose one open gate carried satisfied-text, one dropped a task from a phase count, and several returned summaries where the packet asked for lines; the two greps caught the first two. A scout's record is a starting hypothesis, and a line number is checked with `sed -n` before it is cited in the statement.
 
 ## Move 3 — Cross-workstream synthesis
 
@@ -70,16 +70,17 @@ In main context, from the records:
 
 ## Move 4 — Disagreements
 
-A synthesis exists to surface the places where the files disagree, because no single-workstream skill can see them. Check each class below across every record; report every hit with both sources quoted (file and line each) and the skill that owns the fix. Resolve none.
+A synthesis exists to surface the places where the files disagree, because no single-workstream skill can see them. Check each class below across every record, on open lines, critical-path paragraphs and ACTIVE.md — a completed line's references are frozen provenance and are not checked; report every hit with both sources quoted (file and line each) and the skill that owns the fix. Resolve none.
 
 1. ACTIVE.md's `workstream:` names a directory the roster lacks, or its `task:` names an ID with no open line in that workstream (checked, or absent). Owner: `/workstream-capture`.
 2. A hold line names a task in a workstream whose `status:` is `paused`. Owner: `/workstream-review` in the holding workstream.
 3. An open gate line carries satisfied-text. Owner: the next session in that workstream presents the gate; `/workstream-review` if the backlog accreted behind it.
 4. A cross-workstream reference names a home that exists and does not contain the ID, or names a closed workstream by name rather than by its archive tag. Owner: `/workstream-review` in the referring workstream.
 5. Every deletion criterion is checked, or the done condition reads as met, while `status:` is `active`. Owner: `/workstream-close`.
-6. ACTIVE.md's Blockers names a workstream with no open task matching the named thing. Owner: `/workstream-capture`.
+6. ACTIVE.md's Blockers names a workstream with nothing there matching the named thing — no open task, and no standing obligation of a never-closing workstream such as its drain or review. Owner: `/workstream-capture`.
 7. Two workstreams claim the same next release, version, or artifact. Owner: `/workstream-review` in each.
 8. `.state/PROJECT.md` lists a skill with no `.claude/skills/<name>/SKILL.md`, or a file that does not exist. Owner: the user, by editing that list.
+9. A hold line or a critical-path paragraph names, as next or as the thing it waits on, a task or gate that is already checked. The paragraph reads as current because nothing marks the moment it stopped being; in the first run two of five critical paths did this, one of them re-derived that same day. Owner: `/workstream-review` in that workstream.
 
 Cross-project findings — a reference into another project, a handoff whose sender has moved on — are named as out of reach; `/handoff` is the route when they need action.
 
