@@ -141,7 +141,9 @@ While the kit is pre-1.0, `VERSION` moves by the kind of change a release carrie
 
 `VERSION` marks curated releases. Between releases the `workstream-kit.source` stamp records the exact commit, so a project installed from a mid-stream checkout still reports precise provenance even when the version number has not moved.
 
-A release is soft until its tag reaches the remote. While `git ls-remote --tags origin` does not show it, approved work arriving late folds into the pending release — re-cutting costs a deleted local tag and a reset. Once the tag is public, the same work takes a new patch release instead, because a project may already have installed from it.
+A release is soft until its tag reaches the remote. While `git ls-remote --tags origin` does not show it, approved work arriving late folds into the pending release — re-cutting costs a deleted local tag and a reset. The release commit is the TIP of the range being published: a fix approved after it is reordered ahead of it before the tag is cut, because `install.sh` reports its version from `git describe`, and a tag below the tip has every consumer installing from `main` read as commits past the release. Once the tag is public, the same work takes a new patch release instead, because a project may already have installed from it.
+
+A release that changes the kit's model of itself — a skill added or removed, a lifecycle boundary moved, a move retired — reads `docs/design.md` against the release diff before the tag is cut and fixes what the release falsified. A rationale document is cited more often than it is opened and produces no diff at the moment it becomes wrong. Other releases owe no such pass.
 
 ## Status line
 
@@ -161,7 +163,7 @@ Install registers it in `settings.json` automatically — but only when no `stat
 
 ## Reporting a gap in the kit
 
-Open an issue on this repository. Do not send a handoff: this repo is itself kit-installed, so it carries a tracked `.state/handoffs/` inbox, and a handoff committed there is committed to a public repository — while handoffs routinely name the private projects they come from. The inbox stays tracked because an uncommitted handoff does not reach the receiver's other machines, so the destination is documented rather than the inbox disabled.
+Open an issue on this repository. That includes an edit you made to an installed payload file because you needed the behaviour now — the right immediate move, and one nothing routes afterward: report it the same session, with the diff, since the edit is invisible between upgrades, blocks your next upgrade under the overwrite refusal, and leaves every other consumer without it. A version stamp cannot see an in-place edit; only comparing the file's content against the kit can. Do not send a handoff: this repo is itself kit-installed, so it carries a tracked `.state/handoffs/` inbox, and a handoff committed there is committed to a public repository — while handoffs routinely name the private projects they come from. The inbox stays tracked because an uncommitted handoff does not reach the receiver's other machines, so the destination is documented rather than the inbox disabled.
 
 ## Team-scale alternative
 
