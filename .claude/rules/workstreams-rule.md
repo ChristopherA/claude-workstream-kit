@@ -106,7 +106,7 @@ Then say what the chosen check CANNOT see, and decide whether that matters for t
 
 Before a session boundary (`/clear`, `/compact`, `/exit`) and at closure, run a three-question sweep over the session against the durable files — capture should not depend on the user asking:
 
-1. **Detection** — what decided, learned, or flagged this session is not yet in `workstream.md`, `ACTIVE.md`, memory, or a commit?
+1. **Detection** — what decided, learned, or flagged this session is not yet in `workstream.md`, `ACTIVE.md`, memory, or a commit? And what ARRIVED: a handoff filed into `.state/handoffs/` while the session ran is already a commit, so this question cannot see it — list the inbox and read `git log` for commits the session did not author before answering, since the session-start hook reported the inbox once and cannot fire again.
 2. **Cascade** — for each, where does it belong: this workstream, another workstream's Backlog, another project (a handoff), or a named file?
 3. **Synthesis** — what general rule or pattern do this session's instances suggest, and does it extend or supersede an existing Decision or Learning?
 
