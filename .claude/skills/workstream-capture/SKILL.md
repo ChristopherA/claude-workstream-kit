@@ -26,6 +26,7 @@ Then close the boundary cleanly:
 
 - Update `ACTIVE.md` -- `task`, `Now`, `Next`, `Blockers` -- so the next session resumes in one read.
 - Check off any Backlog items completed this session, each with its one-line evidence (a commit, a passing command, a count).
+- Mark any Learning that RESOLVED this session -- its integration target shipped, its handoff sent, its question settled -- with its disposition now, in the same commit. A never-closing workstream extracts each Learning the moment it resolves, and the drain that would otherwise do it is periodic; this is the skill that runs at that moment.
 - Commit the state files, signed and scoped to `.state/`; do not sweep unrelated working changes into the commit.
 
 When everything is captured and committed, say it is safe to cross the boundary and name what `Next` points at, so the next session knows where `/workstream-work` picks up. If nothing this session needs capturing, say so plainly -- do not invent items to look thorough.
