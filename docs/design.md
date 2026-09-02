@@ -72,6 +72,8 @@ This was validated directly: in the kit's acceptance tests, fully autonomous ses
 
 **Spend the strongest model where judgment concentrates.** The delegate agents already price the mechanical work (a Haiku-class scout; Sonnet-class worker and verifier); the main loop is where top-tier cost accrues. Deep re-coherence, design decisions, and gate evidence benefit from the strongest available model at high effort; working a settled backlog runs well a tier down, or at lower effort — on current frontier models, lower effort still outperforms prior generations at full effort. This is operator guidance, not configuration: the kit names no model and works unchanged on whatever the session runs.
 
+A delegate earns its place where reading beats a command, and not everywhere the work is mechanical. The status skill's first run sent a scout per workstream to derive a record whose every field is a line-anchored grep, and got back summaries where lines were asked for, a dropped gate, and a dropped task, while the same record derived in main context by command was exact and cost two commands. So that record is derived by command, and the scout's job there is to open every line the drafted statement cites and say whether it reads as claimed — the check a grep cannot make.
+
 ## Work should end well
 
 Most tracking systems handle starting and doing; few handle ending. Unclosed work is where knowledge dies — decisions buried in stale files, lessons never extracted, "done" never actually verified. The kit treats closure as a first-class phase:
