@@ -42,6 +42,10 @@
 # The workstream template ships the Completion phase as literal task lines.
 :[0-9]+:[-+ ]?- \[[ x]\] #CL-[123]: (Disposition all Learnings|Verify deletion criteria|Archive \(`\.state/workstreams/ARCHIVE\.md` line)
 
+# The rule's ACTIVE.md example shows a task pointer; its line moved when the
+# example lost its trailing comments.
+:[0-9]+:[-+ ]?task: "#DR-2 - state-file formats"
+
 # The Task IDs bullet IS the convention's definition; its examples are the form
 # being defined, not references to anything.
 :[0-9]+:[-+ ]?- \*\*Task IDs\*\*: `#XX-N`
