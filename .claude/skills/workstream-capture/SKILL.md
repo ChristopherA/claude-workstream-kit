@@ -16,15 +16,11 @@ description: >-
 
 A session is about to cross a boundary -- most often `/clear`, then `/workstream-work` again. `/clear` fires no hook, so this is the manual sweep that would otherwise be skipped, and the one boundary the SessionEnd and PreCompact nudges cannot reach. Before crossing it, make sure nothing from this session is lost. Capture should not depend on the user asking for it.
 
-Run the workstreams-rule **capture sweep** over this session against the durable files, and act on each finding -- do not just list them:
-
-1. **Detection** -- what was decided, learned, or flagged this session that is not yet in the active `workstream.md`, `ACTIVE.md`, memory, or a commit? And what ARRIVED: a handoff filed into `.state/handoffs/` while the session ran is already a commit, so this question cannot see it -- list the inbox and read `git log` for commits this session did not author before answering, since the session-start hook reported the inbox once and cannot fire again.
-2. **Cascade** -- for each item, where does it belong: this workstream's Backlog, Decisions, or Learnings; another workstream's backlog; another project (a `/handoff`); or a named file? Route it there now.
-3. **Synthesis** -- what general rule or pattern do this session's instances suggest, and does it extend or supersede an existing Decision or Learning? Capture that too.
+Run the workstreams-rule **capture sweep** -- detection, cascade and synthesis as that section states them, arrived handoffs included -- over this session against the durable files, and act on each finding rather than listing it: route every item to its home now, and write any synthesis-level pattern where it extends or supersedes an existing Decision or Learning.
 
 Then close the boundary cleanly:
 
-- Update `ACTIVE.md` -- `task`, `Now`, `Next`, `Blockers` -- so the next session resumes in one read. Name any reference that crosses a workstream or project boundary -- a task, a gate, a Learning, a Decision -- with a few words saying what it is, in ACTIVE.md and in what you say to the user alike. A bare ID conceals the staleness of what it points at, since a reader given the code cannot audit the content; the convention holds where text is re-read and leaks where it is composed fresh each turn, which is exactly here.
+- Update `ACTIVE.md` -- `task`, `Now`, `Next`, `Blockers` -- so the next session resumes in one read. Name every reference that crosses a workstream or project boundary with a few words saying what it is (workstreams-rule, Task IDs), in ACTIVE.md and in what you say to the user alike.
 - Check off any Backlog items completed this session, each with its one-line evidence (a commit, a passing command, a count).
 - Mark any Learning that RESOLVED this session -- its integration target shipped, its handoff sent, its question settled -- with its disposition now, in the same commit. A never-closing workstream extracts each Learning the moment it resolves, and the drain that would otherwise do it is periodic; this is the skill that runs at that moment.
 - Commit the state files, signed and scoped to `.state/`; do not sweep unrelated working changes into the commit.
@@ -43,4 +39,4 @@ find /tmp/ -maxdepth 1 -name 'claude-*-context.json' -exec jq -s --arg p "$PWD" 
 
 The trailing slash on `/tmp/` is required where `/tmp` is a symlink (macOS): `find /tmp` without it descends nothing and returns falsely empty. No output means no status line or no record for this project -- say nothing about context in that case rather than reporting zero.
 
-Report the two numbers and what they imply: under 40% consumed, crossing is optional and there is room to keep working; 40-59%, cross now while capture is fresh; 60% or more, cross immediately -- auto-compact is close enough to interrupt the next task mid-write.
+Report the two numbers and how close auto-compact is. The decision is the user's, and a capture that has just committed is a safe moment to make it either way.
