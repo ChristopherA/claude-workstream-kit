@@ -8,7 +8,9 @@
 # Idempotent: re-run to update the .claude/ payload; existing .state/ is never touched.
 # --dry-run compares the kit payload against the target and reports, per file,
 # whether the target is in sync, behind the kit (stale), or ahead of it (locally
-# modified -- a change to route back to the kit before re-installing).
+# modified -- a change to route back to the kit before re-installing), and names
+# any RETIRED payload file (one the kit once shipped and no longer does) that a
+# real run would remove, its hook registrations with it.
 set -eu
 
 # Normalize to absolute paths at entry.
@@ -59,16 +61,27 @@ else
   SRC_DESC="unknown (kit is not a git checkout)"
 fi
 
-# The settings.json hook-merge program -- single source of truth for both the
-# real install and the --dry-run no-op check. Adds each registration only if its
-# command is absent (idempotent).
+# The settings.json hook program -- single source of truth for both the real
+# install and the --dry-run no-op check. It adds the session-start registration
+# if its command is absent (idempotent), and REMOVES the registrations of a hook
+# the kit no longer ships: capture-nudge.sh printed the capture sweep on
+# PreCompact and SessionEnd, two events whose hook output reaches only the
+# debug log, so it never reached the model, and a registration left behind
+# would run a script the payload no longer carries. Groups emptied by the
+# removal go, and so does an event key left with no groups.
 SS_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh'
-CN_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/capture-nudge.sh'
+RETIRED_HOOK_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/capture-nudge.sh'
+# Retired payload paths, space-separated: present in a target, a real run removes
+# each one (refusing a locally modified copy without --force, like any payload).
+RETIRED_PAYLOAD='.claude/hooks/capture-nudge.sh'
 HOOK_MERGE_JQ='
   .hooks //= {}
   | (if any((.hooks.SessionStart // [])[]?.hooks[]?; .command == $ss) then . else .hooks.SessionStart = ((.hooks.SessionStart // []) + [{"hooks":[{"type":"command","command":$ss}]}]) end)
-  | (if any((.hooks.PreCompact // [])[]?.hooks[]?; .command == $cn) then . else .hooks.PreCompact = ((.hooks.PreCompact // []) + [{"hooks":[{"type":"command","command":$cn}]}]) end)
-  | (if any((.hooks.SessionEnd // [])[]?.hooks[]?; .command == $cn) then . else .hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{"hooks":[{"type":"command","command":$cn}]}]) end)
+  | .hooks |= with_entries(
+      if (.key == "PreCompact" or .key == "SessionEnd") and ((.value | type) == "array") then
+        .value |= (map(.hooks |= map(select(.command != $cn))) | map(select((.hooks | length) > 0)))
+      else . end)
+  | .hooks |= with_entries(select(((.value | type) == "array" and (.value | length) == 0) | not))
 '
 
 # Classify a target file that DIFFERS from the kit HEAD version. Walk the kit's
@@ -179,6 +192,13 @@ if [ "$DRY_RUN" -eq 1 ]; then
     fi
   done < "$payload_list"
   rm -f "$payload_list"
+  # Retired payload: shipped by an earlier kit, present here, removed by a real run.
+  for rp in $RETIRED_PAYLOAD; do
+    if [ -f "$TARGET/$rp" ]; then
+      echo "  - $rp  (retired -- would be removed; $(classify_direction "$rp" "$TARGET/$rp"))"
+      pdrift=$((pdrift + 1))
+    fi
+  done
   echo "  payload: $checked files checked, $((checked - pdrift)) in sync, $pdrift drifted"
   [ "$pdrift" -eq 0 ] || drift=1
 
@@ -223,12 +243,12 @@ if [ "$DRY_RUN" -eq 1 ]; then
   elif command -v jq >/dev/null 2>&1; then
     merged=$(mktemp)
     cur=$(mktemp)
-    jq --arg ss "$SS_CMD" --arg cn "$CN_CMD" "$HOOK_MERGE_JQ" "$tsj" | jq -S . > "$merged"
+    jq --arg ss "$SS_CMD" --arg cn "$RETIRED_HOOK_CMD" "$HOOK_MERGE_JQ" "$tsj" | jq -S . > "$merged"
     jq -S . "$tsj" > "$cur"
     if cmp -s "$merged" "$cur"; then
-      echo "  = .claude/settings.json  hook merge is a no-op (all hooks registered)"
+      echo "  = .claude/settings.json  hook merge is a no-op (session-start registered, nothing retired)"
     else
-      echo "  ~ .claude/settings.json  hook merge would add registrations:"
+      echo "  ~ .claude/settings.json  hook merge would change registrations:"
       diff "$cur" "$merged" | sed 's/^/        /' || true
       drift=1
     fi
@@ -312,6 +332,12 @@ if [ "$FORCE" -eq 0 ] && [ "$KIT_IS_GIT" -eq 1 ]; then
         ;;
     esac
   done
+  for rp in $RETIRED_PAYLOAD; do
+    [ -f "$TARGET/$rp" ] || continue
+    case "$(classify_direction "$rp" "$TARGET/$rp")" in
+      instance-ahead*) echo "  $rp  (RETIRED in this kit and locally modified -- --force removes it)" >> "$ahead_file" ;;
+    esac
+  done
   if [ -s "$ahead_file" ]; then
     echo "ERROR: refusing to overwrite locally modified payload files:" >&2
     cat "$ahead_file" >&2
@@ -351,7 +377,15 @@ for d in rules skills agents hooks scripts; do
   mkdir -p "$TARGET/.claude/$d"
   cp -R "$KIT_DIR/.claude/$d/." "$TARGET/.claude/$d/"
 done
-chmod +x "$TARGET/.claude/hooks/session-start.sh" "$TARGET/.claude/hooks/capture-nudge.sh" "$TARGET/.claude/scripts/status-line.sh"
+for rp in $RETIRED_PAYLOAD; do
+  if [ -f "$TARGET/$rp" ]; then
+    rm -f "$TARGET/$rp"
+    echo "  removed retired $rp"
+  fi
+done
+for x in "$KIT_DIR"/.claude/hooks/* "$KIT_DIR"/.claude/scripts/*; do
+  [ -f "$x" ] && chmod +x "$TARGET/${x#"$KIT_DIR"/}"
+done
 
 # --- CLAUDE.md: write fresh, or append once under markers -------------------
 if [ ! -f "$TARGET/.claude/CLAUDE.md" ]; then
@@ -383,16 +417,16 @@ fi
 # --- settings.json: merge hook registrations --------------------------------
 if [ ! -f "$TARGET/.claude/settings.json" ]; then
   cp "$KIT_DIR/.claude/settings.json" "$TARGET/.claude/settings.json"
-  echo "  wrote .claude/settings.json (session-start + capture-nudge hooks registered)"
+  echo "  wrote .claude/settings.json (session-start hook registered)"
 elif command -v jq >/dev/null 2>&1; then
-  jq --arg ss "$SS_CMD" --arg cn "$CN_CMD" "$HOOK_MERGE_JQ" \
+  jq --arg ss "$SS_CMD" --arg cn "$RETIRED_HOOK_CMD" "$HOOK_MERGE_JQ" \
     "$TARGET/.claude/settings.json" > "$TARGET/.claude/settings.json.tmp"
   mv "$TARGET/.claude/settings.json.tmp" "$TARGET/.claude/settings.json"
-  echo "  merged session-start + capture-nudge hooks into existing settings.json"
+  echo "  merged the session-start hook into existing settings.json (retired registrations removed)"
 else
-  echo "  ACTION REQUIRED: register these hooks in .claude/settings.json:"
+  echo "  ACTION REQUIRED: edit .claude/settings.json by hand:"
   echo "    SessionStart -> command: $SS_CMD"
-  echo "    PreCompact, SessionEnd -> command: $CN_CMD"
+  echo "    remove any PreCompact or SessionEnd entry running: $RETIRED_HOOK_CMD"
 fi
 
 # --- statusLine: workstream-aware status line (set-if-absent) ----------------
