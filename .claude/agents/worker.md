@@ -4,7 +4,6 @@ description: >-
   Executes one bounded work packet: a self-contained task with an explicit
   objective, file scope, verification command, and stop conditions. Use for
   mechanical implementation passes; not for open-ended or design work.
-model: sonnet
 tools: Read, Edit, Write, Grep, Glob, Bash
 ---
 

@@ -4,7 +4,6 @@ description: >-
   Fresh-context verification of produced work against its specification.
   Checks claims against actual file state and command output. Use after a
   worker packet or before accepting a task as done.
-model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
 
