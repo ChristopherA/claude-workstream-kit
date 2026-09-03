@@ -2,7 +2,7 @@
 
 A standalone, portable workstream system for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Copy it into any project and that project gains durable, git-versioned work tracking that survives `/clear`, `/compact`, session ends, and account moves — with zero dependency on user-level (`~/.claude/`) configuration.
 
-Designed for frontier agentic models (Fable-, Opus-, and Sonnet-class): principle-level instructions instead of step enumerations, `/goal`-driven autonomous sessions, and delegation to cheap pinned subagents (Haiku scout, Sonnet worker, fresh-context verifier).
+Designed for frontier agentic models (Fable-, Opus-, and Sonnet-class): principle-level instructions instead of step enumerations, `/goal`-driven autonomous sessions, and delegation to subagents that inherit the session's model (a read-only scout, a bounded worker, a fresh-context verifier).
 
 ## Why workstreams
 
@@ -38,10 +38,10 @@ Because the state is plain files in git, it is portable across machines, account
 | Conventions | `.claude/CLAUDE.md`, `.claude/rules/workstreams-rule.md` |
 | Lifecycle skills | `.claude/skills/workstream-create/`, `workstream-work/`, `workstream-capture/`, `workstream-review/`, `workstream-extract/`, `workstream-close/` |
 | Cross-project handoffs | `.claude/skills/handoff/` |
-| Cross-workstream status | `.claude/skills/workstream-status/` (read-only, on demand) |
-| Tiered agents | `.claude/agents/scout.md` (haiku), `worker.md` (sonnet), `verifier.md` |
+| Cross-workstream status | `.claude/skills/workstream-status/` (read-only, on demand) + `.claude/scripts/workstream-record.py`, which derives its per-workstream record and needs `python3` |
+| Delegate agents | `.claude/agents/scout.md`, `worker.md`, `verifier.md` -- each inherits the session's model |
 | Session resume | `.claude/hooks/session-start.sh` + `settings.json` hook registration |
-| Boundary capture | workstreams-rule capture sweep + `.claude/skills/workstream-capture/` + `.claude/hooks/capture-nudge.sh` (SessionEnd/PreCompact nudge) |
+| Boundary capture | workstreams-rule capture sweep + `.claude/skills/workstream-capture/` |
 | State seed | `.state/` (ACTIVE.md, PROJECT.md, workstreams/, handoffs/) |
 | Status line | `.claude/scripts/status-line.sh`, registered set-if-absent by `install.sh` |
 
@@ -65,7 +65,7 @@ git clone https://github.com/ChristopherA/claude-workstream-kit
 claude-workstream-kit/install.sh /path/to/your/project
 ```
 
-Idempotent: safe to re-run for updates. It copies the `.claude/` payload, seeds `.state/` (never overwriting existing state), merges the kit's hooks into the project's `settings.json` (or tells you what to add), and stamps the installed version and source commit. A re-run stops rather than overwriting a payload file you edited locally, so an unrouted improvement is not lost by re-running without looking (`--force` discards it deliberately). Run it with `--dry-run` (alias `--check`) first to see exactly what a real run would change; it writes nothing and exits non-zero when anything is out of sync (1 for drift or a behind stamp, 3 when the payload cannot be tracked in your project).
+Idempotent: safe to re-run for updates. It copies the `.claude/` payload, removes any payload file a later kit retired (the earlier capture-nudge hook, with its registrations), seeds `.state/` (never overwriting existing state), merges the kit's hook into the project's `settings.json` (or tells you what to add), and stamps the installed version and source commit. A re-run stops rather than overwriting a payload file you edited locally, so an unrouted improvement is not lost by re-running without looking (`--force` discards it deliberately). Run it with `--dry-run` (alias `--check`) first to see exactly what a real run would change; it writes nothing and exits non-zero when anything is out of sync (1 for drift or a behind stamp, 3 when the payload cannot be tracked in your project).
 
 If your project already has a `.claude/CLAUDE.md`, the kit's conventions are appended under a marker block instead of overwriting.
 
@@ -148,7 +148,7 @@ A release that changes the kit's model of itself — a skill added or removed, a
 
 ## Status line
 
-The kit ships a self-contained status line that shows `project » branch » workstream` and the percent of context remaining before auto-compaction, reading the active workstream from `.state/ACTIVE.md`. It also writes a per-session context JSON to `/tmp` that sessions read for context-budget decisions. It needs only `jq`.
+The kit ships a self-contained status line that shows `project » branch » workstream` and the percent of context remaining before auto-compaction, reading the active workstream from `.state/ACTIVE.md`. It also writes a per-session context JSON to `/tmp` that sessions read for context-budget decisions. It needs only `jq`; the one other dependency in the payload is `python3`, for the status skill's record script.
 
 Install registers it in `settings.json` automatically — but only when no `statusLine` is already set, so a status line you already run is never overridden. Remove it by deleting the `statusLine` block from `.claude/settings.json` — but note a later re-install will register it again once the slot is empty, so to stay opted out across updates, point `statusLine` at your own command instead of leaving the slot absent.
 
