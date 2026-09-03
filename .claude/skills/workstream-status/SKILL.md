@@ -29,7 +29,7 @@ This is the complete list. Anything not on it is not read, and the statement's l
 - `.state/handoffs/*.md`, the inbox.
 - The roster, re-derived by running `.claude/hooks/session-start.sh` with `CLAUDE_PROJECT_DIR` set to the project root — never recalled from the transcript, which is a session old at best.
 - Git, three reads and no more: the last-commit date of each state file (`git log -1 --format=%ci -- <file>`, the derivation the hook uses, since the `updated:` field drifts); commits ahead of the upstream (`git rev-list --count @{upstream}..HEAD`, or the named remote branch when no upstream is set); and uncommitted state (`git status --short -- .state/`).
-- `.state/PROJECT.md`, the project's own list of what is unique to it: skills and context files. For each listed skill, the `description` in the frontmatter of `.claude/skills/<name>/SKILL.md` and nothing else of it; for each listed file, the file. The list exists because a scan cannot tell a skill unique to the project from one copied in from a shared source, and only the unique ones frame a status. Nothing outside `.state/` and git is read unless that file lists it — not `CLAUDE.md`, not `README.md`, not the rest of `.claude/`. When the file is absent or its sections are empty, the statement says so and names the file.
+- `.state/PROJECT.md`, the project's own list of what is unique to it: skills and context files. For each listed skill, the `description` in the frontmatter of `.claude/skills/<name>/SKILL.md` and nothing else of it; for each listed file, the file. The list exists because a scan cannot tell a skill unique to the project from one copied in from a shared source, and only the unique ones frame a status. Beyond the hook script, the record script and the listed skills' descriptions, nothing outside `.state/` and git is read unless that file lists it — not `CLAUDE.md`, not `README.md`, not the rest of `.claude/`. When the file is absent or its sections are empty, the statement says so and names the file.
 
 Other projects are out: a handoff this project SENT lives in another project's inbox, and a task that names another project is reported as the reference it is, unresolved.
 
@@ -37,9 +37,9 @@ Other projects are out: a handoff this project SENT lives in another project's i
 
 In main context: run the hook, read ACTIVE.md and PROJECT.md, take the three git reads. Note the workstream count, each status and flag, the inbox count and oldest age, and whether ACTIVE.md's pointer names a workstream and task that exist. This is cheap and bounded, and it is the frame every later move hangs on.
 
-## Move 2 — The record, one command per field
+## Move 2 — The record, by script
 
-In main context, derive the record below for every `workstream.md`, with the commands given and over all files at once. Each is line-anchored, so its output is small whatever the file's size — the largest file is never read whole, only grepped — and deterministic, which is what a record has to be before anything is built on it. The first run of this skill sent one scout per file for the same record: the scouts took a minute or more each, returned summaries where lines were asked for, dropped a gate and a task, and loosened the patterns, while two commands in main context derived every record exactly. Delegation moved to Move 5, where reading beats grep.
+In main context, run `.claude/scripts/workstream-record.py <project root>`: it prints the record below for every `workstream.md`, plus ACTIVE.md's hold lines and cross-workstream references with its frontmatter skipped, as one JSON object, and needs only python3. The field definitions that follow are the contract the script implements. Each is line-anchored, so the output is small whatever the file's size — the largest file is never read whole — and deterministic, which is what a record has to be before anything is built on it. A scout sent to derive it returns summaries where lines were asked for; delegation belongs in Move 5, where reading beats grep.
 
 The record, per file:
 
@@ -78,7 +78,7 @@ A synthesis exists to surface the places where the files disagree, because no si
 6. ACTIVE.md's Blockers names a workstream with nothing there matching the named thing — no open task, and no standing obligation of a never-closing workstream such as its drain or review. Owner: `/workstream-capture`.
 7. Two workstreams claim the same next release, version, or artifact. Owner: `/workstream-review` in each.
 8. `.state/PROJECT.md` lists a skill with no `.claude/skills/<name>/SKILL.md`, or a file that does not exist. Owner: the user, by editing that list.
-9. A hold line or a critical-path paragraph names, as next or as the thing it waits on, a task or gate that is already checked. The paragraph reads as current because nothing marks the moment it stopped being; in the first run two of five critical paths did this, one of them re-derived that same day. Owner: `/workstream-review` in that workstream.
+9. A hold line or a critical-path paragraph names, as next or as the thing it waits on, a task or gate that is already checked. The paragraph reads as current because nothing marks the moment it stopped being. Owner: `/workstream-review` in that workstream.
 
 Cross-project findings — a reference into another project, a handoff whose sender has moved on — are named as out of reach; `/handoff` is the route when they need action.
 
@@ -93,7 +93,7 @@ Chat, in this shape and this order, and nothing written anywhere:
 5. **Disagreements.** Each with both texts and the owner.
 6. **What this could not see.** Sources on the list that were absent or unreadable, a cited line the verifier could not open, references into other projects, and the standing gap: priority among independent chains.
 
-Before the statement is delivered, hand it and the records to one fresh-context `scout` with this packet verbatim: "Here is a status statement and the records it was built from. For every file and line the statement cites, open that line and report MATCH or the line's actual text. For every row of the roster, run `grep -cE '^ *- \[ \] #'` and `grep -nE '^ *- \[ \] #G-'` on that workstream's file now and report whether the row's counts agree. Report occurrences only, never a verdict on the statement." A citation that comes back as anything but MATCH is corrected or dropped before delivery. This is where a sub-agent earns its place — reading a cited line against a claim is the check a grep cannot make — and the first run showed the reverse assignment fails: scouts sent to derive the record summarized and dropped lines, while the derivation in main context was exact.
+Before the statement is delivered, hand it and the records to one fresh-context `scout` with this packet verbatim: "Here is a status statement and the records it was built from. For every file and line the statement cites, open that line and report MATCH or the line's actual text. For every row of the roster, run `grep -cE '^ *- \[ \] #'` and `grep -nE '^ *- \[ \] #G-'` on that workstream's file now and report whether the row's counts agree. Report occurrences only, never a verdict on the statement." A citation that comes back as anything but MATCH is corrected or dropped before delivery. This is where a sub-agent earns its place: reading a cited line against a claim is the check a grep cannot make.
 
 Bound the length by leaving things out, not by compressing: a workstream's detail beyond its next task and its gates does not belong here, and a reader who wants it opens the file. Task IDs are pointers, not names — every ID in the statement carries a few words saying what it is.
 
