@@ -64,6 +64,20 @@
 :[0-9]+:[-+ ]?.*"\$T/\.state/workstreams/
 :[0-9]+:[-+ ]?.*\.state/workstreams/project/greeting-script\b
 
+# The record script's test builds its fixture workstreams and ACTIVE.md as
+# heredocs, so their task, gate and pointer lines appear bare; each entry pins
+# the fixture's own words, so a real ID in a real sentence still reports.
+^tests/record-acceptance\.sh:[0-9]+:.*#(DR-1|G-DR|BD-[12]|G-DN|G-BD)\b
+:[0-9]+:[-+ ]?- \[ \] #DR-1: draft the design outline
+:[0-9]+:[-+ ]?- \[ \] #G-DR: USER CHECKPOINT -- release readiness SATISFIED 2026-01-01 pending final confirmation
+:[0-9]+:[-+ ]?  - \[ \] #BD-1: implement the core module
+:[0-9]+:[-+ ]?- \[ \] #BD-2: blocked on feature/beta for the shared schema work
+:[0-9]+:[-+ ]?- \[ \] #G-DN: USER CHECKPOINT -- pending review before shipment
+:[0-9]+:[-+ ]?# contains "waiting for #G-BD"\.
+:[0-9]+:[-+ ]?task: "#BD-2 - shared schema work"
+:[0-9]+:[-+ ]?Release is waiting for #G-BD in feature/beta before we can proceed with the next steps here\.
+:[0-9]+:[-+ ]?check "cross ref on the hold line has preceding_id #BD-2"
+
 # This file's own entries quote the identifiers they exempt, so a diff that adds
 # or edits one reports every string it names.
 #
