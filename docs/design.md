@@ -56,7 +56,7 @@ The pattern across the right column: nothing native is **project-scoped, git-ver
 The kit's entire state model is one `workstream.md` per workstream (purpose, backlog, decisions, learnings, deletion criteria) plus one `ACTIVE.md` per project (what's active, current task, next action, blockers).
 
 - **Git is the durability and portability layer.** Anything the harness does to a session leaves the files untouched; cloning the repo moves the entire work state; the commit history *is* the progress journal, which is why the files don't carry one.
-- **Flat frontmatter and checkboxes are the parse layer.** `head` reads the status; `grep -cE '^- \[ \] #'` counts open tasks (the task-ID anchor, so standing Deletion Criteria are not counted as backlog); a Haiku-class scout or a `/goal` evaluator can verify state without a YAML library. Cheap reads are what make delegation and autonomous verification practical.
+- **Flat frontmatter and checkboxes are the parse layer.** `head` reads the status; `grep -cE '^ *- \[ \] #'` counts open tasks (the task-ID anchor, so standing Deletion Criteria are not counted as backlog, tolerant of indentation so a sub-task is not dropped); a Haiku-class scout or a `/goal` evaluator can verify state without a YAML library. Cheap reads are what make delegation and autonomous verification practical.
 - **Two files is the floor, so two files is the design.** The predecessor used four-plus files per workstream; in practice the extra files held either journal content (git already has it) or session state (one pointer file per project suffices). A workstream.md that outgrows a few hundred lines signals the *workstream* should split, not the file.
 
 ## Built for strong models
@@ -70,7 +70,7 @@ Newer Claude models follow short, principle-level instructions reliably — and 
 
 This was validated directly: in the kit's acceptance tests, fully autonomous sessions ran the create/work/close lifecycle and honored every user-authority constraint — no auto-starting work after creation, no auto-passing checkpoint gates, no self-certified closure — from the skill text alone.
 
-**Spend the strongest model where judgment concentrates.** The delegate agents already price the mechanical work (a Haiku-class scout; Sonnet-class worker and verifier); the main loop is where top-tier cost accrues. Deep re-coherence, design decisions, and gate evidence benefit from the strongest available model at high effort; working a settled backlog runs well a tier down, or at lower effort — on current frontier models, lower effort still outperforms prior generations at full effort. This is operator guidance, not configuration: the kit names no model and works unchanged on whatever the session runs.
+**Spend the strongest model where judgment concentrates.** Deep re-coherence, design decisions, and gate evidence benefit from the strongest available model at high effort; working a settled backlog runs well at lower effort — on current frontier models, medium effort roughly matches the prior generation, and low is often competitive with a cheaper model on cost per task. The three delegate agents inherit the session's model: the effort a mechanical pass deserves is the operator's to set at the session, and a pin in the kit would freeze a cost claim the kit cannot keep current. This is operator guidance, not configuration: the kit names no model and works unchanged on whatever the session runs.
 
 A delegate earns its place where reading beats a command, and not everywhere the work is mechanical. The status skill's first run sent a scout per workstream to derive a record whose every field is a line-anchored grep, and got back summaries where lines were asked for, a dropped gate, and a dropped task, while the same record derived in main context by command was exact and cost two commands. So that record is derived by command, and the scout's job there is to open every line the drafted statement cites and say whether it reads as claimed — the check a grep cannot make.
 
@@ -81,7 +81,7 @@ Most tracking systems handle starting and doing; few handle ending. Unclosed wor
 - **Deletion criteria** are written at creation: falsifiable conditions for archiving the workstream.
 - **Closure presents per-criterion evidence** to the user, who decides; the model never self-certifies.
 - **Learnings must reach a destination** outside the workstream — applied to a named file, handed off to another project, or dropped with stated rationale — before archive.
-- **Archive is a git tag plus one index line**, so closed work stays recoverable and searchable without staying loaded — provided the tag is pushed. The index line cites a tag by name and nothing else, so an unpushed tag leaves the citation resolvable only on the machine that closed the workstream.
+- **Archive is a git tag plus one index line**, so closed work stays recoverable and searchable without staying loaded — provided the tag is pushed. The index line cites a tag by name and nothing else, so an unpushed tag leaves the citation resolvable only on the machine that closed the workstream. The dangling-tag check runs at closure and not in the session-start hook: `git ls-remote` is a network call that would tax every session start and can hang offline, while closure is rare and already online at the moment it matters.
 
 The half of closure that never needed an ending — dispositioning learnings, moving artifacts out of the state tree, gathering criteria evidence — is factored into a periodic extract skill, so the workstreams that never close still get it.
 
@@ -97,7 +97,7 @@ Any long-lived artifact — a skill, a rules file, a template, this document —
 
 ## Autonomous sessions
 
-Durable, mechanically-checkable state is what makes goal-driven autonomy safe. The work skill derives a `/goal` condition from the backlog ("every Build-phase checkbox is checked, each with a committed artifact, and state files are committed"), states blast-radius boundaries (edits and commits proceed; user gates and anything shared-visible stop), and delegates mechanical passes to pinned cheap agents — a read-only scout, a worker that takes bounded packets, a fresh-context verifier that checks the worker's output against its spec. The state files are both the input (condition derivation) and the output (evidence-bearing checkboxes) of that loop.
+Durable, mechanically-checkable state is what makes goal-driven autonomy safe. The work skill derives a `/goal` condition from the backlog ("every Build-phase checkbox is checked, each with a committed artifact, and state files are committed"), states blast-radius boundaries (edits and commits proceed; user gates and anything shared-visible stop), and delegates mechanical passes to three agents that inherit the session's model — a read-only scout, a worker that takes bounded packets, a fresh-context verifier that checks the worker's output against its spec. The state files are both the input (condition derivation) and the output (evidence-bearing checkboxes) of that loop.
 
 ## What the kit refuses to do
 
