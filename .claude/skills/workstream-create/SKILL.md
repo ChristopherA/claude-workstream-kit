@@ -13,11 +13,11 @@ description: >-
 
 Formats and conventions: `.claude/rules/workstreams-rule.md`. Templates: `templates/` in this skill directory.
 
-Before starting, check `.state/workstreams/` for an existing workstream that already covers this work, and the subject's own documentation wherever this project keeps it — a master doc, a design note, a meta directory — because the workstreams are not necessarily where a project's thinking lives: a closure tag holds whatever the closed workstream held, which may be a conformance pass rather than the subject's analysis, and a diagnosis phase has been nearly opened for problems already written down twice. If either plausibly covers it, surface it and ask before creating a duplicate.
+Before starting, check `.state/workstreams/` for an existing workstream that already covers this work, and the subject's own documentation wherever this project keeps it — a master doc, a design note, a meta directory — because the workstreams are not necessarily where a project's thinking lives: a closure tag holds whatever the closed workstream held, which may be a conformance pass rather than the subject's analysis. If either plausibly covers it, surface it and ask before creating a duplicate.
 
 ## Move 1 — Interview
 
-Ask one question at a time; let each answer shape the next. Required ground to cover:
+Ask one question at a time, only for ground the request has not already covered, and let each answer shape the next. Required ground:
 
 1. **Purpose** — what this is and what done means. If the answer fits a single session, recommend skipping the workstream.
 2. **Type** — explore / feature / fix / project / maintain / docs, and a short kebab-case name.

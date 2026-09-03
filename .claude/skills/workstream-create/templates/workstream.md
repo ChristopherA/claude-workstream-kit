@@ -20,7 +20,7 @@ updated: <YYYY-MM-DD>
 
 - [ ] #CL-1: Disposition all Learnings and Open Questions; deploy durable artifacts out of .state/
 - [ ] #CL-2: Verify deletion criteria with evidence; user closure gate
-- [ ] #CL-3: Archive (`.state/workstreams/ARCHIVE.md` line, tag ws/<name> and push it, remove directory, reset ACTIVE.md)
+- [ ] #CL-3: Archive (`.state/workstreams/ARCHIVE.md` line, tag ws/<name>, remove directory, reset ACTIVE.md only if it points here; the tag push is its own gate after)
 
 ## Decisions
 
