@@ -2,7 +2,11 @@
 # Workstream kit session-start hook: surface ACTIVE state, the active
 # workstream's detail, a roster of every workstream, the handoff inbox, and
 # staleness signals. Output is bounded: a fixed preamble plus one line per
-# workstream.
+# workstream. Registered with no matcher, so it fires on every SessionStart
+# event -- startup, resume, clear and compact -- and after a compaction it is
+# the re-grounding: ACTIVE.md and the roster reach the model again. (Hook
+# output on PreCompact and SessionEnd goes to the debug log and nowhere else,
+# which is why the kit ships no nudge on those events.)
 set -eu
 
 # Normalize to absolute paths at entry.
@@ -125,11 +129,15 @@ if [ "$WS_COUNT" -gt 0 ]; then
     R_FLAGS=""
     if [ "$(file_bytes "$f")" -gt "$SIZE_BYTES" ]; then R_FLAGS="$R_FLAGS SIZE"; FLAGGED=1; fi
     if [ "$R_AGE" -gt "$STALE_DAYS" ]; then R_FLAGS="$R_FLAGS STALE"; FLAGGED=1; fi
+    # A gate decided in the record and never presented: its open line carries the
+    # marker the rule names (SATISFIED, READY, or "criterion is met" -- the same
+    # predicate the status skill uses), while the count beside it stays truthful.
+    if grep -E '^ *- \[ \] #G-' "$f" 2>/dev/null | grep -qE 'SATISFIED|READY|criterion is met'; then R_FLAGS="$R_FLAGS GATE-READY"; FLAGGED=1; fi
     printf '%s %-36s %-7s %3s open %2s gate %5sKB %4sd%s\n' \
       "$R_MARK" "$WS_ID" "$R_STATUS" "$R_OPEN" "$R_GATES" "$R_KB" "$R_AGE" "$R_FLAGS"
   done
   if [ "$FLAGGED" -eq 1 ]; then
-    echo "SIZE = past single-read size, drain with /workstream-extract. STALE = untouched ${STALE_DAYS}d+, update/pause/close."
+    echo "SIZE = past single-read size, drain with /workstream-extract. STALE = untouched ${STALE_DAYS}d+, update/pause/close. GATE-READY = an open gate records its exit criterion met; present it."
   fi
 fi
 

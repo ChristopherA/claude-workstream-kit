@@ -69,6 +69,11 @@ git add -A
 GIT_COMMITTER_DATE="@$NOW +0000" GIT_AUTHOR_DATE="@$NOW +0000" git commit -q -m 'fixture'
 # gamma alone is committed 40 days back, so STALE fires for it and nothing else.
 echo "- [ ] #BD-2: another" >> "$T/.state/workstreams/maintain/gamma/workstream.md"
+# gamma also carries a gate decided in the record and never presented (the
+# GATE-READY green side); beta carries a gate whose lower-case "satisfied" is
+# ordinary prose (the red side: the predicate is case-sensitive on the marker).
+echo "- [ ] #G-BX: USER CHECKPOINT -- exit criterion SATISFIED 2026-01-01, not yet presented" >> "$T/.state/workstreams/maintain/gamma/workstream.md"
+echo "- [ ] #G-BB: USER CHECKPOINT -- once the user is satisfied with the draft" >> "$T/.state/workstreams/project/beta/workstream.md"
 git add -A
 GIT_COMMITTER_DATE="@$OLD +0000" GIT_AUTHOR_DATE="@$OLD +0000" git commit -q -m 'age gamma'
 
@@ -102,6 +107,19 @@ check "active pointer marked" "grep -q '^-> project/alpha' \"\$T/out.txt\""
 check "oversized UNPOINTED workstream flagged SIZE" \
   "grep -q 'project/beta.*SIZE' \"\$T/out.txt\""
 check "status surfaced per workstream" "grep -q 'maintain/gamma *paused' \"\$T/out.txt\""
+
+echo "== A gate decided in the record is flagged, a lower-case satisfied is not"
+check "fixture: gamma's gate line carries the SATISFIED marker" \
+  "grep -qE '^- \[ \] #G-BX.*SATISFIED' \"\$T/.state/workstreams/maintain/gamma/workstream.md\""
+check "GATE-READY on the row whose gate is recorded satisfied (green side)" \
+  "grep -q 'maintain/gamma.*GATE-READY' \"\$T/out.txt\""
+check "fixture: beta's gate line says satisfied in lower case only" \
+  "grep -q '#G-BB.*satisfied' \"\$T/.state/workstreams/project/beta/workstream.md\" && ! grep -q '#G-BB.*SATISFIED' \"\$T/.state/workstreams/project/beta/workstream.md\""
+check "no GATE-READY on the lower-case row (red side)" \
+  "! grep -q 'project/beta.*GATE-READY' \"\$T/out.txt\""
+check "no GATE-READY on a plain open gate (alpha)" \
+  "! grep -q 'project/alpha.*GATE-READY' \"\$T/out.txt\""
+check "legend explains GATE-READY" "grep -q 'GATE-READY = ' \"\$T/out.txt\""
 
 echo "== The roster survives an unpointed project"
 sed 's|^workstream: project/alpha|workstream: none|' "$T/.state/ACTIVE.md" > "$T/a.tmp"
