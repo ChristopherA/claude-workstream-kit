@@ -57,6 +57,9 @@
 
 # Acceptance-test fixtures: generated task lines and temp-directory state paths.
 :[0-9]+:[-+ ]?.*echo "- \[[ x]\] #(BD-[0-9]+|G-B)
+# The hook test's GATE-READY checks grep for the two fixture gates they assert on,
+# pinned to the check's own quoting so a real gate ID elsewhere still reports.
+:[0-9]+:[-+ ]?  "grep -qE? '[^']*#G-B[XB]\.\*(SATISFIED|satisfied)'
 :[0-9]+:[-+ ]?task: "#BD-1 - first task"
 :[0-9]+:[-+ ]?.*"\$T/\.state/workstreams/
 :[0-9]+:[-+ ]?.*\.state/workstreams/project/greeting-script\b
