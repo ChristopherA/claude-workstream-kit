@@ -44,8 +44,8 @@ set +e; DRY=$(sh "$KIT_DIR/install.sh" --dry-run "$A" 2>&1); DRC=$?; set -e
 check "dry-run exits 1 (the retired file counts as drift)" "[ \"\$DRC\" -eq 1 ]"
 check "dry-run names the retired file as one a real run removes" \
   "printf '%s' \"\$DRY\" | grep -q -- '- $RETIRED  (retired -- would be removed; instance-behind'"
-check "dry-run says the hook merge would change registrations" \
-  "printf '%s' \"\$DRY\" | grep -q 'hook merge would change registrations'"
+check "dry-run says the settings merge would change registrations" \
+  "printf '%s' \"\$DRY\" | grep -q 'settings merge would change registrations'"
 sh "$KIT_DIR/install.sh" "$A" > "$T/a-install.txt" 2>&1
 check "install exits 0 and reports the removal" "grep -q 'removed retired $RETIRED' \"\$T/a-install.txt\""
 check "the retired file is gone" "[ ! -f \"\$A/\$RETIRED\" ]"
@@ -57,8 +57,12 @@ check "SessionEnd, left with no groups, is dropped" \
   "! jq -e '.hooks.SessionEnd' \"\$A/.claude/settings.json\" >/dev/null"
 check "the session-start registration stays" \
   "jq -e '.hooks.SessionStart | any(.[] | .hooks[]?; .command | test(\"session-start.sh\"))' \"\$A/.claude/settings.json\" >/dev/null"
+check "the merge records the kit checkout's path as the WORKSTREAM_KIT_DIR env entry" \
+  "[ \"\$(jq -r '.env.WORKSTREAM_KIT_DIR' \"\$A/.claude/settings.json\")\" = \"\$KIT_DIR\" ]"
 set +e; DRY2=$(sh "$KIT_DIR/install.sh" --dry-run "$A" 2>&1); DRC2=$?; set -e
 check "second dry-run reports nothing to remove" "! printf '%s' \"\$DRY2\" | grep -q 'retired -- would be removed'"
+check "second dry-run finds the settings merge a no-op (the recorded path is stable)" \
+  "printf '%s' \"\$DRY2\" | grep -q 'settings merge is a no-op'"
 
 echo "== B: a target whose copy of the retired hook was edited locally"
 B="$T/b"; mk_target "$B"
@@ -79,6 +83,8 @@ set +e; DRYC=$(sh "$KIT_DIR/install.sh" --dry-run "$C" 2>&1); set -e
 check "dry-run prints no retired line" "! printf '%s' \"\$DRYC\" | grep -q 'retired -- would be removed'"
 sh "$KIT_DIR/install.sh" "$C" > "$T/c-install.txt" 2>&1
 check "install prints no removal line" "! grep -q 'removed retired' \"\$T/c-install.txt\""
+check "a fresh settings.json records the kit checkout's path too" \
+  "[ \"\$(jq -r '.env.WORKSTREAM_KIT_DIR' \"\$C/.claude/settings.json\")\" = \"\$KIT_DIR\" ]"
 check "the kit's own settings carry no PreCompact or SessionEnd key" \
   "! jq -e '.hooks.PreCompact, .hooks.SessionEnd' \"\$C/.claude/settings.json\" 2>/dev/null | grep -q '\\['"
 

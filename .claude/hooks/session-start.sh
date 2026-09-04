@@ -219,20 +219,20 @@ if [ "$HCOUNT" -gt 0 ]; then
   echo "Handoffs pending in .state/handoffs/: $HCOUNT (oldest: ${OLDEST_D}d). Triage with /handoff before new task work if aging."
 fi
 
-# Installed kit version against the kit worktree's VERSION, where a
-# worktree can be located: WORKSTREAM_KIT_DIR, or the fleet's worktree
-# layouts under $HOME/Workspace. One external fact every kit-using project
-# shares, surfaced to every reader; SILENT where no worktree is found, since
-# a consumer outside the fleet cannot answer the question and a guess
-# would read as a fact.
+# Installed kit version against the kit checkout's VERSION. The checkout
+# is located by WORKSTREAM_KIT_DIR alone, which install.sh records in the
+# consumer's settings.json env as the path it ran from -- so the hook
+# carries no layout convention of its own (an earlier version guessed two
+# fleet-specific worktree layouts under $HOME, a private convention in a
+# public hook). One external fact every kit-using project shares,
+# surfaced to every reader; SILENT where the variable is unset or names
+# no checkout, since a guess would read as a fact.
 INSTALLED=$(head -1 "$PROJECT_DIR/.claude/workstream-kit.version" 2>/dev/null | tr -d ' ' || true)
 if [ -n "$INSTALLED" ]; then
   KIT_VERSION_FILE=""
-  for cand in "${WORKSTREAM_KIT_DIR:-}" \
-              "$HOME"/Workspace/WORKTREES/GITHUB/*/claude-workstream-kit/main \
-              "$HOME"/Workspace/claude-workstream-kit; do
-    [ -n "$cand" ] && [ -f "$cand/VERSION" ] && { KIT_VERSION_FILE="$cand/VERSION"; break; }
-  done
+  if [ -n "${WORKSTREAM_KIT_DIR:-}" ] && [ -f "${WORKSTREAM_KIT_DIR}/VERSION" ]; then
+    KIT_VERSION_FILE="${WORKSTREAM_KIT_DIR}/VERSION"
+  fi
   if [ -n "$KIT_VERSION_FILE" ]; then
     AVAILABLE=$(head -1 "$KIT_VERSION_FILE" | tr -d ' ')
     # Equal VERSIONs do not mean equal content: a worktree carrying

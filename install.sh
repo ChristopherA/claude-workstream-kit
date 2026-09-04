@@ -68,14 +68,20 @@ fi
 # PreCompact and SessionEnd, two events whose hook output reaches only the
 # debug log, so it never reached the model, and a registration left behind
 # would run a script the payload no longer carries. Groups emptied by the
-# removal go, and so does an event key left with no groups.
+# removal go, and so does an event key left with no groups. It also records
+# the kit checkout's path as the WORKSTREAM_KIT_DIR env entry -- the path this
+# installer ran from, rewritten on every install -- which the session-start
+# hook reads to compare the installed version against the checkout, so the
+# hook needs no layout convention of its own.
 SS_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh'
 RETIRED_HOOK_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/capture-nudge.sh'
 # Retired payload paths, space-separated: present in a target, a real run removes
 # each one (refusing a locally modified copy without --force, like any payload).
 RETIRED_PAYLOAD='.claude/hooks/capture-nudge.sh'
 HOOK_MERGE_JQ='
-  .hooks //= {}
+  .env //= {}
+  | .env.WORKSTREAM_KIT_DIR = $kd
+  | .hooks //= {}
   | (if any((.hooks.SessionStart // [])[]?.hooks[]?; .command == $ss) then . else .hooks.SessionStart = ((.hooks.SessionStart // []) + [{"hooks":[{"type":"command","command":$ss}]}]) end)
   | .hooks |= with_entries(
       if (.key == "PreCompact" or .key == "SessionEnd") and ((.value | type) == "array") then
@@ -235,7 +241,8 @@ if [ "$DRY_RUN" -eq 1 ]; then
     drift=1
   fi
 
-  # settings.json hook merge (additive-only; no "ahead" case).
+  # settings.json merge: hook registrations and the kit path (additive-only;
+  # no "ahead" case).
   tsj="$TARGET/.claude/settings.json"
   if [ ! -f "$tsj" ]; then
     echo "  + .claude/settings.json  (absent -- would be created from the kit)"
@@ -243,12 +250,12 @@ if [ "$DRY_RUN" -eq 1 ]; then
   elif command -v jq >/dev/null 2>&1; then
     merged=$(mktemp)
     cur=$(mktemp)
-    jq --arg ss "$SS_CMD" --arg cn "$RETIRED_HOOK_CMD" "$HOOK_MERGE_JQ" "$tsj" | jq -S . > "$merged"
+    jq --arg ss "$SS_CMD" --arg cn "$RETIRED_HOOK_CMD" --arg kd "$KIT_DIR" "$HOOK_MERGE_JQ" "$tsj" | jq -S . > "$merged"
     jq -S . "$tsj" > "$cur"
     if cmp -s "$merged" "$cur"; then
-      echo "  = .claude/settings.json  hook merge is a no-op (session-start registered, nothing retired)"
+      echo "  = .claude/settings.json  settings merge is a no-op (session-start registered, kit path recorded, nothing retired)"
     else
-      echo "  ~ .claude/settings.json  hook merge would change registrations:"
+      echo "  ~ .claude/settings.json  settings merge would change registrations or the recorded kit path:"
       diff "$cur" "$merged" | sed 's/^/        /' || true
       drift=1
     fi
@@ -414,18 +421,22 @@ else
   echo "  appended kit block to existing .claude/CLAUDE.md"
 fi
 
-# --- settings.json: merge hook registrations --------------------------------
-if [ ! -f "$TARGET/.claude/settings.json" ]; then
+# --- settings.json: merge hook registrations and the kit path ---------------
+if [ ! -f "$TARGET/.claude/settings.json" ] && ! command -v jq >/dev/null 2>&1; then
   cp "$KIT_DIR/.claude/settings.json" "$TARGET/.claude/settings.json"
   echo "  wrote .claude/settings.json (session-start hook registered)"
+  echo "  ACTION REQUIRED: jq absent -- add to .claude/settings.json by hand:"
+  echo "    env -> WORKSTREAM_KIT_DIR: $KIT_DIR"
 elif command -v jq >/dev/null 2>&1; then
-  jq --arg ss "$SS_CMD" --arg cn "$RETIRED_HOOK_CMD" "$HOOK_MERGE_JQ" \
+  [ -f "$TARGET/.claude/settings.json" ] || cp "$KIT_DIR/.claude/settings.json" "$TARGET/.claude/settings.json"
+  jq --arg ss "$SS_CMD" --arg cn "$RETIRED_HOOK_CMD" --arg kd "$KIT_DIR" "$HOOK_MERGE_JQ" \
     "$TARGET/.claude/settings.json" > "$TARGET/.claude/settings.json.tmp"
   mv "$TARGET/.claude/settings.json.tmp" "$TARGET/.claude/settings.json"
-  echo "  merged the session-start hook into existing settings.json (retired registrations removed)"
+  echo "  merged the session-start hook and the kit path into settings.json (retired registrations removed)"
 else
   echo "  ACTION REQUIRED: edit .claude/settings.json by hand:"
   echo "    SessionStart -> command: $SS_CMD"
+  echo "    env -> WORKSTREAM_KIT_DIR: $KIT_DIR"
   echo "    remove any PreCompact or SessionEnd entry running: $RETIRED_HOOK_CMD"
 fi
 

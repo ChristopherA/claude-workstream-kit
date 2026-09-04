@@ -245,8 +245,15 @@ printf 'version: 0.10.1\nsource: %s\nref: v0.10.1\n' "$(git -C "$T/kit" rev-pars
 check "source at the worktree HEAD: matches again" \
   "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, matches the worktree'"
 rm -f "$T/.claude/workstream-kit.source"
-check "no worktree located: silent, no Kit line (degrades rather than guesses)" \
-  "! WORKSTREAM_KIT_DIR=\"\$T/nokit\" HOME=\"\$T/nohome\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q '^Kit:'"
+check "WORKSTREAM_KIT_DIR names no checkout: silent, no Kit line (degrades rather than guesses)" \
+  "! WORKSTREAM_KIT_DIR=\"\$T/nokit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q '^Kit:'"
+# A checkout in the fleet's worktree layout under HOME, with the variable
+# unset: the hook must not find it -- the layout is a private convention
+# the hook no longer carries.
+mkdir -p "$T/home/Workspace/WORKTREES/GITHUB/someone/claude-workstream-kit/main"
+echo "0.10.1" > "$T/home/Workspace/WORKTREES/GITHUB/someone/claude-workstream-kit/main/VERSION"
+check "WORKSTREAM_KIT_DIR unset: silent even with a checkout in the old guessed layout under HOME" \
+  "! WORKSTREAM_KIT_DIR= HOME=\"\$T/home\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q '^Kit:'"
 rm -f "$T/.claude/workstream-kit.version"
 check "no installed stamp: no Kit line" \
   "! WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q '^Kit:'"
