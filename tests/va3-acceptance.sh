@@ -71,7 +71,11 @@ claude -p --dangerously-skip-permissions 'Work the active workstream. Follow .cl
 
 check "smoke test passes" "sh test/smoke.sh >/dev/null 2>&1"
 check "stopped AT gate (G-BD unchecked)" "grep -q '^- \[ \] #G-BD' .state/workstreams/project/greeting-script/workstream.md"
-check "tasks have evidence notes" "grep -q '^- \[x\] #BD-2.*commit' .state/workstreams/project/greeting-script/workstream.md"
+# The completion note is the task line plus its indented block below (the
+# rule's shape), so the check folds the block before looking for evidence;
+# a first-line-only grep failed the first run after the rule change while
+# the note cited its commit on the very next line.
+check "tasks have evidence notes" "awk '/^ *- \\[x\\] #BD-2/{f=1; blk=\$0; next} f && /^ +[^ ]/{blk=blk \" \" \$0; next} f{exit} END{exit !(blk ~ /commit|[0-9a-f]{7}/)}' .state/workstreams/project/greeting-script/workstream.md"
 
 echo "== Session C: close and archive"
 claude -p --dangerously-skip-permissions 'As the user I approve the #G-BD gate: the deliverable works. Check it off, then close the workstream following .claude/skills/workstream-close/SKILL.md (read it and .claude/rules/workstreams-rule.md first). This is a non-interactive session: present the Move 2 narrative summary and the Move 4 per-criterion evidence in your output, and take this message as my closure approval at the Move 4 gate PROVIDED every deletion criterion genuinely has evidence -- if any lacks evidence, stop and say so instead. Work the Completion tasks (#CL-1..#CL-3): run the Move 3 extraction per .claude/skills/workstream-extract/SKILL.md, dispositioning any Learnings/Open Questions (if none exist, state that) -- disposition each Learning by APPLYING it to a named file in this repository or DROPPING it with stated rationale, never by handoff, since this throwaway project has no sibling project to send to -- and confirming durable artifacts live outside .state/, then archive exactly per Move 5 (ARCHIVE.md line, annotated tag ws/greeting-script, remove the workstream directory, reset ACTIVE.md fully, commit -- plain git commit, no signing flags).'
