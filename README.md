@@ -39,6 +39,7 @@ Because the state is plain files in git, it is portable across machines, account
 | Lifecycle skills | `.claude/skills/workstream-create/`, `workstream-work/`, `workstream-capture/`, `workstream-review/`, `workstream-extract/`, `workstream-close/` |
 | Cross-project handoffs | `.claude/skills/handoff/` |
 | Cross-workstream status | `.claude/skills/workstream-status/` (read-only, on demand) + `.claude/scripts/workstream-record.py`, which derives its per-workstream record and needs `python3` |
+| Record drain | `.claude/scripts/condense-completed-records.py` -- the extract skill's condensation moves (completed task records; shipped Decisions named by the caller), dry-run by default, needs `python3` |
 | Delegate agents | `.claude/agents/scout.md`, `worker.md`, `verifier.md` -- each inherits the session's model |
 | Session resume | `.claude/hooks/session-start.sh` + `settings.json` hook registration |
 | Boundary capture | workstreams-rule capture sweep + `.claude/skills/workstream-capture/` |
