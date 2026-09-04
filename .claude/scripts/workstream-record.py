@@ -55,16 +55,22 @@ SATISFIED_MARK_RE = re.compile(
 )
 HOLDS_RE = re.compile(r'\bHOLDS (' + DATE + ')')
 
-# Holds: word boundaries that also exclude a hyphen, since `-` is a word
-# boundary to the engine and `Held-out validation` is not a hold. A match
-# whose clause is negated (`Nothing in this file is held by ...`) is
-# dropped: a critical-path paragraph is exactly where a workstream says it
-# is NOT held.
+# Holds: a hold VERB WITH ITS OBJECT, since the bare verb is ordinary
+# prose -- "the two retired checkpoints held", "conditions that hold" --
+# and 29 of 34 hits on one project were that. Word boundaries also
+# exclude a hyphen, since `-` is a word boundary to the engine and
+# `Held-out validation` is not a hold. A match whose clause is negated
+# (`Nothing in this file is held by ...`) is dropped: a critical-path
+# paragraph is exactly where a workstream says it is NOT held. A
+# struck-through span (`~~...~~`) is blanked before matching, so a hold
+# already retired in place does not count.
 HOLD_RE = re.compile(
-    r'(?<![\w-])(?:held|hold)(?![\w-])|blocked (?:by|on)|unblocks when|'
+    r'(?<![\w-])(?:held (?:by|behind|until|pending|for|on|back)|'
+    r'holds? (?:for|until|behind|pending|back))\b|blocked (?:by|on)|unblocks when|'
     r'\bwait(?:s|ing)? (?:for|on)\b|not before|sequenced after',
     re.IGNORECASE,
 )
+STRIKE_RE = re.compile(r'~~.*?~~', re.S)
 NEGATION_RE = re.compile(r'\b(?:no|not|nothing|never|nor|neither|without)\b', re.IGNORECASE)
 CLAUSE_SPLIT_RE = re.compile(r'[.;:]')
 
@@ -199,18 +205,51 @@ def negated(text, start):
     return bool(NEGATION_RE.search(parts[-1])) if parts else False
 
 
-def hold_matches(line_no, text):
+def join_block(raw, start_no):
+    """The block's lines joined by single spaces (the same text fold_blocks
+    builds), with the offset at which each line starts, so a match can
+    cite the LINE holding it rather than the block's first line -- a
+    scout sent to verify 'line 30' found the phrase on line 41."""
+    text = ''
+    starts = []
+    for i, line in enumerate(raw):
+        if text:
+            text += ' '
+        starts.append((len(text), start_no + i))
+        text += line.strip()
+    return text, starts
+
+
+def line_at(starts, offset):
+    line_no = starts[0][1] if starts else None
+    for off, no in starts:
+        if off <= offset:
+            line_no = no
+        else:
+            break
+    return line_no
+
+
+def blank_strikes(text):
+    return STRIKE_RE.sub(lambda m: ' ' * len(m.group(0)), text)
+
+
+def hold_matches(start_no, raw):
+    text, starts = join_block(raw, start_no)
+    blanked = blank_strikes(text)
     out = []
-    for m in HOLD_RE.finditer(text):
-        if negated(text, m.start()):
+    for m in HOLD_RE.finditer(blanked):
+        if negated(blanked, m.start()):
             continue
         start = max(0, m.start() - 100)
         end = min(len(text), m.end() + 100)
-        out.append({"line": line_no, "match": m.group(0), "context": text[start:end]})
+        out.append({"line": line_at(starts, m.start()), "match": m.group(0), "context": text[start:end]})
     return out
 
 
-def cross_ref_matches(line_no, text):
+def cross_ref_matches(start_no, raw):
+    text, starts = join_block(raw, start_no)
+    text = blank_strikes(text)
     found = []
     for m in CROSS_REF_WS_RE.finditer(text):
         found.append((m.start(), m.end(), "workstream", m.group(0)))
@@ -229,7 +268,7 @@ def cross_ref_matches(line_no, text):
                 best_start = idm.start()
                 preceding_id = idm.group(0)
         out.append({
-            "line": line_no,
+            "line": line_at(starts, start),
             "target": target,
             "kind": kind,
             "preceding_id": preceding_id,
@@ -242,19 +281,19 @@ def cross_ref_matches(line_no, text):
 def critical_path_field(blocks):
     """The critical-path paragraph: the block beginning `**Critical path`,
     or the first paragraph under a heading naming the critical path.
-    Returns (joined_text, start_line_no) or ("not found", None)."""
-    for start, kind, text, _raw in blocks:
+    Returns (joined_text, start_line_no, raw_lines) or ("not found", None, [])."""
+    for start, kind, text, raw in blocks:
         if kind != 'heading' and text.startswith('**Critical path'):
-            return text, start
+            return text, start, raw
     heading_re = re.compile(r'^#{2,6}\s+Critical path\b', re.IGNORECASE)
     for idx, (start, kind, text, _raw) in enumerate(blocks):
         if kind == 'heading' and heading_re.match(text):
-            for nstart, nkind, ntext, _nraw in blocks[idx + 1:]:
+            for nstart, nkind, ntext, nraw in blocks[idx + 1:]:
                 if nkind == 'heading':
                     break
-                return ntext, nstart
+                return ntext, nstart, nraw
             break
-    return "not found", None
+    return "not found", None, []
 
 
 def phase_records(lines):
@@ -396,7 +435,7 @@ def build_workstream_record(path, rel_path):
             })
 
     # Critical path.
-    critical_path, cp_line = critical_path_field(blocks)
+    critical_path, cp_line, cp_raw = critical_path_field(blocks)
 
     # Hold lines / cross refs. Sources: every open task block and gate
     # block (folded), every phase heading under ## Backlog, and the
@@ -404,19 +443,19 @@ def build_workstream_record(path, rel_path):
     sources = []
     for start, kind, text, raw in blocks:
         if kind == 'item' and TOTAL_OPEN_RE.match(raw[0]):
-            sources.append((start, text))
+            sources.append((start, raw))
     for line_no, text in extract_section(lines, r'^##\s+Backlog\s*$'):
         if PHASE_HEADING_RE.match(text):
-            sources.append((line_no, text.strip()))
+            sources.append((line_no, [text]))
     if critical_path != "not found":
-        sources.append((cp_line, critical_path))
+        sources.append((cp_line, cp_raw))
     sources.sort(key=lambda s: s[0])
 
     hold_lines = []
     cross_refs = []
-    for line_no, text in sources:
-        hold_lines.extend(hold_matches(line_no, text))
-        cross_refs.extend(cross_ref_matches(line_no, text))
+    for start_no, raw in sources:
+        hold_lines.extend(hold_matches(start_no, raw))
+        cross_refs.extend(cross_ref_matches(start_no, raw))
 
     # Latest Decision.
     decision_nums = [int(m.group(1)) for line in lines for m in [DECISION_HEADING_RE.match(line)] if m]
@@ -505,10 +544,10 @@ def build_active_record(path, rel_path):
 
     hold_lines = []
     cross_refs = []
-    for start, _kind, text, _raw in fold_blocks(body_lines):
+    for start, _kind, _text, raw in fold_blocks(body_lines):
         line_no = start + offset
-        hold_lines.extend(hold_matches(line_no, text))
-        cross_refs.extend(cross_ref_matches(line_no, text))
+        hold_lines.extend(hold_matches(line_no, raw))
+        cross_refs.extend(cross_ref_matches(line_no, raw))
 
     return {
         "path": rel_path,

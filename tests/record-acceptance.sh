@@ -145,6 +145,7 @@ field reads a folded block.
 because the author wrapped it against the convention, and its third
 line is blocked on feature/beta for the shared schema, citing #PX-9
 - [ ] #PX-3: evaluate the Held-out validation set before the release
+- [ ] #PX-4: ~~blocked on feature/beta for the old schema~~ (STALE 2026-02-02), and the two retired checkpoints held, so conditions that hold here carry no live hold
 
 ### Split (SK / HW)
 - [ ] #SK-1: a task under a multi-code heading
@@ -305,8 +306,8 @@ check "gamma: two headings carry the same code PX" \
 
 echo "== Phases are position-keyed: same-code headings, mismatches, named missing codes"
 check "gamma has four phase rows (two PX rows, one SK / HW, one DF; none for MV)" '[ "$(gq ".phases | length")" = "4" ]'
-check "each PX heading counts only the tasks under it (Pass 1: 2 open, Pass 2: 2 open)" \
-  '[ "$(gq ".phases[0].open_tasks")" = "2" ] && [ "$(gq ".phases[1].open_tasks")" = "2" ]'
+check "each PX heading counts only the tasks under it (Pass 1: 2 open, Pass 2: 3 open)" \
+  '[ "$(gq ".phases[0].open_tasks")" = "2" ] && [ "$(gq ".phases[1].open_tasks")" = "3" ]'
 check "the multi-code heading (SK / HW) matches and counts 2 tasks and 3 gates" \
   '[ "$(gq ".phases[2].code")" = "SK / HW" ] && [ "$(gq ".phases[2].open_tasks")" = "2" ] && [ "$(gq ".phases[2].open_gates")" = "3" ]'
 check "tasks_outside_phases is 0 (never negative: per-heading sum plus outside equals the total)" \
@@ -325,6 +326,12 @@ check "#G-SK2 (READY with a date) is satisfied" '[ "$(gq ".open_gates[] | select
 echo "== Hold lines read folded blocks and phase headings, and reject compounds and negations"
 gamma_hold_matches=$(gq '[.hold_lines[].match] | join("|")')
 check "the hold on #PX-2's third line is found (blocked on)" 'printf "%s" "$gamma_hold_matches" | grep -q "blocked on"'
+check "that hold cites the THIRD line, the one holding the phrase, not the block's first line" \
+  '[ "$(gq ".hold_lines[] | select(.context | contains(\"shared schema, citing\")) | .line")" = "$(grep -n "^line is blocked on feature/beta" "$T/.state/workstreams/project/gamma/workstream.md" | cut -d: -f1)" ]'
+check "fixture: #PX-4 carries a struck-through hold and two bare verbs (planted noise)" \
+  "grep -q '~~blocked on feature/beta' \"$T/.state/workstreams/project/gamma/workstream.md\" && grep -q 'checkpoints held, so conditions that hold' \"$T/.state/workstreams/project/gamma/workstream.md\""
+check "a struck-through hold does not count, nor a bare held/hold (no hit on #PX-4's line)" \
+  '[ "$(gq ".hold_lines[] | select(.line == $(grep -n "#PX-4:" "$T/.state/workstreams/project/gamma/workstream.md" | cut -d: -f1)) | .match" | wc -l | tr -d " ")" = "0" ]'
 check "the hold on #DF-1's first line is found (waits for)" 'printf "%s" "$gamma_hold_matches" | grep -q "waits for"'
 check "the hold stated on the DF phase heading is found, attributed to the heading's line" \
   '[ "$(gq ".hold_lines[] | select(.line == $(grep -n "^### Deferred" "$T/.state/workstreams/project/gamma/workstream.md" | cut -d: -f1)) | .match")" = "blocked on" ]'
@@ -337,6 +344,8 @@ echo "== Cross references: wrapped continuation, repository names, dotted names,
 gamma_targets=$(gq '[.cross_refs[].target] | join("|")')
 check "feature/beta on #PX-2's third line is found with preceding id #PX-2" \
   '[ "$(gq ".cross_refs[] | select(.target == \"feature/beta\") | .preceding_id")" = "#PX-2" ]'
+check "a struck-through reference (#PX-4's ~~feature/beta~~) is not an edge" \
+  '[ "$(gq ".cross_refs[] | select(.preceding_id == \"#PX-4\") | .target" | wc -l | tr -d " ")" = "0" ]'
 check "ml-explore/mlx does NOT manufacture explore/mlx" '! printf "%s" "$gamma_targets" | grep -q "explore/mlx"'
 check "project/omlx-0.4.x-finalize is captured whole" 'printf "%s" "$gamma_targets" | grep -q "project/omlx-0.4.x-finalize|\|project/omlx-0.4.x-finalize$"'
 check "critical path under a ### heading is found and joined" \
