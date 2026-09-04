@@ -65,7 +65,7 @@ git clone https://github.com/ChristopherA/claude-workstream-kit
 claude-workstream-kit/install.sh /path/to/your/project
 ```
 
-Idempotent: safe to re-run for updates. It copies the `.claude/` payload, removes any payload file a later kit retired (the earlier capture-nudge hook, with its registrations), seeds `.state/` (never overwriting existing state), merges the kit's hook into the project's `settings.json` (or tells you what to add), and stamps the installed version and source commit. A re-run stops rather than overwriting a payload file you edited locally, so an unrouted improvement is not lost by re-running without looking (`--force` discards it deliberately). Run it with `--dry-run` (alias `--check`) first to see exactly what a real run would change; it writes nothing and exits non-zero when anything is out of sync (1 for drift or a behind stamp, 3 when the payload cannot be tracked in your project).
+Idempotent: safe to re-run for updates. It copies the `.claude/` payload, removes any payload file a later kit retired (the earlier capture-nudge hook, with its registrations), seeds `.state/` (never overwriting existing state, and staging the files it seeds when the project is a git repository, so your next commit carries them), merges the kit's hook into the project's `settings.json` (or tells you what to add), and stamps the installed version and source commit. A re-run stops rather than overwriting a payload file you edited locally, so an unrouted improvement is not lost by re-running without looking (`--force` discards it deliberately). Run it with `--dry-run` (alias `--check`) first to see exactly what a real run would change; it writes nothing and exits non-zero when anything is out of sync (1 for drift or a behind stamp, 3 when the payload cannot be tracked in your project).
 
 If your project already has a `.claude/CLAUDE.md`, the kit's conventions are appended under a marker block instead of overwriting.
 
@@ -94,7 +94,7 @@ Tracking the payload is therefore not only how the kit travels; it is the condit
 
 ## Upgrading
 
-There is no sync layer: upgrading is re-running `install.sh` from a newer copy, and your `.state/` is never touched. Always update by running the installer, not by hand-copying files. The installer runs under `#!/bin/sh`, so it is immune to the macOS interactive `cp -i` / `mv -i` aliases that silently no-op a copy in a non-interactive shell and leave you thinking an update applied when it did not.
+There is no sync layer: upgrading is re-running `install.sh` from a newer copy, and your `.state/` is never overwritten — a seed file that is missing is restored and staged, and nothing else there is read or written. Always update by running the installer, not by hand-copying files. The installer runs under `#!/bin/sh`, so it is immune to the macOS interactive `cp -i` / `mv -i` aliases that silently no-op a copy in a non-interactive shell and leave you thinking an update applied when it did not.
 
 Preview first with `--dry-run` (alias `--check`). It compares the kit against your project file by file, reports what a real run would change, and exits without writing:
 
@@ -105,7 +105,7 @@ Preview first with `--dry-run` (alias `--check`). It compares the kit against yo
 
 Paste this to your agent:
 
-> Upgrade the claude-workstream-kit in this project. If I have a local clone of github.com/ChristopherA/claude-workstream-kit, `cd` there and `git pull`; otherwise clone it. Run its `install.sh --dry-run` against this project's root and show me the report. If it looks right, run it again without `--dry-run`, show me the diff to `.claude/`, and commit it.
+> Upgrade the claude-workstream-kit in this project. If I have a local clone of github.com/ChristopherA/claude-workstream-kit, `cd` there and `git pull`; otherwise clone it. Run its `install.sh --dry-run` against this project's root and show me the report. If it looks right, run it again without `--dry-run`, show me the diff to `.claude/` and anything the installer staged under `.state/`, and commit them.
 
 ### What the dry run reports
 
