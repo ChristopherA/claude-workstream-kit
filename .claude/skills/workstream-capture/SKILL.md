@@ -22,6 +22,7 @@ Detection includes the claims this session AUTHORED: for each state change the s
 
 Then close the boundary cleanly:
 
+- An artifact the sweep PRODUCES outside `.state/` -- a script, a doc, a fixture -- gets its own commit in the repo proper before the state commit, and the state that cites it names the path: a tool left in the scratchpad is invisible to the next session, and swept into the state commit it breaks the scope below.
 - Update `ACTIVE.md` -- `task`, `Now`, `Next`, `Blockers` -- so the next session resumes in one read. Name every reference that crosses a workstream or project boundary with a few words saying what it is (workstreams-rule, Task IDs), in ACTIVE.md and in what you say to the user alike.
 - Check off any Backlog items completed this session, each with its one-line evidence (a commit, a passing command, a count).
 - Mark any Learning that RESOLVED this session -- its integration target shipped, its handoff sent, its question settled -- with its disposition now, in the same commit. A never-closing workstream extracts each Learning the moment it resolves, and the drain that would otherwise do it is periodic; this is the skill that runs at that moment.
