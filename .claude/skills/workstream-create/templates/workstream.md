@@ -3,7 +3,6 @@ name: <kebab-case-name>
 type: <explore|feature|fix|project|maintain|docs>
 status: active
 created: <YYYY-MM-DD>
-updated: <YYYY-MM-DD>
 ---
 ## Purpose
 
@@ -14,6 +13,7 @@ updated: <YYYY-MM-DD>
 ### <Phase Name> (<XX>)
 
 - [ ] #<XX>-1: <first task>
+<!-- A gate met before it is presented appends `SATISFIED YYYY-MM-DD` to its line: the hook then flags the row GATE-READY. -->
 - [ ] #G-<XX>: USER CHECKPOINT -- <what the user approves here>
 
 ### Completion (CL)

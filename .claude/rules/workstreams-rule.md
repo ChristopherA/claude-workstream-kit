@@ -8,7 +8,6 @@ State-file formats and constraints for workstream tracking. Two file classes, bo
 ---
 workstream: explore/kit-design
 task: "#DR-2 - state-file formats"
-updated: 2026-06-11
 ---
 ## Now
 One or two lines: what is in flight.
@@ -32,7 +31,6 @@ name: kit-design
 type: explore
 status: active                         # active | paused | done
 created: 2026-06-11
-updated: 2026-06-11
 ---
 ## Purpose
 Why this exists, scope boundaries, and what done means — one paragraph.
@@ -56,7 +54,7 @@ Decided X because Y. Rationale survives the archive; record the WHY.
 - [ ] Verifiable condition that must hold before this workstream is archived
 ```
 
-Frontmatter is flat `key: value` only — it is parsed with `head` and `grep`, not a YAML library. `updated:` is informational: every date the session-start hook reports is DERIVED from git history (`git log -1 --format=%ct` on the file), because nothing in the kit writes the field back and a hand-maintained date drifts silently, always understating, so a reader who trusts it flags active work as stale. Where you do set it, it means the last SUBSTANTIVE change; a lagging value is not a defect to chase.
+Frontmatter is flat `key: value` only — it is parsed with `head` and `grep`, not a YAML library. There is no `updated:` field: every date the session-start hook reports is DERIVED from git history — the last commit that changed a checkbox or a Decision heading — because a hand-maintained date drifts silently, always understating, so a reader who trusts it flags active work as stale. A file that still carries the field from an earlier template is harmless and is not edited for it.
 
 Prose in `.state/` files is HARD-WRAPPED at roughly 70 columns. This is the opposite of the one-line-per-paragraph rule for published prose, which exists because published text is pasted and re-wrapped downstream; state files are diffed and reviewed every session instead, and wrapping makes a diff line-scoped — an append to a one-line paragraph rewrites the whole line, while an append to a wrapped paragraph adds a few lines and deletes none. "Prose" means the narrative sections — Purpose, Decisions, Learnings, Open Questions, and ACTIVE.md's Now, Next and Blockers. **Backlog lines and Deletion Criteria are EXEMPT and stay on one line each**, however long they run, because every count the kit performs anchors at line start and a wrapped task line puts its own continuation beyond the reach of the pattern that found it. A workstream path, a task ID, a tag name or a file path is never split across lines: a wrap that would split one carries the whole token to the next line, since a search for the name misses a split one and a cross-reference check reports a phantom. The cost of wrapping runs one way — a multi-word grep returns FALSE EMPTIES, because any phrase has an even chance of straddling a break — so search one distinctive word rather than a phrase, or read the section; and anchor a string-replace on a single line, asserting exactly one match before replacing, which turns a silent false-empty into a loud failure at the point of edit.
 

@@ -1,7 +1,6 @@
 ---
 workstream: <type>/<name>
 task: "#<XX>-1 - <first task>"
-updated: <YYYY-MM-DD>
 ---
 ## Now
 
