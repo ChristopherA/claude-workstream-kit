@@ -172,6 +172,7 @@ Some rationale, with a list under it:
 line, EXTRACTED to docs/design.md.
 - L2 (2026-01-01): An insight that is tracked work, QUEUED for #PX-2.
 - L3 (2026-01-01): An insight with no disposition at all.
+- L4 (2026-01-01): An insight that is SPENT -- routed to docs/design.md.
 
 ## Open Questions
 - OQ-1: is a `### D7` heading outside Decisions a Decision? It is not:
@@ -360,10 +361,10 @@ check "ws/old-two from the heading-form critical path is found (the cascade is c
 echo "== Learnings: block-scoped markers, terminal split from deferred"
 check "fixture: a list item beginning '- L9' sits under ## Decisions (planted)" \
   "grep -q '^- L9 is not a Learning' \"$T/.state/workstreams/project/gamma/workstream.md\""
-check "learnings.count is 3 (the '- L9' item under Decisions is not counted)" '[ "$(gq ".learnings.count")" = "3" ]'
+check "learnings.count is 4 (the '- L9' item under Decisions is not counted)" '[ "$(gq ".learnings.count")" = "4" ]'
 check "latest_decision stays D1 x1 (the '### D7' heading outside Decisions is not counted)" \
   '[ "$(gq ".latest_decision.max")" = "1" ] && [ "$(gq ".latest_decision.count")" = "1" ]'
-check "EXTRACTED on L1's second line counts as terminal (1)" '[ "$(gq ".learnings.terminal")" = "1" ]'
+check "EXTRACTED on L1's second line and SPENT on L4 count as terminal (2)" '[ "$(gq ".learnings.terminal")" = "2" ]'
 check "QUEUED (L2) is deferred, not undispositioned" '[ "$(gq ".learnings.deferred | length")" = "1" ] && gq ".learnings.deferred[0]" | grep -q "^- L2"'
 check "L3 alone is undispositioned" '[ "$(gq ".learnings.undispositioned | length")" = "1" ] && gq ".learnings.undispositioned[0]" | grep -q "^- L3"'
 
