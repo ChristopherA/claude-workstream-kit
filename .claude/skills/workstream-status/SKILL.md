@@ -82,6 +82,7 @@ A synthesis exists to surface the places where the files disagree, because no si
 7. Two workstreams claim the same next release, version, or artifact. Owner: `/workstream-review` in each.
 8. `.state/PROJECT.md` lists a skill with no `.claude/skills/<name>/SKILL.md`, or a file that does not exist. Owner: the user, by editing that list.
 9. A hold line or a critical-path paragraph names, as next or as the thing it waits on, a task or gate that is already checked. The paragraph reads as current because nothing marks the moment it stopped being. Owner: `/workstream-review` in that workstream.
+10. A workstream's record names a code with no heading (`codes_without_heading`) or an open line whose code its heading does not declare (`code_heading_mismatches`) — usually a task moved in with its ID kept and no heading added for it. Provenance is unreadable there, not the arithmetic. Owner: `/workstream-review` in that workstream, which adds the heading.
 
 Cross-project findings — a reference into another project, a handoff whose sender has moved on — are named as out of reach; `/handoff` is the route when they need action.
 
