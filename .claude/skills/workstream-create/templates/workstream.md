@@ -7,6 +7,9 @@ created: <YYYY-MM-DD>
 ## Purpose
 
 <Why this exists, scope boundaries, and what done means -- one paragraph.>
+<!-- A paused workstream says here what resumes it; the hook's NO-RESUME flag reads only the frontmatter and this section. -->
+
+**Critical path.** <Order only -- the phases or tasks that unblock the rest; status and measurements live on the gate line.>
 
 ## Backlog
 
@@ -38,3 +41,4 @@ created: <YYYY-MM-DD>
 ## Deletion Criteria
 
 - [ ] <verifiable condition>
+<!-- A never-closing workstream's health condition: `- [ ] STANDING: <condition> -- HOLDS YYYY-MM-DD`, re-stamped at each re-check; the hook counts it apart from closure criteria. -->

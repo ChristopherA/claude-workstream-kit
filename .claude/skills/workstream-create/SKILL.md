@@ -28,9 +28,9 @@ Use AskUserQuestion when presenting choices (type, split proposals); use prose f
 
 ## Move 2 — Write the files
 
-Create `.state/workstreams/<type>/<name>/workstream.md` from `templates/workstream.md` with the interview content. Load-bearing material from the conversation goes INTO the file (Purpose, Decisions, Open Questions) — never into side files that won't survive.
+Create `.state/workstreams/<type>/<name>/workstream.md` from `templates/workstream.md` with the interview content, the critical-path line filled with the order the interview gave and nothing else. Load-bearing material from the conversation goes INTO the file (Purpose, Decisions, Open Questions) — never into side files that won't survive.
 
-Update `.state/ACTIVE.md` (template: `templates/ACTIVE.md`): point it at the new workstream with the first task, unless another workstream is currently active — then ask which should be active.
+Update `.state/ACTIVE.md` (template: `templates/ACTIVE.md`): point it at the new workstream with the first task, unless another workstream is currently active — then ask which should be active as its OWN question after the review gate's approval, never as a third option on the approval question: those are two dimensions, and a composite option forces a redo.
 
 ## Move 3 — Review gate
 
