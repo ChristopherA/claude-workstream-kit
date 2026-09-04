@@ -58,7 +58,7 @@ Summarize in chat what reaching the condition will **achieve against the backlog
 
 That summary has to be **visible before the choice**: finish every tool call for this stage first, so the summary opens the message that carries the AskUserQuestion and nothing follows it but the question. Where a fact must reach the user with the menu — which tasks close, what artifact lands, where the session stops — carry it inside the `question` field as well, which renders with the menu by construction.
 
-Then — unless the user has said a goal is armed this session, which the session cannot see for itself — ask the user how to proceed, with AskUserQuestion:
+Then ask the user how to proceed, with AskUserQuestion — but only when the unit is a task, cluster or phase to be worked without the user; a gate unit proceeds interactively on the outcome summary alone, since the gate bounds the session already. Skip the question too when the user has said a goal is armed this session, which the session cannot see for itself. The options:
 
 - **Copy to clipboard** (recommended): on selection, place the full `/goal <condition>` on the clipboard (`pbcopy` on macOS) **and** print that same text in the chat in a fenced code block, so the user can paste from either. Where no clipboard tool exists, the fenced block is the delivery.
 - **Process interactively**: work toward the condition now, in this session, without arming a `/goal` hook.
