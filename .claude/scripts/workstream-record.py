@@ -53,6 +53,7 @@ DATE = r'[0-9]{4}-[0-9]{2}-[0-9]{2}'
 SATISFIED_MARK_RE = re.compile(
     r'\b(?:SATISFIED|READY|criterion is met) ' + DATE
 )
+HOLDS_RE = re.compile(r'\bHOLDS (' + DATE + ')')
 
 # Holds: word boundaries that also exclude a hyphen, since `-` is a word
 # boundary to the engine and `Held-out validation` is not a hold. A match
@@ -410,8 +411,22 @@ def build_workstream_record(path, rel_path):
 
     # Deletion criteria.
     deletion_section = extract_section(lines, r'^##\s+Deletion Criteria\s*$')
-    deletion_open = sum(1 for _n, text in deletion_section if DELETION_OPEN_RE.match(text))
+    deletion_open = sum(1 for _n, text in deletion_section
+                        if DELETION_OPEN_RE.match(text) and 'STANDING' not in text)
     deletion_done = sum(1 for _n, text in deletion_section if DELETION_DONE_RE.match(text))
+    # STANDING criteria are health conditions, never unmet; the last HOLDS
+    # date on each line is its latest re-check, and the oldest of those
+    # is what a reader needs.
+    standing_lines = [text for _n, text in deletion_section
+                      if DELETION_OPEN_RE.match(text) and 'STANDING' in text]
+    holds_dates = []
+    never = 0
+    for text in standing_lines:
+        found = HOLDS_RE.findall(text)
+        if found:
+            holds_dates.append(found[-1])
+        else:
+            never += 1
 
     open_cont, done_cont = continuation_counts(lines)
 
@@ -430,7 +445,12 @@ def build_workstream_record(path, rel_path):
         "critical_path": critical_path,
         "latest_decision": latest_decision,
         "learnings": learnings,
-        "deletion_criteria": {"open": deletion_open, "done": deletion_done},
+        "deletion_criteria": {
+            "open": deletion_open, "done": deletion_done,
+            "standing": len(standing_lines),
+            "standing_oldest_holds": min(holds_dates) if holds_dates else None,
+            "standing_never_rechecked": never,
+        },
         "wrapped_lines": {"open_items": open_cont, "done_items": done_cont},
         "size_bytes": size_bytes,
     }

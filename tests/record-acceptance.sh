@@ -78,6 +78,8 @@ ws/old-one for historical continuity across projects.
 - [ ] Criterion one not yet met
 - [ ] Criterion two also pending
 - [x] Criterion three already satisfied by earlier work
+- [ ] STANDING: the inbox stays empty -- HOLDS 2026-01-01, HOLDS 2026-02-02
+- [ ] STANDING: no orphaned Learnings, never yet re-checked
 EOF
 
 # beta: Purpose with no "Done means" sentence; its only prose containing
@@ -260,8 +262,16 @@ check "learnings.undispositioned has one entry (L1 carries APPLIED)" '[ "$alpha_
 echo "== Deletion criteria"
 alpha_del_open=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | .deletion_criteria.open' "$T/out.json")
 alpha_del_done=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | .deletion_criteria.done' "$T/out.json")
-check "deletion_criteria open is 2" '[ "$alpha_del_open" = "2" ]'
+check "deletion_criteria open is 2 (the two STANDING lines are not unmet)" '[ "$alpha_del_open" = "2" ]'
 check "deletion_criteria done is 1" '[ "$alpha_del_done" = "1" ]'
+alpha_del_standing=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | .deletion_criteria.standing' "$T/out.json")
+alpha_del_oldest=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | .deletion_criteria.standing_oldest_holds' "$T/out.json")
+alpha_del_never=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | .deletion_criteria.standing_never_rechecked' "$T/out.json")
+check "deletion_criteria standing is 2" '[ "$alpha_del_standing" = "2" ]'
+check "standing_oldest_holds reads each line's LAST date (2026-02-02, not 2026-01-01)" '[ "$alpha_del_oldest" = "2026-02-02" ]'
+check "standing_never_rechecked is 1" '[ "$alpha_del_never" = "1" ]'
+beta_del_oldest=$(jq -r '.workstreams[] | select(.path | endswith("feature/beta/workstream.md")) | .deletion_criteria.standing_oldest_holds' "$T/out.json")
+check "a file with no STANDING line reports standing_oldest_holds null" '[ "$beta_del_oldest" = "null" ]'
 
 echo "== Purpose (Done means present vs absent)"
 beta_purpose_done=$(jq -r '.workstreams[] | select(.path | endswith("feature/beta/workstream.md")) | .purpose.done' "$T/out.json")

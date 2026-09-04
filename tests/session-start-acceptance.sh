@@ -102,6 +102,13 @@ updated: 2020-01-01
 Fixture.
 ACT
 
+# alpha carries two STANDING criteria: one stamped HOLDS today, one never
+# re-checked. Neither is unmet.
+cat >> "$T/.state/workstreams/project/alpha/workstream.md" <<EOF
+- [ ] STANDING: the inbox stays empty -- HOLDS $(date +%Y-%m-%d)
+- [ ] STANDING: no orphaned Learnings
+EOF
+
 # alpha's second gate carries a capitalised MENTION of the marker with no
 # date, inside the Backlog (an append would land under Deletion Criteria).
 sed 's/^- \[ \] #G-B1: USER CHECKPOINT -- gate 1$/&\
@@ -141,8 +148,16 @@ echo "== The open count anchors on the task-ID form"
 # 3 tasks + 2 gates = 5 backlog lines; the 2 criteria are excluded, not folded in.
 check "open tasks excludes Deletion Criteria (5, not 7)" \
   "grep -q 'open tasks: 5,' \"\$T/out.txt\""
-check "criteria reported separately (2)" \
-  "grep -q 'unmet criteria: 2' \"\$T/out.txt\""
+check "criteria reported separately (2), the STANDING lines not among them" \
+  "grep -q 'unmet criteria: 2,' \"\$T/out.txt\" && ! grep -q 'unmet criteria: 4' \"\$T/out.txt\""
+check "standing criteria reported apart, naming how many were never re-checked" \
+  "grep -q 'standing: 2 (1 never re-checked)' \"\$T/out.txt\""
+# Vary the input: stamp the unchecked one, and the report turns into an age.
+sed "s/^- \[ \] STANDING: no orphaned Learnings\$/& -- HOLDS $(date +%Y-%m-%d)/" \
+  "$T/.state/workstreams/project/alpha/workstream.md" > "$T/a.tmp"
+mv "$T/a.tmp" "$T/.state/workstreams/project/alpha/workstream.md"
+check "every STANDING line stamped: the report gives the oldest re-check's age" \
+  "CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'standing: 2 (oldest re-check 0d ago)'"
 check "bare-anchor count (7) does not appear" \
   "! grep -q 'open tasks: 7' \"\$T/out.txt\""
 check "gates counted" "grep -q 'open gates: 2' \"\$T/out.txt\""

@@ -62,9 +62,29 @@ count_gates() { grep -cE '^ *- \[ \] #G-' "$1" 2>/dev/null || true; }
 
 # Criteria are counted in their own section and reported SEPARATELY rather than
 # folded into the task count: a satisfied-but-unticked criterion is a signal
-# worth seeing, not noise to hide.
+# worth seeing, not noise to hide. A STANDING criterion -- a health condition
+# that holds while the workstream lives -- is never "unmet": a checkbox cannot
+# say it holds, so the count read permanently short on every never-closing
+# workstream and trained the reader to skip the line. Those are reported
+# apart, by the age of their oldest HOLDS <date> stamp.
 count_criteria() {
-  awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} f && /^ *- \[ \]/ {n++} END {print n+0}' "$1"
+  awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} f && /^ *- \[ \]/ && !/STANDING/ {n++} END {print n+0}' "$1"
+}
+date_epoch() { date -j -f %Y-%m-%d "$1" +%s 2>/dev/null || date -d "$1" +%s 2>/dev/null || echo "$NOW_S"; }
+standing_summary() {
+  _lines=$(awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} f && /^ *- \[ \]/ && /STANDING/' "$1")
+  [ -n "$_lines" ] || return 0
+  _n=$(printf '%s\n' "$_lines" | grep -c .)
+  # The LAST HOLDS date on a line is its latest re-check.
+  _dates=$(printf '%s\n' "$_lines" | sed -n 's/.*HOLDS \([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\).*/\1/p')
+  _dated=$(printf '%s\n' "$_dates" | grep -c . || true)
+  _never=$((_n - _dated))
+  if [ "$_never" -gt 0 ]; then
+    printf ', standing: %s (%s never re-checked)' "$_n" "$_never"
+  else
+    _oldest=$(printf '%s\n' "$_dates" | sort | head -1)
+    printf ', standing: %s (oldest re-check %sd ago)' "$_n" "$(( (NOW_S - $(date_epoch "$_oldest")) / 86400 ))"
+  fi
 }
 
 # A gate decided in the record and never presented carries the DATED marker
@@ -115,7 +135,7 @@ if [ -n "${WS:-}" ] && [ "$WS" != "none" ]; then
     GATES=$(count_gates "$WS_FILE")
     CRIT=$(count_criteria "$WS_FILE")
     STATUS=$(frontmatter_value "$WS_FILE" status)
-    echo "Active workstream: $WS (status: $STATUS, open tasks: $OPEN, open gates: $GATES, unmet criteria: $CRIT)"
+    echo "Active workstream: $WS (status: $STATUS, open tasks: $OPEN, open gates: $GATES, unmet criteria: $CRIT$(standing_summary "$WS_FILE"))"
 
     # Size: a completion note is one line however long it runs, so line count
     # understates reading cost. Warn on bytes, well before a single read fails.
