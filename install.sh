@@ -454,6 +454,24 @@ mkdir -p "$TARGET/.state/workstreams" "$TARGET/.state/handoffs"
 [ -f "$TARGET/.state/PROJECT.md" ] || cp "$KIT_DIR/.state-seed/PROJECT.md" "$TARGET/.state/PROJECT.md"
 [ -f "$TARGET/.state/workstreams/ARCHIVE.md" ] || cp "$KIT_DIR/.state-seed/workstreams/ARCHIVE.md" "$TARGET/.state/workstreams/ARCHIVE.md"
 
+# Stage what this block seeds, when the target is a git repo, so the next
+# commit picks the files up however it is made. This is the installer's
+# only write into a target's git. A fresh install runs no commit step, and
+# a seeded file nobody edits -- PROJECT.md above all -- sat untracked for
+# weeks in consumers as `?? .state/PROJECT.md`. Scoped to the whole seed
+# block rather than to that one file, since the other two are committed
+# only incidentally, by the first session that touches them. Only an
+# UNTRACKED file is staged: staging a tracked one would sweep local edits
+# into a commit the user did not scope, and an ignored one is left alone.
+if git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1; then
+  for seed_rel in .state/ACTIVE.md .state/PROJECT.md .state/workstreams/ARCHIVE.md .state/handoffs/.gitkeep; do
+    [ -f "$TARGET/$seed_rel" ] || continue
+    git -C "$TARGET" ls-files --error-unmatch "$seed_rel" >/dev/null 2>&1 && continue
+    git -C "$TARGET" check-ignore -q "$seed_rel" 2>/dev/null && continue
+    git -C "$TARGET" add -- "$seed_rel" 2>/dev/null && echo "  staged $seed_rel (seeded; commit it with the payload)"
+  done
+fi
+
 # --- version + source stamps -------------------------------------------------
 # .version stays a bare semver (existence- and value-checked by adopters).
 # .source records the exact commit installed from -- the currency signal the

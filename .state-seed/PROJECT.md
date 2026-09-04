@@ -6,6 +6,11 @@ unique to this project from one copied in from a shared source, and only
 what is unique to this project frames its status. Nothing outside this
 list and `.state/` is read for that purpose.
 
+EMPTY IS CORRECT when every skill under `.claude/skills/` is the kit's
+own and no context file frames the project beyond `CLAUDE.md`; the
+status skill offers a draft from `CLAUDE.md` when the sections are
+empty, and a project with nothing unique declines it.
+
 ## Unique skills
 
 <!-- one per line, the directory name under .claude/skills/:  - skill-name -->
