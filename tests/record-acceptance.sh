@@ -164,7 +164,8 @@ then finalize in project/omlx-0.4.x-finalize
 
 ## Decisions
 ### D1 (2026-01-01): Only decision
-Some rationale.
+Some rationale, with a list under it:
+- L9 is not a Learning: a list item inside a Decision that begins with L
 
 ## Learnings
 - L1 (2026-01-01): An insight whose disposition marker sits on its second
@@ -173,6 +174,10 @@ line, EXTRACTED to docs/design.md.
 - L3 (2026-01-01): An insight with no disposition at all.
 
 ## Open Questions
+- OQ-1: is a `### D7` heading outside Decisions a Decision? It is not:
+
+### D7 (2026-01-01): a heading outside ## Decisions, which must not count
+Prose under it.
 
 ### Critical path
 Nothing in this file is held by another workstream; the order runs
@@ -353,7 +358,11 @@ check "critical path under a ### heading is found and joined" \
 check "ws/old-two from the heading-form critical path is found (the cascade is closed)" 'printf "%s" "$gamma_targets" | grep -q "ws/old-two"'
 
 echo "== Learnings: block-scoped markers, terminal split from deferred"
-check "learnings.count is 3" '[ "$(gq ".learnings.count")" = "3" ]'
+check "fixture: a list item beginning '- L9' sits under ## Decisions (planted)" \
+  "grep -q '^- L9 is not a Learning' \"$T/.state/workstreams/project/gamma/workstream.md\""
+check "learnings.count is 3 (the '- L9' item under Decisions is not counted)" '[ "$(gq ".learnings.count")" = "3" ]'
+check "latest_decision stays D1 x1 (the '### D7' heading outside Decisions is not counted)" \
+  '[ "$(gq ".latest_decision.max")" = "1" ] && [ "$(gq ".latest_decision.count")" = "1" ]'
 check "EXTRACTED on L1's second line counts as terminal (1)" '[ "$(gq ".learnings.terminal")" = "1" ]'
 check "QUEUED (L2) is deferred, not undispositioned" '[ "$(gq ".learnings.deferred | length")" = "1" ] && gq ".learnings.deferred[0]" | grep -q "^- L2"'
 check "L3 alone is undispositioned" '[ "$(gq ".learnings.undispositioned | length")" = "1" ] && gq ".learnings.undispositioned[0]" | grep -q "^- L3"'

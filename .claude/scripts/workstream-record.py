@@ -457,21 +457,26 @@ def build_workstream_record(path, rel_path):
         hold_lines.extend(hold_matches(start_no, raw))
         cross_refs.extend(cross_ref_matches(start_no, raw))
 
-    # Latest Decision.
-    decision_nums = [int(m.group(1)) for line in lines for m in [DECISION_HEADING_RE.match(line)] if m]
+    # Latest Decision, bounded to ## Decisions: a `### D<n>` heading
+    # elsewhere is a mention, not a decision.
+    decision_nums = [int(m.group(1)) for _no, line in extract_section(lines, r'^##\s+Decisions\s*$')
+                     for m in [DECISION_HEADING_RE.match(line)] if m]
     latest_decision = {
         "max": max(decision_nums) if decision_nums else None,
         "count": len(decision_nums),
     }
 
-    # Learnings, block-scoped: a disposition marker on a wrapped
-    # continuation counts. Terminal and deferred are reported apart.
+    # Learnings, block-scoped and bounded to ## Learnings: a disposition
+    # marker on a wrapped continuation counts, and a list item beginning
+    # `- L` inside a Decision does not -- one scored as a 65th Learning in
+    # a section holding 64. Terminal and deferred are reported apart.
+    learnings_lines = {no for no, _t in extract_section(lines, r'^##\s+Learnings\s*$')}
     terminal = 0
     deferred = []
     undispositioned = []
     learning_count = 0
     for start, kind, text, raw in blocks:
-        if kind == 'item' and LEARNING_RE.match(raw[0]):
+        if kind == 'item' and LEARNING_RE.match(raw[0]) and start in learnings_lines:
             learning_count += 1
             if TERMINAL_RE.search(text):
                 terminal += 1
