@@ -81,8 +81,7 @@ A criterion satisfied by a downstream gate is satisfied only if that gate names 
 Commit the drained state in the session that changes it, and update ACTIVE.md with what moved and what is next. Report what was extracted, what was condensed, what was archived in place, every criterion that failed its re-check, and the file's composition — bytes per section, with the completed-to-open ratio beside the total — since a file that is mostly finished work and still oversized is a condensation backlog while one that is mostly open work is live scope, and the size signal alone cannot tell them apart; "already extracted, still large" is never by itself a reason to split a workstream — a drain that names nothing it moved did not run. Compute the composition rather than estimating it; hand-rolled three times in one day it came out 3.84:1, 0.54:1 and a third figure, in the direction that decides what to do:
 
 ```sh
-awk '/^## /{s=$0} {b[s]+=length($0)+1} END{for(k in b) printf "%8d %s\n", b[k], k}' workstream.md | sort -rn
-awk '/^ *- \[x\]/{k="done"} /^ *- \[ \]/{k="open"} /^(#|$)/{k=""} k!=""{b[k]+=length($0)+1} END{printf "done %d open %d done:open %.2f\n", b["done"], b["open"], (b["open"] ? b["done"]/b["open"] : 0)}' workstream.md
+python3 .claude/scripts/workstream-record.py <project root> | jq '.workstreams[] | select(.path | endswith("<type>/<name>/workstream.md")) | .composition'
 ```
 
-The second counts checkbox BLOCKS (a line and its continuations, to the next blank line or heading), so a completion-note block scores as done.
+`sections` is bytes per `## ` heading, largest first; `checkbox_bytes` counts checkbox BLOCKS (a line and its continuations, to the next blank line or heading), so a completion-note block scores as done. This section once carried the two awk one-liners the script replaces; both used `$0`, which the harness substitutes with the skill's argument, so a drain invoked with a workstream name received commands that would not run.
