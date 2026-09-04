@@ -116,7 +116,23 @@
 :[0-9]+:[-+ ]?- \[ \] #G-(SK: USER CHECKPOINT -- the split review, whose line wraps over|HW: USER CHECKPOINT -- the build note reads "the wrap sentence)
 :[0-9]+:[-+ ]?check "(gamma: )?#G-(SK's marker is on a continuation line|HW carries the bare word SATISFIED|SK \(marker on its fourth line\)|HW \(bare mention of SATISFIED)
 :[0-9]+:[-+ ]?check "gamma reports wrapped open items \(2 continuations under #PX-2, 3 under #G-SK, 1 each under #G-HW and #DF-1\)"
-:[0-9]+:[-+ ]?.*\\?"?\$T/(varied/)?\.state/workstreams/(maintain/gamma|feature/epsilon|project/zeta|project/alpha|project/v)(/workstream\.md|")
+:[0-9]+:[-+ ]?.*\\?"?\$T/(varied/|comp/)?\.state/workstreams/(maintain/gamma|feature/epsilon|feature/delta|project/zeta|project/alpha|project/v|project/c)(/workstream\.md|")
 :[0-9]+:[-+ ]?  "\[ \\"\\\$\(git log -1 --format=%s -- \.state/workstreams/maintain/gamma/workstream\.md\)\\" = 'reflow gamma prose' \]"
 :[0-9]+:[-+ ]?printf -- '## Backlog\\n- \[ \] #V-1: a task\\n    with an indented continuation\\n'
 :[0-9]+:[-+ ]?(touch|rm -f) "\$T/\.state/handoffs/from-elsewhere-20260101-000000\.md"
+
+# Fixtures added with the condensation script and the composition report
+# (0.10.3): the condense test's one long and one short completed record, its
+# open task and gate, and the checks that grep for them; the record test's
+# two-line composition fixture. Each entry pins the fixture's own words.
+^tests/condense-acceptance\.sh:[0-9]+:.*#(BD-[123]|G-BD)\b
+^tests/record-acceptance\.sh:[0-9]+:.*#C-[12]\b
+:[0-9]+:[-+ ]?  printf -- '- \[x\] #BD-1: Decide the widget shape\.
+:[0-9]+:[-+ ]?- \[x\] #BD-2: a short done task, DONE 2026-01-01
+:[0-9]+:[-+ ]?- \[ \] #BD-3: an open task
+:[0-9]+:[-+ ]?- \[ \] #G-BD: USER CHECKPOINT -- the build gate
+:[0-9]+:[-+ ]?check "(fixture: )?#BD-[12]('s note| \(short\)| now fits| runs past)
+:[0-9]+:[-+ ]?  "\[ \\"\\\$\(grep '\^- \\\\\[x\\\\\] #BD-1' \\"\\\$W\\" \| wc -c\)\\" -[lg]t 400 \]
+:[0-9]+:[-+ ]?  "grep '\^- \\\\\[x\\\\\] #BD-1' \\"\\\$W\\" \| grep -q '(DECIDED 2026-01-03; reasoning in D2; commits abc1234|Condensed 2026-05-05 at extract)'"
+:[0-9]+:[-+ ]?.*grep -qF -- '- \[[ x]\] #(BD-2: a short done task, DONE 2026-01-01|BD-3: an open task|G-BD: USER CHECKPOINT -- the build gate)'
+:[0-9]+:[-+ ]?printf -- '## Backlog\\n- \[x\] #C-1: done task\\n  DONE 2026-01-01, commit abc1234\\n- \[ \] #C-2: open task
