@@ -327,6 +327,44 @@ def continuation_counts(lines):
     return open_cont, done_cont
 
 
+def composition(lines):
+    """Bytes per `## ` section, and bytes inside checkbox BLOCKS split
+    done/open -- the extract skill's composition report, which decides
+    whether an oversized file is a condensation backlog (mostly finished
+    work) or live scope (mostly open work). A checkbox block runs from
+    its line to the next blank line or heading, so a completion note
+    scores as done. Byte counts include each line's newline. Hand-rolled
+    three times in one day this came out three different ways, in the
+    direction that decides what to do."""
+    sections = {}
+    current = '(before the first ## heading)'
+    done = 0
+    open_ = 0
+    state = None
+    for line in lines:
+        n = len(line.encode('utf-8')) + 1
+        if TOP_HEADING_RE.match(line):
+            current = line.strip()
+        sections[current] = sections.get(current, 0) + n
+        if line.strip() == '' or ANY_HEADING_RE.match(line):
+            state = None
+        elif CHECKBOX_RE.match(line):
+            state = 'open' if DELETION_OPEN_RE.match(line) else 'done'
+        if state == 'done':
+            done += n
+        elif state == 'open':
+            open_ += n
+    ordered = sorted(sections.items(), key=lambda kv: -kv[1])
+    return {
+        "sections": [{"heading": h, "bytes": b} for h, b in ordered],
+        "checkbox_bytes": {
+            "done": done,
+            "open": open_,
+            "done_open_ratio": round(done / open_, 2) if open_ else None,
+        },
+    }
+
+
 def build_workstream_record(path, rel_path):
     size_bytes = os.path.getsize(path)
     with open(path, 'r', encoding='utf-8', errors='replace') as f:
@@ -453,6 +491,7 @@ def build_workstream_record(path, rel_path):
         },
         "wrapped_lines": {"open_items": open_cont, "done_items": done_cont},
         "size_bytes": size_bytes,
+        "composition": composition(lines),
     }
 
 

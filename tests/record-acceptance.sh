@@ -365,6 +365,26 @@ check "coverage.hold_lines is 2 (alpha and gamma; beta has none)" '[ "$(jq -r ".
 check "coverage.gates_satisfied is 2 (alpha and gamma)" '[ "$(jq -r ".coverage.gates_satisfied" "$T/out.json")" = "2" ]'
 check "coverage.critical_path is 2 (beta has none)" '[ "$(jq -r ".coverage.critical_path" "$T/out.json")" = "2" ]'
 
+echo "== Composition: bytes per section and per checkbox block, summing to the file"
+A='.workstreams[] | select(.path | endswith("project/alpha/workstream.md"))'
+aq() { jq -r "$A | $1" "$T/out.json"; }
+check "alpha's section bytes sum to its size_bytes" \
+  '[ "$(aq "[.composition.sections[].bytes] | add")" = "$(aq ".size_bytes")" ]'
+check "alpha's largest section is the Backlog" '[ "$(aq ".composition.sections[0].heading")" = "## Backlog" ]'
+# The open side: every open checkbox line in alpha is one line (no continuation), so its
+# byte count is the sum of those lines plus a newline each; done is the one ticked criterion
+# plus its newline. Both derived here by a DIFFERENT method than the script's state machine.
+alpha_file="$T/.state/workstreams/project/alpha/workstream.md"
+exp_open=$(grep -E '^ *- \[ \]' "$alpha_file" | awk '{n += length($0) + 1} END {print n}')
+exp_done=$(grep -E '^ *- \[x\]' "$alpha_file" | awk '{n += length($0) + 1} END {print n}')
+check "alpha's open checkbox bytes match an independent grep-and-length count" '[ "$(aq ".composition.checkbox_bytes.open")" = "$exp_open" ]'
+check "alpha's done checkbox bytes match an independent count" '[ "$(aq ".composition.checkbox_bytes.done")" = "$exp_done" ]'
+# Vary one input: a completion-note continuation under a done line must score as done.
+mkdir -p "$T/comp/.state/workstreams/project/c"
+printf -- '## Backlog\n- [x] #C-1: done task\n  DONE 2026-01-01, commit abc1234\n- [ ] #C-2: open task\n\n## Learnings\n' > "$T/comp/.state/workstreams/project/c/workstream.md"
+check "a completion note under a done line counts as done bytes (22+34), the open line as open (22)" \
+  '[ "$(python3 "$SCRIPT" "$T/comp" | jq -r ".workstreams[0].composition.checkbox_bytes | \"\\(.done) \\(.open)\"")" = "56 22" ]'
+
 echo "== Missing .state exits 2 (not merely non-zero)"
 mkdir -p "$T/nostate-root"
 check "the nostate fixture genuinely has no .state directory" '[ ! -d "$T/nostate-root/.state" ]'
