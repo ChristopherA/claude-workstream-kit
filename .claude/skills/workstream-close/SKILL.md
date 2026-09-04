@@ -6,7 +6,7 @@ description: >-
   WHEN: the user says "close workstream", "/workstream-close", or the
   backlog is complete and deletion criteria look satisfiable.
   WHEN NOT: work still in progress (keep working); pausing
-  (set status: paused in workstream.md); a `maintain` workstream or any other
+  (set status: paused in workstream.md, and say in its Purpose what resumes it -- the hook's NO-RESUME flag reads only the frontmatter and the Purpose); a `maintain` workstream or any other
   with no closure milestone (use /workstream-extract — Move 1 below turns the
   request around); capturing a session at a /clear, /compact, or pause
   boundary (use /workstream-capture); creating (use /workstream-create).

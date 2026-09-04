@@ -86,6 +86,12 @@ gate_ready() {
   ' "$1"
 }
 
+# The frontmatter and the Purpose section -- where a paused workstream
+# says what resumes it, and the only text the NO-RESUME check reads.
+head_through_purpose() {
+  awk '/^## / && $0 !~ /^## Purpose/ {exit} {print}' "$1"
+}
+
 file_kb() { echo $(( $(wc -c < "$1" | tr -d ' ') / 1024 )); }
 file_bytes() { wc -c < "$1" | tr -d ' '; }
 age_days() { echo $(( (NOW_S - $(substantive_epoch "$1")) / 86400 )); }
@@ -176,8 +182,10 @@ if [ "$WS_COUNT" -gt 0 ]; then
       # A paused row is not stale for being old -- the legend's remedy would
       # tell it to pause. Its question is whether the pause names what
       # resumes it; one that does not is a wish, and the longer threshold
-      # gives it a date.
-      if [ "$R_AGE" -gt "$PAUSED_DAYS" ] && ! grep -qiE 'resum(e|es|ed|ing)|unpause|re-?open' "$f" 2>/dev/null; then
+      # gives it a date. Only the frontmatter and the Purpose are read: a
+      # whole-file match let a Learning that mentioned resuming, or a
+      # Purpose saying "session resume", suppress the flag for good.
+      if [ "$R_AGE" -gt "$PAUSED_DAYS" ] && ! head_through_purpose "$f" 2>/dev/null | grep -qiE 'resum(e|es|ed|ing)|unpause|re-?open'; then
         R_FLAGS="$R_FLAGS NO-RESUME"; FLAGGED=1
       fi
     elif [ "$R_AGE" -gt "$STALE_DAYS" ]; then
@@ -191,7 +199,7 @@ if [ "$WS_COUNT" -gt 0 ]; then
       "$R_MARK" "$WS_ID" "$R_TYPE" "$R_STATUS" "$R_OPEN" "$R_GATES" "$R_KB" "$R_AGE" "$R_FLAGS"
   done
   if [ "$FLAGGED" -eq 1 ]; then
-    echo "SIZE = past single-read size, drain with /workstream-extract. STALE = no checkbox or Decision changed in ${STALE_DAYS}d+, update/pause/close. NO-RESUME = paused ${PAUSED_DAYS}d+ naming no resume trigger; name one or close. GHOST = in the archive ledger or marked done yet still present; finish the closure. GATE-READY = an open gate records its exit criterion met (dated marker); present it."
+    echo "SIZE = past single-read size, drain with /workstream-extract. STALE = no checkbox or Decision changed in ${STALE_DAYS}d+, update/pause/close. NO-RESUME = paused ${PAUSED_DAYS}d+ whose frontmatter and Purpose name no resume trigger; name one there or close. GHOST = in the archive ledger or marked done yet still present; finish the closure. GATE-READY = an open gate records its exit criterion met (dated marker); present it."
   fi
 fi
 

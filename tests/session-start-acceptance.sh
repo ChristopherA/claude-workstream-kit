@@ -69,7 +69,14 @@ mk_ws "$T/.state/workstreams/maintain/gamma/workstream.md" maintain active 1 0 0
 # still present -- the planted ghost.
 mk_ws "$T/.state/workstreams/feature/delta/workstream.md"   feature paused 1 0 0
 mk_ws "$T/.state/workstreams/feature/epsilon/workstream.md" feature paused 1 0 0
-echo "Paused; resume when the upstream API ships." >> "$T/.state/workstreams/feature/epsilon/workstream.md"
+# epsilon's trigger sits in the Purpose, where the hook reads for one;
+# delta carries the word in a Learning, which must NOT count as a trigger.
+sed 's/^a reflow may rewrap without changing any task\.$/&\
+Paused; resume when the upstream API ships./' \
+  "$T/.state/workstreams/feature/epsilon/workstream.md" > "$T/e.tmp"
+mv "$T/e.tmp" "$T/.state/workstreams/feature/epsilon/workstream.md"
+printf '\n## Learnings\n- L1 (2026-01-01): resuming a paused build re-reads the whole record; re-open only with the record drained.\n' \
+  >> "$T/.state/workstreams/feature/delta/workstream.md"
 mk_ws "$T/.state/workstreams/project/zeta/workstream.md"    project done   0 0 0
 # The ledger records beta as closed while beta's directory is present --
 # the other half of the ghost check.
@@ -160,10 +167,12 @@ check "a checkbox change at NOW clears STALE on gamma (the substantive test move
 echo "== Paused rows: no STALE; NO-RESUME only where the pause names no trigger"
 check "paused delta (100d, no resume trigger) is NOT flagged STALE" \
   "! grep -q 'feature/delta.*STALE' \"\$T/out.txt\""
-check "paused delta is flagged NO-RESUME (green side)" \
+check "fixture: delta says 'resuming' and 're-open' outside its Purpose (planted suppressor)" \
+  "grep -q 'resuming a paused build' \"\$T/.state/workstreams/feature/delta/workstream.md\" && ! awk '/^## / && \$0 !~ /^## Purpose/ {exit} {print}' \"\$T/.state/workstreams/feature/delta/workstream.md\" | grep -qiE 'resum|re-?open'"
+check "paused delta is flagged NO-RESUME despite the word in a Learning (green side)" \
   "grep -q 'feature/delta.*NO-RESUME' \"\$T/out.txt\""
-check "fixture: epsilon names a resume trigger (sanity)" \
-  "grep -qi 'resume when' \"\$T/.state/workstreams/feature/epsilon/workstream.md\""
+check "fixture: epsilon names its resume trigger inside the Purpose (sanity)" \
+  "awk '/^## / && \$0 !~ /^## Purpose/ {exit} {print}' \"\$T/.state/workstreams/feature/epsilon/workstream.md\" | grep -qi 'resume when'"
 check "paused epsilon (100d, resume trigger named) carries no flag (red side)" \
   "grep -q 'feature/epsilon' \"\$T/out.txt\" && ! grep -q 'feature/epsilon.*\(STALE\|NO-RESUME\)' \"\$T/out.txt\""
 
