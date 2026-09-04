@@ -46,7 +46,7 @@ For each deletion criterion, show the criterion and the evidence Move 3 gathered
 
 ## Move 5 — Archive
 
-After approval, `ls` the workstream directory before removing anything: `workstream.md` is not always the only file there, and whatever else sits beside it needs a disposition (Move 3) rather than a discovery at `git rm`. Then:
+After approval, `ls` the workstream directory before removing anything: `workstream.md` is not always the only file there, and whatever else sits beside it needs a disposition (Move 3) rather than a discovery at `git rm`. Then sweep the WHOLE REPO — `rg --hidden` from the project root, `docs/` and the rest included, not only `.state/` — for citations OF this workstream by name and task prefix, and repoint each live one at the archive tag it is about to have (`#XX-N in ws/<name>`), since a name that stops resolving reads exactly like one that resolves: three closures in one session each carried live citations, one of them four, two of those in `docs/` as routing sentences telling a reader where a disposition happens. Move 3's inward sweep carried the DEPENDENCIES; this carries the pointers, and the closing session is the only one that knows the name is going. Then:
 
 1. Append to `.state/workstreams/ARCHIVE.md`: `- YYYY-MM-DD type/name -- <one-line outcome> (tag: ws/<name>)`
 2. `git tag -m "<one-line outcome>" ws/<name>` on the final state commit
