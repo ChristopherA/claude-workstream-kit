@@ -227,10 +227,24 @@ if [ -n "$INSTALLED" ]; then
   done
   if [ -n "$KIT_VERSION_FILE" ]; then
     AVAILABLE=$(head -1 "$KIT_VERSION_FILE" | tr -d ' ')
-    if [ "$AVAILABLE" = "$INSTALLED" ]; then
-      echo "Kit: $INSTALLED installed, matches the worktree."
-    else
+    # Equal VERSIONs do not mean equal content: a worktree carrying
+    # commits past the installed source at the same VERSION is a build
+    # not yet tagged, and "matches" would be a false statement at every
+    # session start of the project building it. The .source stamp names
+    # the installed commit; where the worktree resolves it, the count of
+    # commits past it is what is reported.
+    KIT_DIR=${KIT_VERSION_FILE%/VERSION}
+    SOURCE=$(sed -n 's/^source: //p' "$PROJECT_DIR/.claude/workstream-kit.source" 2>/dev/null | head -1 | tr -d ' ')
+    AHEAD=""
+    if [ -n "$SOURCE" ] && git -C "$KIT_DIR" rev-parse --verify -q "${SOURCE}^{commit}" >/dev/null 2>&1; then
+      AHEAD=$(git -C "$KIT_DIR" rev-list --count "${SOURCE}..HEAD" 2>/dev/null || true)
+    fi
+    if [ "$AVAILABLE" != "$INSTALLED" ]; then
       echo "Kit: $INSTALLED installed, worktree has $AVAILABLE -- /workstream-upgrade when the consumer's session is closed."
+    elif [ -n "$AHEAD" ] && [ "$AHEAD" -gt 0 ]; then
+      echo "Kit: $INSTALLED installed from $SOURCE; the worktree is $AHEAD commit(s) past it at the same VERSION -- an unreleased build, not a match."
+    else
+      echo "Kit: $INSTALLED installed, matches the worktree."
     fi
   fi
 fi

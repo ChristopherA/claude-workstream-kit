@@ -106,3 +106,17 @@
 ^\.public-sweep-allow:[0-9]+:
 :[0-9]+:[-+ ]?\^[\\a-zA-Z]
 :[0-9]+:[-+ ]?:\[0-9\]\+:
+
+# Fixtures added with the folded-block reads (0.10.2): the hook test's wrapped
+# and mention-only gates, its reflowed, paused and done workstreams, and the
+# record test's multi-code heading, moved-in code, wrapped items and indented
+# continuation. Each entry pins the fixture's own words or its temp-dir path.
+:[0-9]+:[-+ ]?- \[ \] #G-(BM|BX): USER CHECKPOINT -- (build note: the wrap sentence|the release gate, whose line wraps over)
+:[0-9]+:[-+ ]?- \[ \] #(MV-1: a task moved in from elsewhere, keeping its ID|HW-1: another task under the same multi-code heading)
+:[0-9]+:[-+ ]?- \[ \] #G-(SK: USER CHECKPOINT -- the split review, whose line wraps over|HW: USER CHECKPOINT -- the build note reads "the wrap sentence)
+:[0-9]+:[-+ ]?check "(gamma: )?#G-(SK's marker is on a continuation line|HW carries the bare word SATISFIED|SK \(marker on its fourth line\)|HW \(bare mention of SATISFIED)
+:[0-9]+:[-+ ]?check "gamma reports wrapped open items \(2 continuations under #PX-2, 3 under #G-SK, 1 each under #G-HW and #DF-1\)"
+:[0-9]+:[-+ ]?.*\\?"?\$T/(varied/)?\.state/workstreams/(maintain/gamma|feature/epsilon|project/zeta|project/alpha|project/v)(/workstream\.md|")
+:[0-9]+:[-+ ]?  "\[ \\"\\\$\(git log -1 --format=%s -- \.state/workstreams/maintain/gamma/workstream\.md\)\\" = 'reflow gamma prose' \]"
+:[0-9]+:[-+ ]?printf -- '## Backlog\\n- \[ \] #V-1: a task\\n    with an indented continuation\\n'
+:[0-9]+:[-+ ]?(touch|rm -f) "\$T/\.state/handoffs/from-elsewhere-20260101-000000\.md"

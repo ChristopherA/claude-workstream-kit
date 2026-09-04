@@ -217,6 +217,25 @@ check "behind: the line names both versions and the upgrade command" \
 echo "0.10.1" > "$T/kit/VERSION"
 check "equal: the line says it matches" \
   "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, matches the worktree'"
+# Same VERSION, but the worktree carries commits past the installed source:
+# the kit's own steward sees this at every session start of a build, and
+# "matches" there is false. The source stamp names the installed commit.
+git -C "$T/kit" init -q
+git -C "$T/kit" config commit.gpgsign false
+git -C "$T/kit" config user.name fixture
+git -C "$T/kit" config user.email fixture@example.invalid
+git -C "$T/kit" add VERSION && git -C "$T/kit" commit -q -m 'release'
+KIT_SRC=$(git -C "$T/kit" rev-parse --short HEAD)
+echo later > "$T/kit/later" && git -C "$T/kit" add later && git -C "$T/kit" commit -q -m 'unreleased'
+printf 'version: 0.10.1\nsource: %s\nref: v0.10.1\n' "$KIT_SRC" > "$T/.claude/workstream-kit.source"
+check "ahead at the same VERSION: names the source and the commit count, says unreleased" \
+  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed from $KIT_SRC; the worktree is 1 commit(s) past it at the same VERSION -- an unreleased build'"
+check "ahead at the same VERSION: does NOT say matches (red side)" \
+  "! WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'matches the worktree'"
+printf 'version: 0.10.1\nsource: %s\nref: v0.10.1\n' "$(git -C "$T/kit" rev-parse --short HEAD)" > "$T/.claude/workstream-kit.source"
+check "source at the worktree HEAD: matches again" \
+  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, matches the worktree'"
+rm -f "$T/.claude/workstream-kit.source"
 check "no worktree located: silent, no Kit line (degrades rather than guesses)" \
   "! WORKSTREAM_KIT_DIR=\"\$T/nokit\" HOME=\"\$T/nohome\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q '^Kit:'"
 rm -f "$T/.claude/workstream-kit.version"
