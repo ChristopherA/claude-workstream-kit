@@ -19,7 +19,7 @@ description: >-
 
 A workstream accumulates faster than anyone drains it, and nothing in the toolset fires on accumulation. Closure drains a workstream once, at the end; the workstreams that need draining most are the ones that never reach it. This is that drain, run on symptoms instead of on an ending: durable content out to permanent homes, spent reasoning condensed, finished phases moved out of the live reader's way, standing criteria re-checked against current evidence.
 
-Review asks whether the PLAN is right. Extract asks whether the RECORD has been drained. Both are periodic and they fire on different symptoms, so run whichever the symptoms name — neither implies the other.
+Takes an optional `type/name`; bare means the active workstream. Review asks whether the PLAN is right. Extract asks whether the RECORD has been drained. Both are periodic and they fire on different symptoms, so run whichever the symptoms name — neither implies the other.
 
 ## When it fires
 

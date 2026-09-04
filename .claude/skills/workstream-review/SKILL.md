@@ -24,7 +24,7 @@ Drift signals, not a schedule: the session-start hook reports staleness; the bac
 
 Those are signals that the PLAN has drifted. A workstream whose RECORD has not been drained — resolved Learnings carrying no disposition, a completed phase, durable artifacts still under `.state/`, the hook's SIZE line — is `/workstream-extract`'s case, not this one. The two are independent: either can fire alone, and when both do, run both. Do not restructure a backlog to relieve a file that is merely undrained; the reader's problem is the accumulation, and moving live tasks around does not touch it.
 
-Invoked bare, review the ACTIVE workstream; where that one was reviewed this session or the last, present the candidates instead — each workstream with the signal it shows (staleness, an undrained record, an accreted intake, an implicit path) — and let the user pick, rather than re-reviewing the one just done.
+Takes an optional `type/name`. Invoked bare, review the ACTIVE workstream; where that one was reviewed this session or the last, present the candidates instead — each workstream with the signal it shows (staleness, an undrained record, an accreted intake, an implicit path) — and let the user pick, rather than re-reviewing the one just done.
 
 ## Move 1 — Drift scan
 

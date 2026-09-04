@@ -14,7 +14,7 @@ description: >-
 
 # Workstream Close
 
-Closure is where insights either reach a durable home or die with the archive. The user decides closure; your job is to make that decision easy to take on evidence.
+Closure is where insights either reach a durable home or die with the archive. The user decides closure; your job is to make that decision easy to take on evidence. Takes an optional `type/name`; bare means the active workstream.
 
 Draining the record is not closure's own work. `/workstream-extract` owns it and runs periodically whether or not anything is ending; what stays here is what only an ending needs — the narrative, the gate, and the archive.
 

@@ -14,7 +14,7 @@ description: >-
 
 # Workstream Capture
 
-A session is about to cross a boundary -- most often `/clear`, then `/workstream-work` again. `/clear` fires no hook, so this is the manual sweep that would otherwise be skipped, and the one boundary the SessionEnd and PreCompact nudges cannot reach. Before crossing it, make sure nothing from this session is lost. Capture should not depend on the user asking for it.
+A session is about to cross a boundary -- most often `/clear`, then `/workstream-work` again. `/clear` fires no hook, so this is the manual sweep that would otherwise be skipped, and the one boundary the SessionEnd and PreCompact nudges cannot reach. Before crossing it, make sure nothing from this session is lost. Capture should not depend on the user asking for it. It takes no argument: the session is the unit.
 
 Run the workstreams-rule **capture sweep** -- detection, cascade and synthesis as that section states them, arrived handoffs included -- over this session against the durable files, and act on each finding rather than listing it: route every item to its home now, and write any synthesis-level pattern where it extends or supersedes an existing Decision or Learning. Synthesis is a different question from detection, not a harder pass at it, and running detection more carefully converges on more instances and never on a rule; the tell that step three has not run is that nothing in the sweep's output would change how a DIFFERENT piece of work is done. Read the output and ask that; if the answer is nothing, the step is still owed.
 
