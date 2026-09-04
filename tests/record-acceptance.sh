@@ -1,7 +1,11 @@
 #!/bin/sh
-# Offline acceptance test for workstream-record.py: the eleven-field record
+# Offline acceptance test for workstream-record.py: the record
 # (workstream-status SKILL.md, Move 2), derived for every workstream.md
-# under a fixture project plus ACTIVE.md's hold lines and cross refs.
+# under a fixture project plus ACTIVE.md's hold lines and cross refs and
+# the per-field coverage. Every prose-bearing field is fired at a WRAPPED
+# instance as well as an unwrapped one: the suite stayed green across
+# three releases while every such field was broken on wrapped input,
+# because it held no wrapped fixture.
 #
 # Every check that has two sides is fired both ways, and the fixture state
 # a negative check depends on is asserted before the check itself -- a
@@ -101,6 +105,75 @@ regressions. The final sentence marks completion criteria for this section.
 ## Decisions
 
 ## Learnings
+
+## Deletion Criteria
+- [ ] Criterion pending
+EOF
+
+# gamma: the WRAPPED instance of every prose-bearing field, plus every
+# pattern case the consumers reported. Two same-code headings (PX) each
+# holding one task; a task whose code (MV) no heading declares, sitting
+# under a PX heading; a multi-code heading (SK / HW); a phase heading that
+# states a hold; a hold on the THIRD line of a wrapped open task; a
+# hyphenated compound (Held-out) and a negated clause that must not
+# register; a wrapped gate whose marker sits on its fourth line, a gate
+# with a bare MENTION of the word, and a gate marked READY with a date; a
+# heading-form critical path; a repository name (ml-explore/mlx) that must
+# not become a reference and a dotted name that must be captured whole;
+# Learnings with EXTRACTED on a continuation, QUEUED, and nothing.
+mkdir -p "$T/.state/workstreams/project/gamma"
+cat > "$T/.state/workstreams/project/gamma/workstream.md" <<'EOF'
+---
+name: gamma
+type: project
+status: active
+created: 2026-01-01
+---
+## Purpose
+Gamma exercises the wrapped shape of every field. Done means every
+field reads a folded block.
+
+## Backlog
+### Pass 1 (PX)
+- [ ] #PX-1: first pass task
+- [ ] #MV-1: a task moved in from elsewhere, keeping its ID
+
+### Pass 2 (PX)
+- [ ] #PX-2: second pass task whose description wraps over three lines
+because the author wrapped it against the convention, and its third
+line is blocked on feature/beta for the shared schema, citing #PX-9
+- [ ] #PX-3: evaluate the Held-out validation set before the release
+
+### Split (SK / HW)
+- [ ] #SK-1: a task under a multi-code heading
+- [ ] #HW-1: another task under the same multi-code heading
+- [ ] #G-SK: USER CHECKPOINT -- the split review, whose line wraps over
+several lines because a gate accretes agenda, and the marker that
+matters is not on the first line but here, the exit criterion is
+SATISFIED 2026-03-03 with the evidence recorded beside it
+- [ ] #G-HW: USER CHECKPOINT -- the build note reads "the wrap sentence
+and the SATISFIED sentence quoted", which is a mention and not a marking
+- [ ] #G-SK2: USER CHECKPOINT -- READY 2026-02-02, decided in the record
+
+### Deferred (DF) -- blocked on the condensed evaluation
+- [ ] #DF-1: waits for the upstream fix in ml-explore/mlx#3856 to land,
+then finalize in project/omlx-0.4.x-finalize
+
+## Decisions
+### D1 (2026-01-01): Only decision
+Some rationale.
+
+## Learnings
+- L1 (2026-01-01): An insight whose disposition marker sits on its second
+line, EXTRACTED to docs/design.md.
+- L2 (2026-01-01): An insight that is tracked work, QUEUED for #PX-2.
+- L3 (2026-01-01): An insight with no disposition at all.
+
+## Open Questions
+
+### Critical path
+Nothing in this file is held by another workstream; the order runs
+PX-1, then PX-2, then the split, referencing ws/old-two for history.
 
 ## Deletion Criteria
 - [ ] Criterion pending
@@ -206,6 +279,81 @@ active_hold_count=$(jq -r '.active | (.hold_lines | length)' "$T/out.json")
 active_hold_match=$(jq -r '.active.hold_lines[0].match' "$T/out.json")
 check "active.hold_lines has one entry" '[ "$active_hold_count" = "1" ]'
 check "active.hold_lines entry matches 'waiting for'" '[ "$active_hold_match" = "waiting for" ]'
+
+G='.workstreams[] | select(.path | endswith("project/gamma/workstream.md"))'
+gq() { jq -r "$G | $1" "$T/out.json"; }
+
+echo "== Sanity: gamma's fixture carries each planted case"
+check "gamma: the hold on #PX-2 sits on the task's THIRD line, not its first" \
+  "grep -q '^line is blocked on feature/beta' \"$T/.state/workstreams/project/gamma/workstream.md\" && ! grep -q '#PX-2.*blocked' \"$T/.state/workstreams/project/gamma/workstream.md\""
+check "gamma: #G-SK's marker is on a continuation line, not the gate's first line" \
+  "grep -q '^SATISFIED 2026-03-03' \"$T/.state/workstreams/project/gamma/workstream.md\" && ! grep -q '#G-SK:.*SATISFIED' \"$T/.state/workstreams/project/gamma/workstream.md\""
+check "gamma: #G-HW carries the bare word SATISFIED with no date after it" \
+  "grep -q 'the SATISFIED sentence quoted' \"$T/.state/workstreams/project/gamma/workstream.md\""
+check "gamma: two headings carry the same code PX" \
+  "[ \"\$(grep -c '(PX)' \"$T/.state/workstreams/project/gamma/workstream.md\")\" = 2 ]"
+
+echo "== Phases are position-keyed: same-code headings, mismatches, named missing codes"
+check "gamma has four phase rows (two PX rows, one SK / HW, one DF; none for MV)" '[ "$(gq ".phases | length")" = "4" ]'
+check "each PX heading counts only the tasks under it (Pass 1: 2 open, Pass 2: 2 open)" \
+  '[ "$(gq ".phases[0].open_tasks")" = "2" ] && [ "$(gq ".phases[1].open_tasks")" = "2" ]'
+check "the multi-code heading (SK / HW) matches and counts 2 tasks and 3 gates" \
+  '[ "$(gq ".phases[2].code")" = "SK / HW" ] && [ "$(gq ".phases[2].open_tasks")" = "2" ] && [ "$(gq ".phases[2].open_gates")" = "3" ]'
+check "tasks_outside_phases is 0 (never negative: per-heading sum plus outside equals the total)" \
+  '[ "$(gq ".tasks_outside_phases")" = "0" ] && [ "$(gq ".open_total")" = "$(gq "[.phases[] | .open_tasks + .open_gates] | add")" ]'
+check "the code no heading declares is NAMED (MV), not reported as a number" '[ "$(gq ".codes_without_heading | join(\",\")")" = "MV" ]'
+check "the moved-in task is reported as a code/heading mismatch (one, code MV under PX)" \
+  '[ "$(gq ".code_heading_mismatches | length")" = "1" ] && [ "$(gq ".code_heading_mismatches[0].code")" = "MV" ]'
+check "alpha reports no mismatch and no missing code except the orphan ZZ" \
+  '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"project/alpha/workstream.md\")) | .codes_without_heading | join(\",\")" "$T/out.json")" = "ZZ" ]'
+
+echo "== Gate markers: the whole block is read, and only the DATED form marks"
+check "#G-SK (marker on its fourth line) is satisfied" '[ "$(gq ".open_gates[] | select(.text | contains(\"#G-SK:\")) | .satisfied_text")" = "true" ]'
+check "#G-HW (bare mention of SATISFIED, no date) is NOT satisfied" '[ "$(gq ".open_gates[] | select(.text | contains(\"#G-HW\")) | .satisfied_text")" = "false" ]'
+check "#G-SK2 (READY with a date) is satisfied" '[ "$(gq ".open_gates[] | select(.text | contains(\"#G-SK2\")) | .satisfied_text")" = "true" ]'
+
+echo "== Hold lines read folded blocks and phase headings, and reject compounds and negations"
+gamma_hold_matches=$(gq '[.hold_lines[].match] | join("|")')
+check "the hold on #PX-2's third line is found (blocked on)" 'printf "%s" "$gamma_hold_matches" | grep -q "blocked on"'
+check "the hold on #DF-1's first line is found (waits for)" 'printf "%s" "$gamma_hold_matches" | grep -q "waits for"'
+check "the hold stated on the DF phase heading is found, attributed to the heading's line" \
+  '[ "$(gq ".hold_lines[] | select(.line == $(grep -n "^### Deferred" "$T/.state/workstreams/project/gamma/workstream.md" | cut -d: -f1)) | .match")" = "blocked on" ]'
+check "Held-out (hyphenated compound) is NOT a hold" '! printf "%s" "$gamma_hold_matches" | grep -qi "held"'
+check "the negated critical-path clause (Nothing ... is held by) is NOT a hold" \
+  '[ "$(gq ".hold_lines | map(select(.context | contains(\"Nothing in this file\"))) | length")" = "0" ]'
+check "gamma's hold count is exactly 3" '[ "$(gq ".hold_lines | length")" = "3" ]'
+
+echo "== Cross references: wrapped continuation, repository names, dotted names, heading-form critical path"
+gamma_targets=$(gq '[.cross_refs[].target] | join("|")')
+check "feature/beta on #PX-2's third line is found with preceding id #PX-2" \
+  '[ "$(gq ".cross_refs[] | select(.target == \"feature/beta\") | .preceding_id")" = "#PX-2" ]'
+check "ml-explore/mlx does NOT manufacture explore/mlx" '! printf "%s" "$gamma_targets" | grep -q "explore/mlx"'
+check "project/omlx-0.4.x-finalize is captured whole" 'printf "%s" "$gamma_targets" | grep -q "project/omlx-0.4.x-finalize|\|project/omlx-0.4.x-finalize$"'
+check "critical path under a ### heading is found and joined" \
+  '[ "$(gq ".critical_path")" = "Nothing in this file is held by another workstream; the order runs PX-1, then PX-2, then the split, referencing ws/old-two for history." ]'
+check "ws/old-two from the heading-form critical path is found (the cascade is closed)" 'printf "%s" "$gamma_targets" | grep -q "ws/old-two"'
+
+echo "== Learnings: block-scoped markers, terminal split from deferred"
+check "learnings.count is 3" '[ "$(gq ".learnings.count")" = "3" ]'
+check "EXTRACTED on L1's second line counts as terminal (1)" '[ "$(gq ".learnings.terminal")" = "1" ]'
+check "QUEUED (L2) is deferred, not undispositioned" '[ "$(gq ".learnings.deferred | length")" = "1" ] && gq ".learnings.deferred[0]" | grep -q "^- L2"'
+check "L3 alone is undispositioned" '[ "$(gq ".learnings.undispositioned | length")" = "1" ] && gq ".learnings.undispositioned[0]" | grep -q "^- L3"'
+
+echo "== Conformance detector: continuation lines under open items, column 0 and indented alike"
+check "gamma reports wrapped open items (2 continuations under #PX-2, 3 under #G-SK, 1 each under #G-HW and #DF-1)" '[ "$(gq ".wrapped_lines.open_items")" = "7" ]'
+check "alpha reports zero wrapped open items (its backlog lines are one line each)" \
+  '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"project/alpha/workstream.md\")) | .wrapped_lines.open_items" "$T/out.json")" = "0" ]'
+# Vary one input that must change the count: an indented continuation.
+mkdir -p "$T/varied/.state/workstreams/project/v"
+printf -- '## Backlog\n- [ ] #V-1: a task\n    with an indented continuation\n' > "$T/varied/.state/workstreams/project/v/workstream.md"
+check "an indented continuation is counted too (varied fixture reports 1)" \
+  '[ "$(python3 "$SCRIPT" "$T/varied" | jq -r ".workstreams[0].wrapped_lines.open_items")" = "1" ]'
+
+echo "== Coverage: files per field, so a zero reads as calibration rather than data"
+check "coverage.files is 3" '[ "$(jq -r ".coverage.files" "$T/out.json")" = "3" ]'
+check "coverage.hold_lines is 2 (alpha and gamma; beta has none)" '[ "$(jq -r ".coverage.hold_lines" "$T/out.json")" = "2" ]'
+check "coverage.gates_satisfied is 2 (alpha and gamma)" '[ "$(jq -r ".coverage.gates_satisfied" "$T/out.json")" = "2" ]'
+check "coverage.critical_path is 2 (beta has none)" '[ "$(jq -r ".coverage.critical_path" "$T/out.json")" = "2" ]'
 
 echo "== Missing .state exits 2 (not merely non-zero)"
 mkdir -p "$T/nostate-root"
