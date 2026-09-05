@@ -38,8 +38,9 @@ Because the state is plain files in git, it is portable across machines, account
 | Conventions | `.claude/CLAUDE.md`, `.claude/rules/workstreams-rule.md` |
 | Lifecycle skills | `.claude/skills/workstream-create/`, `workstream-work/`, `workstream-capture/`, `workstream-review/`, `workstream-extract/`, `workstream-close/` |
 | Cross-project handoffs | `.claude/skills/handoff/` |
-| Cross-workstream status | `.claude/skills/workstream-status/` (read-only, on demand) + `.claude/scripts/workstream-record.py`, which derives its per-workstream record and needs `python3` |
-| Record drain | `.claude/scripts/condense-completed-records.py` -- the extract skill's condensation moves (completed task records; shipped Decisions named by the caller), dry-run by default, needs `python3` |
+| Cross-workstream status | `.claude/skills/workstream-status/` (read-only, on demand) |
+| Measures | `.claude/scripts/workstream-record.py` -- every measurement the skills ask for as a sub-command (`record`, `cites`, `refs`, `paths`, `decay`, `git`, `fires`, `self-check`), with no write path; over `workstream_state.py`, the shared folder and patterns |
+| Rewrites | `.claude/scripts/workstream-rewrite.py` -- every mechanical rewrite (`records`, `decisions`, `learnings`, `rotate`), dry-run by default, refusing when the structure it preserves has changed; `condense-completed-records.py` forwards to it for one release |
 | Delegate agents | `.claude/agents/scout.md`, `worker.md`, `verifier.md` -- each inherits the session's model |
 | Session resume | `.claude/hooks/session-start.sh` + `settings.json` hook registration |
 | Boundary capture | workstreams-rule capture sweep + `.claude/skills/workstream-capture/` |
@@ -149,7 +150,7 @@ A release that changes the kit's model of itself — a skill added or removed, a
 
 ## Status line
 
-The kit ships a self-contained status line that shows `project » branch » workstream` and the percent of context remaining before auto-compaction, reading the active workstream from `.state/ACTIVE.md`. It also writes a per-session context JSON to `/tmp` that sessions read for context-budget decisions. It needs only `jq`; the one other dependency in the payload is `python3`, for the status skill's record script.
+The kit ships a self-contained status line that shows `project » branch » workstream` and the percent of context remaining before auto-compaction, reading the active workstream from `.state/ACTIVE.md`. It also writes a per-session context JSON to `/tmp` that sessions read for context-budget decisions. It needs only `jq`. The other dependency in the payload is `python3`, which the measuring skills -- status, review, extract, close, capture, work -- run through the two scripts above; the session-start hook prints the drain's symptoms when it is on the path and its plain roster otherwise, so a project without python loses the measures and keeps the conventions.
 
 Install registers it in `settings.json` automatically — but only when no `statusLine` is already set, so a status line you already run is never overridden. Remove it by deleting the `statusLine` block from `.claude/settings.json` — but note a later re-install will register it again once the slot is empty, so to stay opted out across updates, point `statusLine` at your own command instead of leaving the slot absent.
 
