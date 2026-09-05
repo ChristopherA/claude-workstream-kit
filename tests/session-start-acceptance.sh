@@ -273,6 +273,31 @@ rm -f "$T/.claude/workstream-kit.version"
 check "no installed stamp: no Kit line" \
   "! WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q '^Kit:'"
 
+echo "== The drain trigger: fires when python3 is on the path, silent otherwise"
+# beta is oversized and delta has an undispositioned Learning; alpha's two
+# STANDING lines are both stamped today by now, so it is quiet, as is gamma.
+OUT3=$(CLAUDE_PROJECT_DIR="$T" sh "$HOOK")
+printf '%s\n' "$OUT3" > "$T/out3.txt"
+check "fixture: python3 is on the path" "command -v python3 >/dev/null"
+check "the Drain header names the sub-command and the skill" "grep -q '^Drain (workstream-record.py fires -- run /workstream-extract' \"\$T/out3.txt\""
+check "beta fires on size and delta on the undispositioned Learning" \
+  "grep -q '^  project/beta: fires -- size 68KB past 64KB' \"\$T/out3.txt\" && grep -q '^  feature/delta: fires -- undispositioned Learnings 1' \"\$T/out3.txt\""
+check "alpha (both STANDING lines stamped today) and gamma are quiet and print no Drain line" \
+  "! grep -q '^  project/alpha' \"\$T/out3.txt\" && ! grep -q '^  maintain/gamma' \"\$T/out3.txt\""
+check "exactly two workstreams fire" "[ \"\$(grep -c ': fires -- ' \"\$T/out3.txt\")\" = 2 ]"
+check "the SIZE line and the roster still print (the floor stays)" "grep -q '^SIZE:\\|SIZE' \"\$T/out3.txt\" && grep -q 'Workstreams (6)' \"\$T/out3.txt\""
+# Hide python3: a PATH holding every tool the hook uses and no python.
+mkdir -p "$T/bin"
+for tool in sh git date awk grep sed wc head cut tr basename dirname sort cat stat tail ls; do
+  p=$(command -v "$tool" 2>/dev/null) && ln -s "$p" "$T/bin/$tool" 2>/dev/null || true
+done
+check "fixture: the restricted PATH has no python3" "! PATH=\"\$T/bin\" command -v python3 >/dev/null 2>&1"
+OUT4=$(PATH="$T/bin" CLAUDE_PROJECT_DIR="$T" sh "$HOOK")
+printf '%s\n' "$OUT4" > "$T/out4.txt"
+check "without python3 no Drain block prints" "! grep -q '^Drain' \"\$T/out4.txt\" && ! grep -q ': fires -- ' \"\$T/out4.txt\""
+grep -v '^Drain\|^  [a-z]*/[a-z]*: fires -- ' "$T/out3.txt" > "$T/out3-minus.txt"
+check "everything else is identical to the python3 run (the roster, SIZE, the flags)" "cmp -s \"\$T/out3-minus.txt\" \"\$T/out4.txt\""
+
 echo "== The roster survives an unpointed project"
 sed 's|^workstream: project/alpha|workstream: none|' "$T/.state/ACTIVE.md" > "$T/a.tmp"
 mv "$T/a.tmp" "$T/.state/ACTIVE.md"

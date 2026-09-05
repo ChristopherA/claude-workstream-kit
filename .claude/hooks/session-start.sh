@@ -223,6 +223,22 @@ if [ "$WS_COUNT" -gt 0 ]; then
   fi
 fi
 
+# The drain's symptoms, one line per workstream that fires, from the
+# record script's `fires` sub-command -- undispositioned Learnings, a
+# completed phase, size, a notes.md, a stray file, a STANDING criterion
+# unchecked past the interval. The hook is what every session reads
+# unasked, so this is where accumulation gets a trigger; python stays
+# optional, and without it the roster above (SIZE, the floor) is what
+# prints. The script is found beside this hook, never by a guess.
+RECORD_PY="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)/scripts/workstream-record.py"
+if command -v python3 >/dev/null 2>&1 && [ -f "$RECORD_PY" ]; then
+  FIRES=$(python3 "$RECORD_PY" fires "$PROJECT_DIR" 2>/dev/null | grep -v ': quiet$' || true)
+  if [ -n "$FIRES" ]; then
+    echo "Drain (workstream-record.py fires -- run /workstream-extract on what fires):"
+    printf '%s\n' "$FIRES" | sed 's/^/  /'
+  fi
+fi
+
 # Handoff inbox count + oldest age. The directory is NAMED: a project whose
 # deletion criteria spoke of a different inbox read "inbox is empty" as
 # true for eleven days while a real handoff sat untriaged elsewhere.
