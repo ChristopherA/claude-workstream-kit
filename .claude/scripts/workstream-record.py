@@ -19,6 +19,7 @@ Usage:
   workstream-record.py git <project-root> [--remote <name|name/branch>] [--tags]
   workstream-record.py fires <project-root> [<type/name>] [--json]
                              [--interval-days <n>]
+  workstream-record.py self-check
 
 The bare form is kept because the status and extract skills, the record
 suite and consumers' scripts call it. Every sub-command takes its path
@@ -82,6 +83,11 @@ days unless --interval-days says otherwise). A paused workstream is
 still measured: the exposed case is the one nobody reads. Prints one
 text line per workstream for the session-start hook, JSON with --json.
 It says what fires, never who should run the drain.
+
+`self-check` fires every pattern the record uses at built-in
+known-positive and known-negative strings and exits 1 on any miss,
+naming the pattern and the string. The status skill runs it before
+trusting any zero it is about to report.
 """
 
 import json
@@ -99,6 +105,7 @@ from workstream_state import (  # noqa: E402
     blank_strikes, disposition, extract_section, find_workstreams, fold_blocks, in_strike,
     git, join_block, line_at, negated, read_lines, require_root, section_of, sentence_span,
     split_sentences, state_files, strip_frontmatter, workstream_id, SIZE_BYTES,
+    CROSS_REF_WS_RE as _WS_RE, TASK_ID_RE,
 )
 
 PROG = 'workstream-record.py'
@@ -1133,6 +1140,90 @@ def cmd_fires(args):
     return 0
 
 
+# --- self-check: the instrument fired at what it must catch and must let through
+
+def _holds(text):
+    return bool(hold_matches(1, [text]))
+
+
+def _refs(text):
+    return [r["target"] for r in cross_ref_matches(1, [text])]
+
+
+SELF_CHECKS = [
+    # (name, predicate, positives, negatives): the predicate must be true
+    # of every positive and false of every negative.
+    ("HOLD_RE", _holds,
+     ["blocked on feature/beta for the schema", "waits for the upstream fix", "held by #PX-1 until the split",
+      "sequenced after the extract"],
+     ["evaluate the Held-out validation set", "the two retired checkpoints held, so conditions that hold here",
+      "raise the alert threshold before shipping"]),
+    ("negated hold", _holds,
+     ["the order is blocked on #PX-2"],
+     ["Nothing in this file is held by another workstream; the order runs PX-1"]),
+    ("SATISFIED_MARK_RE", lambda t: bool(SATISFIED_MARK_RE.search(t)),
+     ["the exit criterion is SATISFIED 2026-03-03 with evidence", "READY 2026-02-02, decided", "criterion is met 2026-01-01"],
+     ["the build note reads the SATISFIED sentence quoted", "READY when the user says so"]),
+    ("disposition", lambda t: disposition(t) == 'terminal',
+     ["- L1 (2026-01-01): An insight. HANDED OFF 2026-01-02 to feature/beta.",
+      "- L5 (2026-01-01): DISPOSITION 2026-01-03: ROUTED to #PX-1.",
+      "- L4 (2026-01-01): An insight that is spent. SPENT 2026-01-02 -- routed to docs/design.md.",
+      "- ~~L9 (2026-01-01): struck through whole.~~"],
+     ["- L7 (2026-09-04): The record quotes the two-word `HANDED OFF` marker mid-sentence, a mention.",
+      "- L8 (2026-01-01): An insight. APPLIED to docs/design.md, the author forgetting the date.",
+      "- L3 (2026-01-01): An insight with no disposition at all."]),
+    ("deferred disposition", lambda t: disposition(t) == 'deferred',
+     ["- L2 (2026-01-01): Tracked work. QUEUED 2026-01-02 for #PX-2."],
+     ["- L2 (2026-01-01): Tracked work, queued informally."]),
+    ("CROSS_REF_WS_RE", lambda t: bool(_refs(t)),
+     ["blocked on feature/beta", "then finalize in project/omlx-0.4.x-finalize"],
+     ["waits for the upstream fix in ml-explore/mlx#3856 to land", "a plain sentence"]),
+    ("dotted name captured whole", lambda t: 'project/omlx-0.4.x-finalize' in _refs(t),
+     ["then finalize in project/omlx-0.4.x-finalize"], ["then finalize in project/omlx"]),
+    ("PHASE_HEADING_RE", lambda t: bool(PHASE_HEADING_RE.match(t)),
+     ["### Build (BD) -- the heading carries a suffix", "### Split (SK / HW)"],
+     ["### D3 (2026-01-01): Third decision", "## Backlog"]),
+    ("TOTAL_OPEN_RE", lambda t: bool(TOTAL_OPEN_RE.match(t)),
+     ["- [ ] #BD-1: a task", "  - [ ] #BD-1a: an indented sub-task"],
+     ["- [ ] Criterion one not yet met", "- [x] #BD-2: done"]),
+    ("HOLDS_RE", lambda t: bool(HOLDS_RE.search(t)),
+     ["-- HOLDS 2026-01-01, HOLDS 2026-02-02"], ["HOLDS today", "the criterion holds for now"]),
+    ("CHECKBOX_ID_RE", lambda t: bool(CHECKBOX_ID_RE.match(t)),
+     ["- [x] #OL-3 (DONE 2026-01-01, the no-colon form)", "- [ ] #G-BD: USER CHECKPOINT"],
+     ["- [x] a plain criterion", "- L1 (2026-01-01): a Learning"]),
+    ("needle_regex word boundaries", lambda t: bool(needle_regex('#BD-1').search(t)),
+     ["cites #BD-1 and", "(#BD-1)"], ["cites #BD-10 and", "cites #BD-1a and"]),
+    ("TASK_ID_RE", lambda t: bool(TASK_ID_RE.search(t)),
+     ["routed to #OG-188 there", "decided at #G-OG"], ["a plain sentence", "the #hashtag"]),
+]
+
+
+def cmd_self_check(args):
+    if args:
+        usage("self-check takes no arguments")
+    misses = 0
+    for name, pred, positives, negatives in SELF_CHECKS:
+        bad = []
+        for t in positives:
+            if not pred(t):
+                bad.append(("must match", t))
+        for t in negatives:
+            if pred(t):
+                bad.append(("must not match", t))
+        if bad:
+            misses += len(bad)
+            for why, t in bad:
+                print("MISS %s: %s: %r" % (name, why, t))
+        else:
+            print("ok %s: matches %s; lets through %s" % (
+                name, " | ".join(positives), " | ".join(negatives)))
+    if misses:
+        print("SELF-CHECK FAILED: %d miss(es)" % misses)
+        return 1
+    print("SELF-CHECK OK: %d patterns" % len(SELF_CHECKS))
+    return 0
+
+
 # --- dispatch --------------------------------------------------------------
 
 COMMANDS = {
@@ -1143,6 +1234,7 @@ COMMANDS = {
     'decay': cmd_decay,
     'git': cmd_git,
     'fires': cmd_fires,
+    'self-check': cmd_self_check,
 }
 
 
