@@ -9,6 +9,13 @@
 # The sweep prints the number of lines it suppressed on every run, so growth here
 # is visible rather than inferred. Keep it that way: widen an entry only when a
 # hit is genuinely published content, and never to quieten a real finding.
+#
+# Every entry is anchored on the file the hit sits in. The sweep labels a hit
+# file:lineno:content in every mode -- in --range mode it reads the file and line
+# from the diff headers -- so one entry serves the working-tree sweep and the
+# pre-push range sweep alike. Fixture task IDs are pinned by their phase code, so
+# a test that mints a new fixture code adds its code here, and the addition is
+# read when it lands.
 
 # The state-file format rule, which shows a task pointer, a backlog and a gate.
 ^\.claude/rules/workstreams-rule\.md:[0-9]+:.*#(DR-[0-9]|G-DR)\b
@@ -19,120 +26,42 @@
 
 # The acceptance test drives a demo workstream end to end, so it names that
 # workstream's own tasks and its state path. Both are fixtures, not references.
-^tests/va3-acceptance\.sh:[0-9]+:.*#(BD-[0-9]|G-BD)\b
+^tests/va3-acceptance\.sh:[0-9]+:.*#(BD-[0-9]|G-BD|CL-[123])\b
 ^tests/va3-acceptance\.sh:[0-9]+:.*\.state/workstreams/project/greeting-script\b
 
-# The offline hook fixture builds three demo workstreams and generates their
-# task lines, so it names fixture IDs and fixture state paths.
+# The offline hook fixture builds demo workstreams under a temp directory and
+# generates their task lines, so it names fixture IDs, fixture state paths and
+# one fixture handoff filename.
 ^tests/session-start-acceptance\.sh:[0-9]+:.*#(BD-[0-9]+|G-B)
 ^tests/session-start-acceptance\.sh:[0-9]+:.*\$T/\.state/workstreams/
-
-# --- range-mode forms --------------------------------------------------------
-# `--range` is the mode the pre-push sweep uses, and it labels every hit with
-# the RANGE rather than the file, so none of the file-anchored entries above can
-# match there. These repeat the same exemptions anchored on content instead.
-#
-# They are necessarily broader than the file-scoped forms, so each is pinned to
-# the exact published string it exempts rather than to a bare identifier: a
-# pattern like `#BD-[0-9]+` alone would suppress a genuine reference anywhere in
-# the tree. The durable fix belongs in the sweep script -- emitting file:line in
-# range mode would let one file-anchored entry serve both modes -- and that
-# script is not this repository's to change.
-
-# The workstream template ships the Completion phase as literal task lines.
-:[0-9]+:[-+ ]?- \[[ x]\] #CL-[123]: (Disposition all Learnings|Verify deletion criteria|Archive \(`\.state/workstreams/ARCHIVE\.md` line)
-
-# The rule's ACTIVE.md example shows a task pointer; its line moved when the
-# example lost its trailing comments.
-:[0-9]+:[-+ ]?task: "#DR-2 - state-file formats"
-
-# The Task IDs bullet IS the convention's definition; its examples are the form
-# being defined, not references to anything.
-:[0-9]+:[-+ ]?- \*\*Task IDs\*\*: `#XX-N`
-
-# The end-to-end test's closure prompt names the demo workstream's own gate,
-# completion tasks and archive tag as the scenario it drives. Pinned to the
-# prompt's exact opening words, and to the one hunk header that quotes the
-# gate-check label, so an edit to that line does not report its own fixtures.
-# Same hole as every line-level entry: a private name written INTO that prompt
-# would be hidden; the prompt is read whenever it is edited.
-:[0-9]+:[-+ ]?claude -p --dangerously-skip-permissions 'As the user I approve the #G-BD gate: the deliverable works\.
-:[0-9]+:@@ .*@@ check "stopped AT gate \(G-BD unchecked\)"
-
-# Acceptance-test fixtures: generated task lines and temp-directory state paths.
-:[0-9]+:[-+ ]?.*echo "- \[[ x]\] #(BD-[0-9]+|G-B)
-# The hook test's GATE-READY checks grep for the two fixture gates they assert on,
-# pinned to the check's own quoting so a real gate ID elsewhere still reports.
-:[0-9]+:[-+ ]?  "grep -qE? '[^']*#G-B[XB]\.\*(SATISFIED|satisfied)'
-:[0-9]+:[-+ ]?task: "#BD-1 - first task"
-:[0-9]+:[-+ ]?.*"\$T/\.state/workstreams/
-:[0-9]+:[-+ ]?.*\.state/workstreams/project/greeting-script\b
+^tests/session-start-acceptance\.sh:[0-9]+:.*\.state/workstreams/maintain/gamma/workstream\.md
+^tests/session-start-acceptance\.sh:[0-9]+:.*\$T/\.state/handoffs/from-elsewhere-20260101-000000\.md
 
 # The record script's test builds its fixture workstreams and ACTIVE.md as
-# heredocs, so their task, gate and pointer lines appear bare; each entry pins
-# the fixture's own words, so a real ID in a real sentence still reports.
-^tests/record-acceptance\.sh:[0-9]+:.*#(DR-1|G-DR|BD-[12]|G-DN|G-BD)\b
-:[0-9]+:[-+ ]?- \[ \] #DR-1: draft the design outline
-:[0-9]+:[-+ ]?- \[ \] #G-DR: USER CHECKPOINT -- release readiness SATISFIED 2026-01-01 pending final confirmation
-:[0-9]+:[-+ ]?  - \[ \] #BD-1: implement the core module
-:[0-9]+:[-+ ]?- \[ \] #BD-2: blocked on feature/beta for the shared schema work
-:[0-9]+:[-+ ]?- \[ \] #G-DN: USER CHECKPOINT -- pending review before shipment
-:[0-9]+:[-+ ]?# contains "waiting for #G-BD"\.
-:[0-9]+:[-+ ]?task: "#BD-2 - shared schema work"
-:[0-9]+:[-+ ]?Release is waiting for #G-BD in feature/beta before we can proceed with the next steps here\.
-:[0-9]+:[-+ ]?check "cross ref on the hold line has preceding_id #BD-2"
+# heredocs under a temp directory, so their task, gate and pointer lines appear
+# bare; the IDs are pinned to the fixture phase codes and the paths to the temp
+# directory, so a real ID in a real sentence, or a real workstream path, still
+# reports.
+^tests/record-acceptance\.sh:[0-9]+:.*#(G-(DR|DN|BD|SK|HW)|(DR|DN|BD|PX|SK|HW|MV|DF|ZZ|V|C)-[0-9]+)\b
+^tests/record-acceptance\.sh:[0-9]+:.*\$T/(varied/|comp/)?\.state/workstreams/
+
+# The condensation script's test: one long and one short completed record, an
+# open task and a gate, and the checks that grep for them.
+^tests/condense-acceptance\.sh:[0-9]+:.*#(BD-[123]|G-BD)\b
 
 # This file's own entries quote the identifiers they exempt, so a diff that adds
-# or edits one reports every string it names.
-#
-# Exempted by SHAPE -- a line whose content begins with a regex anchor, `^` for
-# the file-anchored form or `:[0-9]+:` for the range-anchored one. Comments and
+# or edits one reports every string it names. Exempted by SHAPE: a line of this
+# file whose content begins with `^`, the anchor every entry starts with, or
+# with `:[0-9]+:`, the anchor of the range-mode entries this file carried until
+# the sweep learned to label range hits by file -- retired, but every one of
+# them is in published history and in the diff that removed them. Comments and
 # prose in this file are NOT exempt, so a private name written into a comment
-# here still reports; that was verified by injecting two.
-#
-# The tighter alternative, one exemption per entry naming its literal text, was
-# tried and does not terminate: each entry that exempts an entry is itself an
-# entry quoting the same identifier, so the file grows a new hit every time it
-# grows a line. This shape terminates.
+# here still reports; that was verified by injecting one.
 #
 # THE HOLE IT LEAVES, stated because a suppression nobody can see is the failure
 # this whole file risks: a private task ID written INTO AN ENTRY in this file
 # would be hidden, since the entry matches by shape regardless of content.
 # Nowhere else -- the same ID in a comment here, or anywhere in the tree,
 # reports. Entries are read when added, and the sweep prints its suppression
-# count every run, which is the compensating visibility. The real fix is for the
-# sweep to emit file:lineno in range mode; a single `^\.public-sweep-allow:`
-# entry would then cover this file by path and this block would be deleted.
-^\.public-sweep-allow:[0-9]+:
-:[0-9]+:[-+ ]?\^[\\a-zA-Z]
-:[0-9]+:[-+ ]?:\[0-9\]\+:
-
-# Fixtures added with the folded-block reads (0.10.2): the hook test's wrapped
-# and mention-only gates, its reflowed, paused and done workstreams, and the
-# record test's multi-code heading, moved-in code, wrapped items and indented
-# continuation. Each entry pins the fixture's own words or its temp-dir path.
-:[0-9]+:[-+ ]?- \[ \] #G-(BM|BX): USER CHECKPOINT -- (build note: the wrap sentence|the release gate, whose line wraps over)
-:[0-9]+:[-+ ]?- \[ \] #(MV-1: a task moved in from elsewhere, keeping its ID|HW-1: another task under the same multi-code heading)
-:[0-9]+:[-+ ]?- \[ \] #G-(SK: USER CHECKPOINT -- the split review, whose line wraps over|HW: USER CHECKPOINT -- the build note reads "the wrap sentence)
-:[0-9]+:[-+ ]?check "(gamma: )?#G-(SK's marker is on a continuation line|HW carries the bare word SATISFIED|SK \(marker on its fourth line\)|HW \(bare mention of SATISFIED)
-:[0-9]+:[-+ ]?check "gamma reports wrapped open items \(2 continuations under #PX-2, 3 under #G-SK, 1 each under #G-HW and #DF-1\)"
-:[0-9]+:[-+ ]?.*\\?"?\$T/(varied/|comp/)?\.state/workstreams/(maintain/gamma|feature/epsilon|feature/delta|project/zeta|project/alpha|project/v|project/c)(/workstream\.md|")
-:[0-9]+:[-+ ]?  "\[ \\"\\\$\(git log -1 --format=%s -- \.state/workstreams/maintain/gamma/workstream\.md\)\\" = 'reflow gamma prose' \]"
-:[0-9]+:[-+ ]?printf -- '## Backlog\\n- \[ \] #V-1: a task\\n    with an indented continuation\\n'
-:[0-9]+:[-+ ]?(touch|rm -f) "\$T/\.state/handoffs/from-elsewhere-20260101-000000\.md"
-
-# Fixtures added with the condensation script and the composition report
-# (0.10.3): the condense test's one long and one short completed record, its
-# open task and gate, and the checks that grep for them; the record test's
-# two-line composition fixture. Each entry pins the fixture's own words.
-^tests/condense-acceptance\.sh:[0-9]+:.*#(BD-[123]|G-BD)\b
-^tests/record-acceptance\.sh:[0-9]+:.*#C-[12]\b
-:[0-9]+:[-+ ]?  printf -- '- \[x\] #BD-1: Decide the widget shape\.
-:[0-9]+:[-+ ]?- \[x\] #BD-2: a short done task, DONE 2026-01-01
-:[0-9]+:[-+ ]?- \[ \] #BD-3: an open task
-:[0-9]+:[-+ ]?- \[ \] #G-BD: USER CHECKPOINT -- the build gate
-:[0-9]+:[-+ ]?check "(fixture: )?#BD-[12]('s note| \(short\)| now fits| runs past)
-:[0-9]+:[-+ ]?  "\[ \\"\\\$\(grep '\^- \\\\\[x\\\\\] #BD-1' \\"\\\$W\\" \| wc -c\)\\" -[lg]t 400 \]
-:[0-9]+:[-+ ]?  "grep '\^- \\\\\[x\\\\\] #BD-1' \\"\\\$W\\" \| grep -q '(DECIDED 2026-01-03; reasoning in D2; commits abc1234|Condensed 2026-05-05 at extract)'"
-:[0-9]+:[-+ ]?.*grep -qF -- '- \[[ x]\] #(BD-2: a short done task, DONE 2026-01-01|BD-3: an open task|G-BD: USER CHECKPOINT -- the build gate)'
-:[0-9]+:[-+ ]?printf -- '## Backlog\\n- \[x\] #C-1: done task\\n  DONE 2026-01-01, commit abc1234\\n- \[ \] #C-2: open task
+# count every run, which is the compensating visibility.
+^\.public-sweep-allow:[0-9]+:[-+ ]?(\^|:\[0-9\]\+:)
