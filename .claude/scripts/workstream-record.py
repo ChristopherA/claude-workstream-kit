@@ -11,6 +11,8 @@ tool that cannot write. Standard library only.
 Usage:
   workstream-record.py record <project-root>
   workstream-record.py <project-root>            (alias of record)
+  workstream-record.py cites <project-root> <needle> [<needle>...]
+                             [--repo] [--section <name>]
 
 The bare form is kept because the status and extract skills, the record
 suite and consumers' scripts call it. Every sub-command takes its path
@@ -22,6 +24,14 @@ success, 1 a failed check (self-check), 2 usage or a root with no
 every .state/workstreams/*/*/workstream.md under the root, plus the hold
 lines and cross-workstream references in .state/ACTIVE.md, and a
 per-field corpus-coverage count.
+
+`cites` is the citation sweep four skills prescribe and none gave a
+command for: every block under .state/ (the whole tree minus .git with
+--repo) that carries a needle, folded so a multi-word needle straddling
+a wrap still matches, each hit with its file, line, section, the
+Backlog ID whose block it sits in, whether it is inside a strike, and
+the hold verb preceding it in the sentence. A needle shaped like an ID
+matches on word boundaries only, so #BD-1 does not match #BD-10.
 """
 
 import json
@@ -29,14 +39,16 @@ import os
 import re
 import sys
 
+sys.dont_write_bytecode = True  # the scripts dir is a payload install.sh copies whole
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from workstream_state import (  # noqa: E402
-    ANY_HEADING_RE, CHECKBOX_RE, CROSS_REF_TAG_RE, CROSS_REF_WS_RE, DECISION_HEADING_RE,
-    DELETION_DONE_RE, DELETION_OPEN_RE, DONE_GATE_RE, DONE_LINE_RE, GATE_LINE_RE, HOLDS_RE,
-    HOLD_RE, ID_RE, LEARNING_RE, LIST_ITEM_RE, PHASE_HEADING_RE, SATISFIED_MARK_RE,
-    TASK_CODE_RE, TOP_HEADING_RE, TOTAL_OPEN_RE,
-    blank_strikes, disposition, extract_section, find_workstreams, fold_blocks, join_block,
-    line_at, negated, require_root, split_sentences, strip_frontmatter,
+    ANY_HEADING_RE, CHECKBOX_ID_RE, CHECKBOX_RE, CROSS_REF_TAG_RE, CROSS_REF_WS_RE,
+    DECISION_HEADING_RE, DELETION_DONE_RE, DELETION_OPEN_RE, DONE_GATE_RE, DONE_LINE_RE,
+    GATE_LINE_RE, HOLDS_RE, HOLD_RE, ID_RE, LEARNING_RE, LIST_ITEM_RE, PHASE_HEADING_RE,
+    SATISFIED_MARK_RE, TASK_CODE_RE, TOP_HEADING_RE, TOTAL_OPEN_RE,
+    blank_strikes, disposition, extract_section, find_workstreams, fold_blocks, in_strike,
+    join_block, line_at, negated, read_lines, require_root, section_of, sentence_span,
+    split_sentences, state_files, strip_frontmatter,
 )
 
 PROG = 'workstream-record.py'
@@ -437,10 +449,93 @@ def cmd_record(args):
     return 0
 
 
+# --- cites: the citation sweep ----------------------------------------------
+
+def needle_regex(needle):
+    """An ID-shaped needle matches on word boundaries only, so `#BD-1`
+    does not hit `#BD-10` or `#BD-1a`; a prose needle matches across any
+    whitespace, which is what a 70-column wrap turns a space into."""
+    if re.fullmatch(r'#[A-Za-z]+-[0-9]+[a-z]?|#G-[A-Za-z0-9]+|D[0-9]+|L[0-9]+|OQ-[0-9]+', needle):
+        return re.compile(r'(?<![\w-])' + re.escape(needle) + r'(?![\w-])')
+    return re.compile(r'\s+'.join(re.escape(w) for w in needle.split()))
+
+
+def hold_before(text, offset):
+    """The last hold verb (with its object) in the sentence before
+    offset, or None -- the direction hint close's inward sweep reads by
+    hand: a block naming this ID as a BLOCKER loses its referent when the
+    directory goes, one naming it as a source does not."""
+    s, _e = sentence_span(text, offset)
+    last = None
+    for m in HOLD_RE.finditer(blank_strikes(text), s, offset):
+        last = m.group(0)
+    return last
+
+
+def cites(root, needles, repo=False, section=None):
+    regexes = [(n, needle_regex(n)) for n in needles]
+    hits = []
+    files = state_files(root, repo=repo)
+    for path in files:
+        lines = read_lines(path)
+        sections = section_of(lines)
+        rel = os.path.relpath(path, root)
+        for start, kind, _text, raw in fold_blocks(lines):
+            sec = sections[start - 1]
+            if section is not None and (sec is None or sec[3:].strip() != section):
+                continue
+            text, starts = join_block(raw, start)
+            owner = None
+            m = CHECKBOX_ID_RE.match(raw[0])
+            if m and sec == '## Backlog':
+                owner = m.group(2)
+            for needle, rx in regexes:
+                for hm in rx.finditer(text):
+                    hits.append({
+                        "needle": needle,
+                        "file": rel,
+                        "line": line_at(starts, hm.start()),
+                        "section": sec,
+                        "owning_id": owner,
+                        "struck": in_strike(text, hm.start()),
+                        "hold_before": hold_before(text, hm.start()),
+                        "context": text[max(0, hm.start() - 80):hm.end() + 80],
+                    })
+    return {"needles": needles, "files_scanned": len(files), "repo": repo,
+            "section": section, "hits": hits}
+
+
+def cmd_cites(args):
+    repo = False
+    section = None
+    rest = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == '--repo':
+            repo = True
+        elif a == '--section':
+            if i + 1 >= len(args):
+                usage("--section needs a value")
+            section = args[i + 1]
+            i += 1
+        elif a.startswith('--'):
+            usage("unknown option %s" % a)
+        else:
+            rest.append(a)
+        i += 1
+    if len(rest) < 2:
+        usage("cites takes a project root and at least one needle")
+    root = require_root(rest[0], PROG)
+    print(json.dumps(cites(root, rest[1:], repo=repo, section=section), indent=2))
+    return 0
+
+
 # --- dispatch --------------------------------------------------------------
 
 COMMANDS = {
     'record': cmd_record,
+    'cites': cmd_cites,
 }
 
 
