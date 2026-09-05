@@ -17,6 +17,8 @@ Usage:
   workstream-record.py paths <project-root>
   workstream-record.py decay <project-root>
   workstream-record.py git <project-root> [--remote <name|name/branch>] [--tags]
+  workstream-record.py fires <project-root> [<type/name>] [--json]
+                             [--interval-days <n>]
 
 The bare form is kept because the status and extract skills, the record
 suite and consumers' scripts call it. Every sub-command takes its path
@@ -70,6 +72,16 @@ for every ws/* tag whether its commit is contained in a remote branch,
 how many commits the tag would carry that the remote branch lacks, and
 whether the tag ref is on the remote. The remote listing is the one
 network call, taken only under --tags.
+
+`fires` is the extract skill's firing symptoms as one verdict per
+workstream, each symptom named: undispositioned Learnings, a completed
+phase, size past the hook's threshold, a notes.md beside the file, a
+file in the directory the kit does not know, a STANDING criterion
+never re-checked or last re-checked longer ago than the interval (30
+days unless --interval-days says otherwise). A paused workstream is
+still measured: the exposed case is the one nobody reads. Prints one
+text line per workstream for the session-start hook, JSON with --json.
+It says what fires, never who should run the drain.
 """
 
 import json
@@ -86,7 +98,7 @@ from workstream_state import (  # noqa: E402
     SATISFIED_MARK_RE, TASK_CODE_RE, TOP_HEADING_RE, TOTAL_OPEN_RE,
     blank_strikes, disposition, extract_section, find_workstreams, fold_blocks, in_strike,
     git, join_block, line_at, negated, read_lines, require_root, section_of, sentence_span,
-    split_sentences, state_files, strip_frontmatter,
+    split_sentences, state_files, strip_frontmatter, workstream_id, SIZE_BYTES,
 )
 
 PROG = 'workstream-record.py'
@@ -1029,6 +1041,98 @@ def cmd_git(args):
     return 0
 
 
+# --- fires: the drain's symptoms, one verdict per workstream ------------------
+
+KNOWN_FILES = ('workstream.md', 'notes.md')
+
+
+def fires(root, only=None, interval_days=30):
+    import datetime
+    today = datetime.date.today()
+    out = []
+    for path, rel in find_workstreams(root):
+        wid = workstream_id(path)
+        if only and wid != only:
+            continue
+        rec = build_workstream_record(path, rel)
+        symptoms = []
+        n = len(rec["learnings"]["undispositioned"])
+        if n:
+            symptoms.append({"symptom": "undispositioned Learnings", "detail": str(n)})
+        for ph in rec["phases"]:
+            if (ph["done_tasks"] + ph["done_gates"]) > 0 and ph["open_tasks"] + ph["open_gates"] == 0:
+                symptoms.append({"symptom": "completed phase", "detail": "%s (%s)" % (ph["name"], ph["code"])})
+        if rec["size_bytes"] > SIZE_BYTES:
+            symptoms.append({"symptom": "size", "detail": "%dKB past %dKB" % (rec["size_bytes"] // 1024, SIZE_BYTES // 1024)})
+        d = os.path.dirname(path)
+        names = sorted(os.listdir(d))
+        if 'notes.md' in names:
+            symptoms.append({"symptom": "notes.md beside the file", "detail": "notes.md"})
+        for name in names:
+            if name not in KNOWN_FILES and not name.startswith('.'):
+                symptoms.append({"symptom": "unknown file in the directory", "detail": name})
+        dc = rec["deletion_criteria"]
+        if dc["standing_never_rechecked"]:
+            symptoms.append({"symptom": "STANDING criteria never re-checked", "detail": str(dc["standing_never_rechecked"])})
+        if dc["standing_oldest_holds"]:
+            try:
+                oldest = datetime.date.fromisoformat(dc["standing_oldest_holds"])
+                age = (today - oldest).days
+                if age > interval_days:
+                    symptoms.append({"symptom": "STANDING re-check older than the interval",
+                                     "detail": "oldest HOLDS %s, %d days" % (dc["standing_oldest_holds"], age)})
+            except ValueError:
+                pass
+        out.append({"workstream": wid, "path": rel, "symptoms": symptoms})
+    return {"threshold_bytes": SIZE_BYTES, "interval_days": interval_days, "workstreams": out}
+
+
+def fires_text(result):
+    lines = []
+    for w in result["workstreams"]:
+        if not w["symptoms"]:
+            lines.append("%s: quiet" % w["workstream"])
+        else:
+            parts = ["%s %s" % (s["symptom"], s["detail"]) for s in w["symptoms"]]
+            lines.append("%s: fires -- %s" % (w["workstream"], "; ".join(parts)))
+    return "\n".join(lines)
+
+
+def cmd_fires(args):
+    as_json = False
+    interval = 30
+    rest = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == '--json':
+            as_json = True
+        elif a == '--interval-days':
+            if i + 1 >= len(args) or not args[i + 1].isdigit():
+                usage("--interval-days needs a number")
+            interval = int(args[i + 1])
+            i += 1
+        elif a.startswith('--'):
+            usage("unknown option %s" % a)
+        else:
+            rest.append(a)
+        i += 1
+    if len(rest) not in (1, 2):
+        usage("fires takes a project root and an optional type/name")
+    root = require_root(rest[0], PROG)
+    only = rest[1] if len(rest) == 2 else None
+    if only and not os.path.isfile(os.path.join(root, '.state', 'workstreams', only, 'workstream.md')):
+        usage("no workstream %s under %s" % (only, root))
+    result = fires(root, only=only, interval_days=interval)
+    if as_json:
+        print(json.dumps(result, indent=2))
+    else:
+        text = fires_text(result)
+        if text:
+            print(text)
+    return 0
+
+
 # --- dispatch --------------------------------------------------------------
 
 COMMANDS = {
@@ -1038,6 +1142,7 @@ COMMANDS = {
     'paths': cmd_paths,
     'decay': cmd_decay,
     'git': cmd_git,
+    'fires': cmd_fires,
 }
 
 
