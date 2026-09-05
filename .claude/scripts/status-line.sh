@@ -11,7 +11,17 @@
 # Line 1 stays clean.
 #
 # Writes /tmp/claude-{session_id}-context.json for programmatic context access.
-# Sessions read this file to make context budget decisions.
+# Sessions read this file to make context budget decisions, through
+#   status-line.sh --context <project-dir>
+# which prints the newest record for that project as one line --
+#   context: N% of usable consumed, M% of window remaining
+# -- and nothing when no record exists (no status line, or none for this
+# project), so a caller says nothing rather than reporting zero. The read
+# lives beside the writer because both name the same directory and the
+# same fields; the trailing slash on the find is required where /tmp is a
+# symlink (macOS): without it find descends nothing and returns falsely
+# empty. WORKSTREAM_KIT_CONTEXT_DIR overrides the directory for both
+# sides, which is how the suite exercises the read without touching /tmp.
 #
 # Color thresholds by usable context consumed (usable_consumed_pct):
 #   <40% consumed - Green (normal)
@@ -32,6 +42,23 @@ RESET='\033[0m'
 
 # Compact threshold: what % used triggers auto-compact (matches settings.json env)
 COMPACT_AT="${CLAUDE_AUTOCOMPACT_PCT_OVERRIDE:-80}"
+CONTEXT_DIR="${WORKSTREAM_KIT_CONTEXT_DIR:-/tmp}"
+
+# === --context <project-dir>: the read side ===
+if [ "${1:-}" = "--context" ]; then
+    [ -n "${2:-}" ] || { echo "usage: status-line.sh --context <project-dir>" >&2; exit 2; }
+    command -v jq >/dev/null 2>&1 || exit 0
+    # The record carries the path as the host passed it; a doubled slash
+    # or a trailing one must not hide a match, so both sides are
+    # normalised in the comparison rather than resolved through the
+    # filesystem, and a directory that no longer exists still reads.
+    pdir=$2
+    find "${CONTEXT_DIR%/}/" -maxdepth 1 -name 'claude-*-context.json' -exec jq -rs --arg p "$pdir" \
+      'def norm: gsub("/+"; "/") | rtrimstr("/");
+       [.[]|select((.project_dir|norm)==($p|norm))]|sort_by(.updated)|last
+       |if . then "context: \(.usable_consumed_pct)% of usable consumed, \(.remaining_pct)% of window remaining" else empty end' {} + 2>/dev/null
+    exit 0
+fi
 
 # Read JSON from stdin with timeout (prevents hang if stdin is slow/empty)
 # timeout may not exist on macOS without coreutils — fall back to plain cat
@@ -126,7 +153,7 @@ usable_consumed=0
 status_file=""
 
 if [ -n "$session_id" ] && [ "$remaining_pct" -gt 0 ] 2>/dev/null; then
-    status_file="/tmp/claude-${session_id}-context.json"
+    status_file="${CONTEXT_DIR%/}/claude-${session_id}-context.json"
 
     # First-write-wins: preserve start_remaining_pct for same session
     if [ -f "$status_file" ]; then
