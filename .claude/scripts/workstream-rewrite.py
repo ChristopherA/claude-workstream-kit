@@ -15,6 +15,7 @@ Usage:
   workstream-rewrite.py records   <workstream.md> [--write] [--date YYYY-MM-DD]
   workstream-rewrite.py decisions <workstream.md> --decisions D1,D4-D9 --release <tag>
                                   [--write] [--date YYYY-MM-DD]
+  workstream-rewrite.py learnings <workstream.md> [--write] [--date YYYY-MM-DD]
 `records`: every `- [x]` record in the live Backlog longer than the
 rule's completion-note form condenses to that form (the ID, the
 description's first sentence, the last status word and date, its
@@ -23,6 +24,12 @@ Decision citations and commit hashes, a dated marker).
 `decisions`: each named Decision condenses to its heading, its first
 paragraph and a line naming the release; the section is restored to
 numeric order.
+
+`learnings`: every Learning the record scores terminal (a disposition
+marker at sentence start with a date in its sentence, or struck
+through whole) condenses to its first sentence and its disposition
+sentence, re-wrapped; a deferred or undispositioned entry is
+byte-identical after, and so is a terminal one already that short.
 
 Exit 0 on success (a dry run included), 1 on a refusal or a failed
 check, 2 on usage or an unreadable file. Prints a report, then WRITTEN
@@ -37,7 +44,11 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from workstream_state import (  # noqa: E402
-    DECISION_HEADING_RE, fingerprint, section_bounds,
+    ANY_HEADING_RE, CHECKBOX_ID_RE, DECISION_HEADING_RE, DELETION_OPEN_RE, DONE_LINE_RE,
+    GATE_LINE_RE, LEARNING_RE, PHASE_HEADING_RE, TERMINAL_RE, TOTAL_OPEN_RE, STRIKE_RE,
+    blank_strikes, disposition, extract_section, find_workstreams, fingerprint, fold_blocks,
+    git, join_block, line_at, marker_counts, read_lines, section_bounds, sentence_span,
+    split_sentences, strip_frontmatter, wrap,
 )
 
 PROG = 'workstream-rewrite.py'
@@ -280,11 +291,90 @@ def cmd_decisions(args):
                         o['--date'] or datetime.date.today().isoformat(), not o['--write'])
 
 
+# --- learnings: terminal entries condense to statement plus disposition -----
+
+LEARNING_PREFIX_RE = re.compile(r'^- (L[0-9]+ \([^)]*\):)\s*(.*)$', re.S)
+
+
+def condense_learning(text):
+    """The condensed joined text of one Learning block, or None when the
+    entry is not terminal, is struck, or is already that short."""
+    if disposition(text) != 'terminal':
+        return None
+    m = LEARNING_PREFIX_RE.match(text)
+    if not m:
+        return None
+    prefix, body = m.group(1), m.group(2).strip()
+    sentences = split_sentences(body)
+    if len(sentences) <= 1:
+        return None
+    blanked = blank_strikes(body)
+    marks = marker_counts(blanked, TERMINAL_RE)
+    if not marks:
+        return None
+    s, e = sentence_span(body, marks[0].start())
+    disp = body[s:e].strip()
+    first = sentences[0]
+    condensed = first if disp == first else first + ' ' + disp
+    if condensed == body:
+        return None
+    return '- ' + prefix + ' ' + condensed
+
+
+def condense_learnings(lines):
+    bounds = section_bounds(lines, "Learnings")
+    if bounds is None:
+        raise Refusal("no ## Learnings section")
+    start, end = bounds
+    section = lines[start + 1:end]
+    out = []
+    condensed = 0
+    saved = 0
+    i = 0
+    blocks = fold_blocks(section)
+    consumed = 0
+    for bstart, kind, text, raw in blocks:
+        idx = bstart - 1
+        out.extend(section[consumed:idx])
+        consumed = idx + len(raw)
+        if kind == 'item' and LEARNING_RE.match(raw[0]):
+            new = condense_learning(text)
+            if new is not None:
+                wrapped = wrap(new, 70, indent='  ')
+                saved += sum(len(l) + 1 for l in raw) - sum(len(l) + 1 for l in wrapped)
+                condensed += 1
+                out.extend(wrapped)
+                continue
+        out.extend(raw)
+    out.extend(section[consumed:])
+    before = sum(1 for l in section if LEARNING_RE.match(l))
+    after = sum(1 for l in out if LEARNING_RE.match(l))
+    if before != after:
+        raise Refusal("Learnings count changed %d->%d" % (before, after))
+    report = "learnings_condensed=%d bytes_saved=%d learnings=%d" % (condensed, saved, after)
+    return lines[:start + 1] + out + lines[end:], report
+
+
+def cmd_learnings(args):
+    rest, o = parse_options(args, flags=('--write',), values=('--date',))
+    if len(rest) != 1:
+        usage("learnings takes exactly one workstream.md")
+    path = rest[0]
+    text = load(path)
+    try:
+        lines, report = condense_learnings(text.split("\n"))
+    except Refusal as e:
+        sys.stderr.write("%s: %s in %s\n" % (PROG, e, path))
+        return 1
+    return finish(path, text, "\n".join(lines), not o['--write'], [report])
+
+
 # --- dispatch ---------------------------------------------------------------
 
 COMMANDS = {
     'records': cmd_records,
     'decisions': cmd_decisions,
+    'learnings': cmd_learnings,
 }
 
 
