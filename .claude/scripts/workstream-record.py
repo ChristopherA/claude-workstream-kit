@@ -16,6 +16,7 @@ Usage:
   workstream-record.py refs <project-root>
   workstream-record.py paths <project-root>
   workstream-record.py decay <project-root>
+  workstream-record.py git <project-root> [--remote <name|name/branch>] [--tags]
 
 The bare form is kept because the status and extract skills, the record
 suite and consumers' scripts call it. Every sub-command takes its path
@@ -61,6 +62,14 @@ timestamp (the first commit whose diff adds its `#XX-N:`), reporting
 every task minted after the paragraph. Timestamps, never dates, so a
 task minted the same day but hours after the paragraph is reported. A
 workstream.md with uncommitted changes is unmeasurable, not current.
+
+`git` is the status skill's three git reads -- last-commit date per
+state file, commits ahead of the upstream or the named remote branch,
+uncommitted state under .state/ -- and, with --tags, the closure reads:
+for every ws/* tag whether its commit is contained in a remote branch,
+how many commits the tag would carry that the remote branch lacks, and
+whether the tag ref is on the remote. The remote listing is the one
+network call, taken only under --tags.
 """
 
 import json
@@ -912,6 +921,114 @@ def cmd_decay(args):
     return 0
 
 
+# --- git: the status and closure reads ---------------------------------------
+
+def git_reads(root, remote=None, tags=False):
+    rc, top = git(['rev-parse', '--show-toplevel'], root)
+    if rc != 0:
+        return {"error": "not a git repository", "files": [], "ahead": None,
+                "uncommitted": [], "tags": None}
+    files = []
+    for path, rel in find_workstreams(root):
+        rc, out = git(['log', '-1', '--format=%ci', '--', rel], root)
+        files.append({"path": rel, "last_commit": out.strip() or None})
+    active = os.path.join(root, '.state', 'ACTIVE.md')
+    if os.path.isfile(active):
+        rel = os.path.relpath(active, root)
+        rc, out = git(['log', '-1', '--format=%ci', '--', rel], root)
+        files.append({"path": rel, "last_commit": out.strip() or None})
+
+    rc, branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], root)
+    branch = branch.strip() or None
+    # The comparison ref: the upstream, else the named remote branch.
+    rc, up = git(['rev-parse', '--abbrev-ref', '@{upstream}'], root)
+    upstream = up.strip() if rc == 0 else None
+    compare = upstream
+    remote_name = None
+    if remote:
+        remote_name = remote.split('/', 1)[0]
+        compare = remote if '/' in remote else (remote + '/' + branch if branch else None)
+    elif upstream:
+        remote_name = upstream.split('/', 1)[0]
+    ahead = None
+    if compare:
+        rc, out = git(['rev-list', '--count', compare + '..HEAD'], root)
+        ahead = int(out.strip()) if rc == 0 and out.strip() else None
+    rc, out = git(['status', '--short', '--', '.state/'], root)
+    uncommitted = [l for l in out.splitlines() if l.strip()]
+
+    result = {"branch": branch, "upstream": upstream, "compare": compare,
+              "ahead": ahead, "files": files, "uncommitted": uncommitted, "tags": None}
+    if not tags:
+        return result
+
+    rc, remotes = git(['remote'], root)
+    remotes = remotes.split()
+    if remote_name is None and remotes:
+        remote_name = remotes[0]
+    rc, local_tags = git(['tag', '-l', 'ws/*'], root)
+    local_tags = local_tags.split()
+    if not remotes or remote_name not in remotes:
+        result["tags"] = {"remote": None, "note": "no remote configured",
+                          "entries": [{"tag": t} for t in local_tags]}
+        return result
+    # One network call. An annotated tag lists twice, once dereferenced
+    # as `^{}`, so the filter is load-bearing: unfiltered, the remote
+    # reads roughly double and looks complete when closure tags have
+    # never left this machine.
+    rc, out = git(['ls-remote', '--tags', remote_name, 'refs/tags/ws/*'], root)
+    on_remote = set()
+    if rc == 0:
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) == 2 and not parts[1].endswith('^{}'):
+                on_remote.add(parts[1][len('refs/tags/'):])
+    entries = []
+    for t in local_tags:
+        rc, commit = git(['rev-list', '-n1', t], root)
+        commit = commit.strip()
+        rc, contained = git(['branch', '-r', '--contains', commit], root)
+        contained_in = [b.strip().lstrip('* ') for b in contained.splitlines() if b.strip()]
+        unpushed = None
+        if compare:
+            rc, out = git(['rev-list', '--count', compare + '..' + t], root)
+            unpushed = int(out.strip()) if rc == 0 and out.strip() else None
+        rc, kind = git(['cat-file', '-t', t], root)
+        entries.append({"tag": t, "commit": commit, "annotated": kind.strip() == 'tag',
+                        "commit_on_remote": bool(contained_in), "contained_in": contained_in,
+                        "unpushed_commits": unpushed, "tag_on_remote": t in on_remote})
+    result["tags"] = {"remote": remote_name, "entries": entries,
+                      "ref_only": [e["tag"] for e in entries if e["commit_on_remote"] and not e["tag_on_remote"]],
+                      "carrying_unpushed": [e["tag"] for e in entries if not e["commit_on_remote"]]}
+    return result
+
+
+def cmd_git(args):
+    remote = None
+    tags = False
+    rest = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == '--tags':
+            tags = True
+        elif a == '--remote':
+            if i + 1 >= len(args):
+                usage("--remote needs a value")
+            remote = args[i + 1]
+            i += 1
+        elif a.startswith('--'):
+            usage("unknown option %s" % a)
+        else:
+            rest.append(a)
+        i += 1
+    if len(rest) != 1:
+        usage("git takes exactly one project root")
+    root = require_root(rest[0], PROG)
+    print(json.dumps(git_reads(root, remote=remote, tags=tags), indent=2))
+    return 0
+
+
 # --- dispatch --------------------------------------------------------------
 
 COMMANDS = {
@@ -920,6 +1037,7 @@ COMMANDS = {
     'refs': cmd_refs,
     'paths': cmd_paths,
     'decay': cmd_decay,
+    'git': cmd_git,
 }
 
 
