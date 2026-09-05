@@ -14,32 +14,32 @@ description: >-
 
 # Workstream Capture
 
-A session is about to cross a boundary -- most often `/clear`, then `/workstream-work` again. `/clear` fires no hook, so this is the manual sweep that would otherwise be skipped, and the one boundary the SessionEnd and PreCompact nudges cannot reach. Before crossing it, make sure nothing from this session is lost. Capture should not depend on the user asking for it. It takes no argument: the session is the unit.
+A session is about to cross a boundary -- most often `/clear`, then `/workstream-work` again. `/clear` fires no hook, so this is the manual sweep that would otherwise be skipped. Capture should not depend on the user asking for it. It takes no argument: the session is the unit. The reason behind each move below is in `references/failures.md`, under the move's heading; read it when a move is doubted, not on every run.
 
-Run the workstreams-rule **capture sweep** -- detection, cascade and synthesis as that section states them, arrived handoffs included -- over this session against the durable files, and act on each finding rather than listing it: route every item to its home now, and write any synthesis-level pattern where it extends or supersedes an existing Decision or Learning. A disagreement a `/workstream-status` run reported for ANOTHER workstream is such an item: it becomes one Backlog line in the owning workstream, with its provenance (`from /workstream-status <date>`), so that workstream's session-start hook shows it -- never a paragraph in ACTIVE.md's Reference, which is the hand-written cross-workstream prose the status skill exists to replace. Synthesis is a different question from detection, not a harder pass at it, and running detection more carefully converges on more instances and never on a rule; the tell that step three has not run is that nothing in the sweep's output would change how a DIFFERENT piece of work is done. Read the output and ask that; if the answer is nothing, the step is still owed.
+## Move 1 -- Sweep
 
-Detection includes the claims this session AUTHORED: for each state change the session made -- a pause, a checkbox, a decision, a routing -- grep the state tree once for claims about the thing changed, the session's own included. A session wrote "blocked because this workstream is paused" and the user un-paused it half an hour later; the mechanisms that catch stale claims all assume the claim predates the session, and the author is the reader least likely to re-open what they wrote an hour ago. Capture is the one place in the flow that sees the whole session.
+Run the workstreams-rule **capture sweep** -- detection, cascade and synthesis as that section states them, arrived handoffs included -- over this session against the durable files, and act on each finding rather than listing it: route every item to its home now, and write any synthesis-level pattern where it extends or supersedes an existing Decision or Learning.
 
-Then close the boundary cleanly:
+- A disagreement a `/workstream-status` run reported for ANOTHER workstream becomes one Backlog line in the owning workstream, with its provenance (`from /workstream-status <date>`), never a paragraph in ACTIVE.md's Reference -- the hook shows a backlog line; hand-written cross-workstream prose is what the status skill replaces.
+- Synthesis is a different question from detection, not a harder pass at it; the test is whether anything in the sweep's output would change how a DIFFERENT piece of work is done -- if nothing would, the step is still owed.
+- Detection includes the claims this session AUTHORED: for each state change the session made -- a pause, a checkbox, a decision, a routing -- run `python3 .claude/scripts/workstream-record.py cites <project root> "<the thing changed>"` once, the session's own claims included -- the author is the reader least likely to re-open what they wrote an hour ago, and capture is the one place that sees the whole session.
 
-- An artifact the sweep PRODUCES outside `.state/` -- a script, a doc, a fixture -- gets its own commit in the repo proper before the state commit, and the state that cites it names the path: a tool left in the scratchpad is invisible to the next session, and swept into the state commit it breaks the scope below.
+## Move 2 -- Close the boundary
+
+- An artifact the sweep PRODUCES outside `.state/` -- a script, a doc, a fixture -- gets its own commit in the repo proper before the state commit, and the state that cites it names the path -- a tool left in the scratchpad is invisible to the next session.
 - Update `ACTIVE.md` -- `task`, `Now`, `Next`, `Blockers` -- so the next session resumes in one read. Name every reference that crosses a workstream or project boundary with a few words saying what it is (workstreams-rule, Task IDs), in ACTIVE.md and in what you say to the user alike.
 - Check off any Backlog items completed this session, each with its one-line evidence (a commit, a passing command, a count).
-- Mark any Learning that RESOLVED this session -- its integration target shipped, its handoff sent, its question settled -- with its disposition now, in the same commit. A never-closing workstream extracts each Learning the moment it resolves, and the drain that would otherwise do it is periodic; this is the skill that runs at that moment.
+- Mark any Learning that RESOLVED this session -- its integration target shipped, its handoff sent, its question settled -- with its disposition now, in the same commit -- in a never-closing workstream this is the moment the marker is owed, and the drain that would otherwise write it is periodic.
 - Commit the state files, signed and scoped to `.state/`; do not sweep unrelated working changes into the commit.
 
 When everything is captured and committed, say it is safe to cross the boundary and name what `Next` points at, so the next session knows where `/workstream-work` picks up. If nothing this session needs capturing, say so plainly -- do not invent items to look thorough.
 
-## Context status, last
+## Move 3 -- Context status, last
 
-If the kit's status line is installed it writes a per-session JSON file that carries this session's context budget. Read the newest record for this project and report it as the **very last line** of the capture, so the decision the user is about to make -- `/clear`, `/compact`, or keep going -- is made against a number rather than a guess:
+Report this session's context budget as the **very last line** of the capture, so the decision the user is about to make -- `/clear`, `/compact`, or keep going -- is made against a number rather than a guess:
 
 ```sh
-find /tmp/ -maxdepth 1 -name 'claude-*-context.json' -exec jq -s --arg p "$PWD" \
-  '[.[]|select(.project_dir==$p)]|sort_by(.updated)|last
-   |if . then "context: \(.usable_consumed_pct)% of usable consumed, \(.remaining_pct)% of window remaining" else empty end' {} +
+sh .claude/scripts/status-line.sh --context "$PWD"
 ```
 
-The trailing slash on `/tmp/` is required where `/tmp` is a symlink (macOS): `find /tmp` without it descends nothing and returns falsely empty. No output means no status line or no record for this project -- say nothing about context in that case rather than reporting zero.
-
-Report the two numbers and how close auto-compact is. The decision is the user's, and a capture that has just committed is a safe moment to make it either way.
+It prints the two numbers from the newest status-line record for this project, or nothing when there is no status line or no record -- say nothing about context in that case rather than reporting zero. Report the two numbers and how close auto-compact is. The decision is the user's, and a capture that has just committed is a safe moment to make it either way.
