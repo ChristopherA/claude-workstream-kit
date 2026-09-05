@@ -15,6 +15,7 @@ Usage:
                              [--repo] [--section <name>]
   workstream-record.py refs <project-root>
   workstream-record.py paths <project-root>
+  workstream-record.py decay <project-root>
 
 The bare form is kept because the status and extract skills, the record
 suite and consumers' scripts call it. Every sub-command takes its path
@@ -52,6 +53,14 @@ for a `~` path, the home directory, and whether it sits in a strike. A
 BARE name (`CLAUDE.md`, `rules/`: one segment, unanchored) could sit
 anywhere and is listed apart, never as missing; `missing` holds the
 anchored, unstruck tokens that do not exist.
+
+`decay` is the status skill's critical-path decay compare: for each
+workstream with a critical-path paragraph, the newest commit timestamp
+among the paragraph's lines (git blame) against each open task's mint
+timestamp (the first commit whose diff adds its `#XX-N:`), reporting
+every task minted after the paragraph. Timestamps, never dates, so a
+task minted the same day but hours after the paragraph is reported. A
+workstream.md with uncommitted changes is unmeasurable, not current.
 """
 
 import json
@@ -826,6 +835,83 @@ def cmd_paths(args):
     return 0
 
 
+# --- decay: is the critical path older than the tasks it should order -------
+
+def blame_newest(root, rel, start, count):
+    """The newest committer timestamp among lines start..start+count-1
+    of rel at HEAD, by git blame in porcelain form; None when the file
+    is not tracked."""
+    rc, out = git(['blame', '-p', '-L', '%d,%d' % (start, start + count - 1), 'HEAD', '--', rel], root)
+    if rc != 0:
+        return None
+    newest = None
+    for line in out.splitlines():
+        if line.startswith('committer-time '):
+            t = int(line.split()[1])
+            newest = t if newest is None or t > newest else newest
+    return newest
+
+
+def mint_time(root, rel, task_id):
+    """The first commit whose diff adds `#XX-N:`; rewording the line
+    later does not move it, since -S counts occurrences."""
+    rc, out = git(['log', '--reverse', '--format=%ct', '-S', task_id + ':', '--', rel], root)
+    if rc != 0:
+        return None
+    first = out.split()
+    return int(first[0]) if first else None
+
+
+def decay(root):
+    result = []
+    for path, rel in find_workstreams(root):
+        lines = read_lines(path)
+        blocks = fold_blocks(lines)
+        cp_text, cp_line, cp_raw = critical_path_field(blocks)
+        entry = {"path": rel, "critical_path": None, "unmeasurable": None,
+                 "minted_after": [], "open_tasks": 0}
+        if cp_line is None:
+            entry["critical_path"] = "not found"
+            result.append(entry)
+            continue
+        rc, status = git(['status', '--porcelain', '--', rel], root)
+        if rc != 0:
+            entry["unmeasurable"] = "not a git repository"
+            result.append(entry)
+            continue
+        if status.strip():
+            entry["unmeasurable"] = "uncommitted changes in %s" % rel
+            result.append(entry)
+            continue
+        newest = blame_newest(root, rel, cp_line, len(cp_raw))
+        if newest is None:
+            entry["unmeasurable"] = "%s is not tracked" % rel
+            result.append(entry)
+            continue
+        entry["critical_path"] = {"line": cp_line, "lines": len(cp_raw), "newest_commit_time": newest}
+        for line in lines:
+            if not TOTAL_OPEN_RE.match(line) or GATE_LINE_RE.match(line):
+                continue
+            m = CHECKBOX_ID_RE.match(line)
+            if not m:
+                continue
+            entry["open_tasks"] += 1
+            minted = mint_time(root, rel, m.group(2))
+            if minted is not None and minted > newest:
+                entry["minted_after"].append({"id": m.group(2), "mint_time": minted,
+                                              "after_by_seconds": minted - newest})
+        result.append(entry)
+    return {"workstreams": result}
+
+
+def cmd_decay(args):
+    if len(args) != 1:
+        usage("decay takes exactly one project root")
+    root = require_root(args[0], PROG)
+    print(json.dumps(decay(root), indent=2))
+    return 0
+
+
 # --- dispatch --------------------------------------------------------------
 
 COMMANDS = {
@@ -833,6 +919,7 @@ COMMANDS = {
     'cites': cmd_cites,
     'refs': cmd_refs,
     'paths': cmd_paths,
+    'decay': cmd_decay,
 }
 
 
