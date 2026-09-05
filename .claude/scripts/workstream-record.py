@@ -13,6 +13,7 @@ Usage:
   workstream-record.py <project-root>            (alias of record)
   workstream-record.py cites <project-root> <needle> [<needle>...]
                              [--repo] [--section <name>]
+  workstream-record.py refs <project-root>
 
 The bare form is kept because the status and extract skills, the record
 suite and consumers' scripts call it. Every sub-command takes its path
@@ -32,6 +33,15 @@ a wrap still matches, each hit with its file, line, section, the
 Backlog ID whose block it sits in, whether it is inside a strike, and
 the hold verb preceding it in the sentence. A needle shaped like an ID
 matches on word boundaries only, so #BD-1 does not match #BD-10.
+
+`refs` is the cited-ID resolution the review skill specifies in prose:
+every task, gate, D, L and OQ reference in LIVE content -- open backlog
+blocks, the critical path, unresolved Open Questions, open and standing
+criteria, ACTIVE.md -- classified as defined here, homed and resolved,
+homed with the home missing, homed with the home lacking it, or
+unhomed. A home is `in type/name` or `in ws/<tag>` beside the ID; a tag
+home is read with `git show`. Placeholders with no digit (#XX-N) and
+the literal #G-XX are skipped. Classes with their lines, never a count.
 """
 
 import json
@@ -47,7 +57,7 @@ from workstream_state import (  # noqa: E402
     GATE_LINE_RE, HOLDS_RE, HOLD_RE, ID_RE, LEARNING_RE, LIST_ITEM_RE, PHASE_HEADING_RE,
     SATISFIED_MARK_RE, TASK_CODE_RE, TOP_HEADING_RE, TOTAL_OPEN_RE,
     blank_strikes, disposition, extract_section, find_workstreams, fold_blocks, in_strike,
-    join_block, line_at, negated, read_lines, require_root, section_of, sentence_span,
+    git, join_block, line_at, negated, read_lines, require_root, section_of, sentence_span,
     split_sentences, state_files, strip_frontmatter,
 )
 
@@ -531,11 +541,176 @@ def cmd_cites(args):
     return 0
 
 
+# --- refs: do cited IDs resolve where they say they live -------------------
+
+REF_RE = re.compile(
+    r'#[A-Z]+-[0-9]+[a-z]?(?![\w-])|#G-[A-Z]+[0-9]*(?![\w-])|'
+    r'(?<![\w/-])D[0-9]+\b|(?<![\w/-])L[0-9]+\b|(?<![\w/-])OQ-[0-9]+\b'
+)
+PLACEHOLDER_GATE = '#G-XX'
+
+
+def defines(lines, ref):
+    """True when a line in lines DEFINES ref: a checkbox line carrying
+    the ID with any word boundary after it (a completed task written
+    `- [x] #XX-N (dated note)` is conforming, and a matcher demanding
+    the colon scores every one of them undefined), a `### D<n>` heading,
+    a `- L<n>` or `- OQ-n` item, struck or not."""
+    esc = re.escape(ref)
+    if ref.startswith('#'):
+        rx = re.compile(r'^ *- \[[ xX]\] (?:~~)?' + esc + r'(?![\w-])')
+    elif ref.startswith('D'):
+        rx = re.compile(r'^### ' + esc + r'\b')
+    else:
+        rx = re.compile(r'^- (?:~~)?' + esc + r'\b')
+    return any(rx.match(l) for l in lines)
+
+
+def home_near(text, start, end):
+    """The workstream or tag named beside the ID in the same sentence:
+    the nearest one after it, else the nearest before it. This project's
+    corpus writes the home after the ID far more often than before."""
+    s, e = sentence_span(text, start)
+    homes = [(m.start(), m.group(0), 'workstream') for m in CROSS_REF_WS_RE.finditer(text, s, e)]
+    homes += [(m.start(), m.group(0), 'tag') for m in CROSS_REF_TAG_RE.finditer(text, s, e)]
+    after = sorted((h for h in homes if h[0] >= end), key=lambda h: h[0])
+    if after:
+        return after[0][1], after[0][2]
+    before = sorted((h for h in homes if h[0] < start), key=lambda h: -h[0])
+    if before:
+        return before[0][1], before[0][2]
+    return None, None
+
+
+def live_blocks(lines):
+    """(start_no, raw) for every live block: open checkbox blocks in
+    the Backlog, the critical-path paragraph, unresolved Open Questions,
+    open and STANDING criteria. A completed task's note is out of scope:
+    its bare IDs are frozen provenance."""
+    blocks = fold_blocks(lines)
+    sections = section_of(lines)
+    out = []
+    cp_text, cp_line, cp_raw = critical_path_field(blocks)
+    for start, kind, text, raw in blocks:
+        sec = sections[start - 1]
+        if kind != 'item':
+            continue
+        if sec == '## Backlog' and TOTAL_OPEN_RE.match(raw[0]):
+            out.append((start, raw))
+        elif sec == '## Open Questions' and re.match(r'^- OQ-[0-9]+', raw[0]):
+            out.append((start, raw))
+        elif sec == '## Deletion Criteria' and DELETION_OPEN_RE.match(raw[0]):
+            out.append((start, raw))
+    if cp_line is not None:
+        out.append((cp_line, cp_raw))
+    out.sort(key=lambda b: b[0])
+    return out
+
+
+class TagReader:
+    """Reads a workstream.md at an archive or rotation tag, both git
+    reads, caching per tag."""
+
+    def __init__(self, root):
+        self.root = root
+        self.cache = {}
+
+    def lines_at(self, tag):
+        if tag in self.cache:
+            return self.cache[tag]
+        rc, out = git(['tag', '-l', tag], self.root)
+        if rc != 0 or out.strip() != tag:
+            self.cache[tag] = 'missing'
+            return 'missing'
+        name = tag[len('ws/'):]
+        name = re.sub(r'-[0-9]{4}-[0-9]{2}-[0-9]{2}$', '', name)
+        rc, out = git(['ls-tree', '-r', '--name-only', tag, '--', '.state/workstreams'], self.root)
+        path = None
+        for p in out.splitlines():
+            if p.endswith('/' + name + '/workstream.md'):
+                path = p
+                break
+        if path is None:
+            self.cache[tag] = None
+            return None
+        rc, out = git(['show', '%s:%s' % (tag, path)], self.root)
+        self.cache[tag] = out.splitlines() if rc == 0 else None
+        return self.cache[tag]
+
+
+def refs(root):
+    classes = {"defined_here": [], "homed_resolved": [], "homed_home_missing": [],
+               "homed_home_lacks": [], "unhomed": []}
+    tags = TagReader(root)
+    file_lines = {}
+
+    def lines_of(path):
+        if path not in file_lines:
+            file_lines[path] = read_lines(path) if os.path.isfile(path) else None
+        return file_lines[path]
+
+    sources = []
+    for path, rel in find_workstreams(root):
+        lines = lines_of(path)
+        sources.append((path, rel, lines, live_blocks(lines)))
+    active = os.path.join(root, '.state', 'ACTIVE.md')
+    if os.path.isfile(active):
+        body = strip_frontmatter(lines_of(active))
+        body_lines = [t for _n, t in body]
+        offset = body[0][0] - 1 if body else 0
+        blocks = [(start + offset, raw) for start, _k, _t, raw in fold_blocks(body_lines)]
+        sources.append((active, os.path.relpath(active, root), None, blocks))
+
+    for path, rel, own_lines, blocks in sources:
+        for start, raw in blocks:
+            text, starts = join_block(raw, start)
+            blanked = blank_strikes(text)
+            for m in REF_RE.finditer(blanked):
+                ref = m.group(0)
+                if ref == PLACEHOLDER_GATE:
+                    continue
+                entry = {"file": rel, "line": line_at(starts, m.start()), "id": ref,
+                         "home": None, "context": text[max(0, m.start() - 60):m.end() + 60]}
+                if own_lines is not None and defines(own_lines, ref):
+                    classes["defined_here"].append(entry)
+                    continue
+                home, kind = home_near(blanked, m.start(), m.end())
+                if home is None:
+                    classes["unhomed"].append(entry)
+                    continue
+                entry["home"] = home
+                if kind == 'workstream':
+                    hpath = os.path.join(root, '.state', 'workstreams', home, 'workstream.md')
+                    hlines = lines_of(hpath)
+                else:
+                    hlines = tags.lines_at(home)
+                    if hlines == 'missing':
+                        hlines = None
+                    elif hlines is None:
+                        hlines = []
+                if hlines is None:
+                    classes["homed_home_missing"].append(entry)
+                elif defines(hlines, ref):
+                    classes["homed_resolved"].append(entry)
+                else:
+                    classes["homed_home_lacks"].append(entry)
+    return {"classes": classes}
+
+
+def cmd_refs(args):
+    if len(args) != 1:
+        usage("refs takes exactly one project root")
+    root = require_root(args[0], PROG)
+    print(json.dumps(refs(root), indent=2))
+    return 0
+
+
 # --- dispatch --------------------------------------------------------------
 
 COMMANDS = {
     'record': cmd_record,
     'cites': cmd_cites,
+    'refs': cmd_refs,
 }
 
 
