@@ -14,6 +14,7 @@ Usage:
   workstream-record.py cites <project-root> <needle> [<needle>...]
                              [--repo] [--section <name>]
   workstream-record.py refs <project-root>
+  workstream-record.py paths <project-root>
 
 The bare form is kept because the status and extract skills, the record
 suite and consumers' scripts call it. Every sub-command takes its path
@@ -42,6 +43,15 @@ homed with the home missing, homed with the home lacking it, or
 unhomed. A home is `in type/name` or `in ws/<tag>` beside the ID; a tag
 home is read with `git show`. Placeholders with no digit (#XX-N) and
 the literal #G-XX are skipped. Classes with their lines, never a count.
+
+`paths` is the review skill's cheapest staleness probe: every
+path-like token in Decisions and open task blocks -- a token with a `/`
+or a known extension, code spans included, URLs and workstream or tag
+references excluded -- with whether it exists relative to the root or,
+for a `~` path, the home directory, and whether it sits in a strike. A
+BARE name (`CLAUDE.md`, `rules/`: one segment, unanchored) could sit
+anywhere and is listed apart, never as missing; `missing` holds the
+anchored, unstruck tokens that do not exist.
 """
 
 import json
@@ -705,12 +715,124 @@ def cmd_refs(args):
     return 0
 
 
+# --- paths: do the paths a Decision or open task names still exist ----------
+
+PATH_TOKEN_RE = re.compile(r'`[^`]+`|[^\s`()\[\],;"\'<>]+')
+KNOWN_EXT = ('.md', '.py', '.sh', '.json', '.txt', '.yaml', '.yml', '.toml',
+             '.c', '.h', '.js', '.ts', '.html', '.css', '.csv', '.gitignore')
+URL_RE = re.compile(r'^[a-z]+://|^[\w.-]+@[\w.-]+:')
+# A word pair like and/or, read/write or D1/D2: neither side a path
+# segment (no dot, dash, underscore or digit) or both sides IDs.
+WORD_PAIR_RE = re.compile(r'^[A-Za-z]+(?:/[A-Za-z]+)+$|^[0-9./]+$')
+ID_PAIR_RE = re.compile(r'^(?:#?[A-Z]+-?[0-9]+[a-z]?|D[0-9]+|L[0-9]+)(?:/(?:#?[A-Z]+-?[0-9]+[a-z]?|D[0-9]+|L[0-9]+))+$')
+
+
+def path_tokens(text):
+    """(offset, token) for every path-like token in text."""
+    out = []
+    for m in PATH_TOKEN_RE.finditer(text):
+        raw = m.group(0)
+        # A code span holding whitespace is a command; its words are
+        # tokens in their own right (`git show ws/x:docs/a.md`).
+        for tok in raw.strip('`').split():
+            tok = tok.rstrip('.,;:')
+            if tok.endswith('~~'):
+                tok = tok[:-2]
+            if tok.startswith('~~'):
+                tok = tok[2:]
+            if not tok or URL_RE.match(tok):
+                continue
+            # A `rev:path` token (a tag, a commit) names the path after
+            # the colon; a `file:line` citation keeps its file.
+            if ':' in tok and not re.search(r':[0-9]+(?:-[0-9]+)?$', tok):
+                tok = tok.split(':', 1)[1]
+            if _path_token(tok):
+                out.append((m.start(), tok))
+    return out
+
+
+def _path_token(tok):
+    if True:
+        if CROSS_REF_WS_RE.fullmatch(tok) or CROSS_REF_TAG_RE.fullmatch(tok):
+            return False
+        looks = '/' in tok or tok.endswith(KNOWN_EXT)
+        if not looks:
+            return False
+        if WORD_PAIR_RE.match(tok) or ID_PAIR_RE.match(tok):
+            return False
+        if tok.startswith('#') or tok.startswith('--') or any(c in tok for c in '*<>{}$'):
+            return False  # a glob, a metavariable, an expansion
+        if re.match(r'^/[A-Za-z-]+$', tok):  # a slash command, /workstream-status
+            return False
+        return True
+
+
+def anchored(tok):
+    """A token that names a place: absolute, home-relative, dot-relative,
+    or two or more segments. A bare `CLAUDE.md` or `rules/` names a
+    file that could sit anywhere."""
+    if tok.startswith(('/', '~', '.')):
+        return True
+    parts = [p for p in tok.split('/') if p]
+    return len(parts) >= 2
+
+
+def path_exists(root, tok):
+    tok = re.sub(r':[0-9]+(?:-[0-9]+)?$', '', tok)  # a `file:line` citation
+    if tok.startswith('~'):
+        target = os.path.expanduser(tok)
+    elif tok.startswith('/'):
+        target = tok
+    else:
+        target = os.path.join(root, tok)
+    return os.path.exists(target)
+
+
+def paths(root):
+    entries = []
+    for path, rel in find_workstreams(root):
+        lines = read_lines(path)
+        sections = section_of(lines)
+        for start, kind, _text, raw in fold_blocks(lines):
+            sec = sections[start - 1]
+            if kind == 'heading':
+                continue
+            live = (sec == '## Decisions') or (sec == '## Backlog' and kind == 'item'
+                                                and TOTAL_OPEN_RE.match(raw[0]))
+            if not live:
+                continue
+            text, starts = join_block(raw, start)
+            owner = None
+            m = CHECKBOX_ID_RE.match(raw[0])
+            if m:
+                owner = m.group(2)
+            for off, tok in path_tokens(text):
+                entries.append({
+                    "file": rel, "line": line_at(starts, off), "section": sec,
+                    "owning_id": owner, "path": tok, "anchored": anchored(tok),
+                    "exists": path_exists(root, tok),
+                    "struck": in_strike(text, off),
+                })
+    return {"paths": entries,
+            "missing": [e for e in entries if e["anchored"] and not e["exists"] and not e["struck"]],
+            "bare": [e for e in entries if not e["anchored"]]}
+
+
+def cmd_paths(args):
+    if len(args) != 1:
+        usage("paths takes exactly one project root")
+    root = require_root(args[0], PROG)
+    print(json.dumps(paths(root), indent=2))
+    return 0
+
+
 # --- dispatch --------------------------------------------------------------
 
 COMMANDS = {
     'record': cmd_record,
     'cites': cmd_cites,
     'refs': cmd_refs,
+    'paths': cmd_paths,
 }
 
 
