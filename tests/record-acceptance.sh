@@ -64,7 +64,7 @@ Some rationale.
 Some rationale.
 
 ## Learnings
-- L1 (2026-01-01): Insight one APPLIED to somewhere.
+- L1 (2026-01-01): Insight one. APPLIED 2026-01-02 to somewhere.
 - L2 (2026-01-01): Insight two with no disposition yet.
 
 ## Open Questions
@@ -169,10 +169,27 @@ Some rationale, with a list under it:
 
 ## Learnings
 - L1 (2026-01-01): An insight whose disposition marker sits on its second
-line, EXTRACTED to docs/design.md.
-- L2 (2026-01-01): An insight that is tracked work, QUEUED for #PX-2.
+line. EXTRACTED 2026-01-02 to docs/design.md.
+- L2 (2026-01-01): An insight that is tracked work. QUEUED 2026-01-02 for #PX-2.
 - L3 (2026-01-01): An insight with no disposition at all.
-- L4 (2026-01-01): An insight that is SPENT -- routed to docs/design.md.
+- L4 (2026-01-01): An insight that is spent. SPENT 2026-01-02 -- routed to docs/design.md.
+- L5 (2026-01-01): DISPOSITION 2026-01-03: ROUTED to #PX-1, the date
+  before the marker, as the corpus writes it.
+- L6 (2026-01-01): An insight whose two-word marker wraps across the
+  70-column break, so a line-scoped read sees neither word. HANDED
+  OFF 2026-01-04 to project/omlx-0.4.x-finalize.
+- L7 (2026-09-04): `workstream-record.py`'s disposition matching is
+  correct BECAUSE it folds a Learning into a block and matches the
+  marker against the joined text, so the multi-word `HANDED OFF`
+  survives the 70-column wrap that splits it. An ad-hoc classifier
+  written this session against the same file scored L47 as
+  undispositioned for exactly that reason. Integration target: the
+  fixture set (lifted 2026-09-04 from feature/kit-script-core L9 in
+  the project that built this rule; a MENTION of a marker, mid-sentence).
+- L8 (2026-01-01): An insight with the marker at sentence start and
+  no date anywhere in that sentence. APPLIED to docs/design.md, the
+  author forgetting the date.
+- ~~L9 (2026-01-01): An insight struck through whole, retired in place.~~
 
 ## Open Questions
 - OQ-1: is a `### D7` heading outside Decisions a Decision? It is not:
@@ -223,6 +240,14 @@ alpha_build_open_tasks=$(jq -r '.workstreams[] | select(.path | endswith("projec
 check "alpha open_total is 5 (four in phases plus the one outside)" '[ "$alpha_open_total" = "5" ]'
 check "alpha tasks_outside_phases is 1" '[ "$alpha_tasks_outside" = "1" ]'
 check "the two-space-indented task is counted (Build phase open_tasks is 2)" '[ "$alpha_build_open_tasks" = "2" ]'
+# Phases carry their done counts beside the open ones, so a completed
+# phase is visible without a second scan.
+mkdir -p "$T/donephase/.state/workstreams/project/p"
+printf -- '## Backlog\n### Done (DN)\n- [x] #DN-1: done\n- [x] #DN-2: done\n- [x] #DN-3: done\n- [x] #G-DN: USER CHECKPOINT -- decided\n### Live (LV)\n- [x] #LV-1: done\n- [ ] #LV-2: open\n' > "$T/donephase/.state/workstreams/project/p/workstream.md"
+check "a phase with three done tasks, a done gate and nothing open reports done_tasks 3, done_gates 1, open 0" \
+  '[ "$(python3 "$SCRIPT" "$T/donephase" | jq -r ".workstreams[0].phases[0] | \"\\(.done_tasks) \\(.done_gates) \\(.open_tasks) \\(.open_gates)\"")" = "3 1 0 0" ]'
+check "the live phase beside it reports done 1, open 1" \
+  '[ "$(python3 "$SCRIPT" "$T/donephase" | jq -r ".workstreams[0].phases[1] | \"\\(.done_tasks) \\(.open_tasks)\"")" = "1 1" ]'
 
 echo "== Open gates"
 alpha_gate_satisfied=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | .open_gates[0].satisfied_text' "$T/out.json")
@@ -264,7 +289,7 @@ echo "== Learnings"
 alpha_learn_count=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | .learnings.count' "$T/out.json")
 alpha_learn_undisp=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | (.learnings.undispositioned | length)' "$T/out.json")
 check "learnings.count is 2" '[ "$alpha_learn_count" = "2" ]'
-check "learnings.undispositioned has one entry (L1 carries APPLIED)" '[ "$alpha_learn_undisp" = "1" ]'
+check "learnings.undispositioned has one entry (L1 carries a dated APPLIED at sentence start)" '[ "$alpha_learn_undisp" = "1" ]'
 
 echo "== Deletion criteria"
 alpha_del_open=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | .deletion_criteria.open' "$T/out.json")
@@ -361,12 +386,20 @@ check "ws/old-two from the heading-form critical path is found (the cascade is c
 echo "== Learnings: block-scoped markers, terminal split from deferred"
 check "fixture: a list item beginning '- L9' sits under ## Decisions (planted)" \
   "grep -q '^- L9 is not a Learning' \"$T/.state/workstreams/project/gamma/workstream.md\""
-check "learnings.count is 4 (the '- L9' item under Decisions is not counted)" '[ "$(gq ".learnings.count")" = "4" ]'
+check "learnings.count is 9 (the '- L9' item under Decisions is not counted)" '[ "$(gq ".learnings.count")" = "9" ]'
 check "latest_decision stays D1 x1 (the '### D7' heading outside Decisions is not counted)" \
   '[ "$(gq ".latest_decision.max")" = "1" ] && [ "$(gq ".latest_decision.count")" = "1" ]'
-check "EXTRACTED on L1's second line and SPENT on L4 count as terminal (2)" '[ "$(gq ".learnings.terminal")" = "2" ]'
+check "EXTRACTED on L1's second line, SPENT on L4, the DISPOSITION-date-marker form on L5, the wrapped HANDED OFF on L6 and the struck L9 count as terminal (5)" '[ "$(gq ".learnings.terminal")" = "5" ]'
 check "QUEUED (L2) is deferred, not undispositioned" '[ "$(gq ".learnings.deferred | length")" = "1" ] && gq ".learnings.deferred[0]" | grep -q "^- L2"'
-check "L3 alone is undispositioned" '[ "$(gq ".learnings.undispositioned | length")" = "1" ] && gq ".learnings.undispositioned[0]" | grep -q "^- L3"'
+check "L3 (no marker), L7 (a mention of HANDED OFF mid-sentence, lifted from the corpus) and L8 (marker with no date in its sentence) are undispositioned" \
+  '[ "$(gq ".learnings.undispositioned | length")" = "3" ] && gq ".learnings.undispositioned[0]" | grep -q "^- L3" && gq ".learnings.undispositioned[1]" | grep -q "^- L7" && gq ".learnings.undispositioned[2]" | grep -q "^- L8"'
+check "fixture: L7 literally carries the two-word marker mid-sentence (the mention is planted)" \
+  "grep -q 'multi-word \`HANDED OFF\`' \"$T/.state/workstreams/project/gamma/workstream.md\""
+# Vary one input that must change the verdict: give L8's sentence its date.
+mkdir -p "$T/dated/.state/workstreams/project/d"
+printf -- '## Learnings\n- L1 (2026-01-01): An insight. APPLIED to docs/design.md, undated.\n- L2 (2026-01-01): An insight. APPLIED 2026-01-02 to docs/design.md.\n' > "$T/dated/.state/workstreams/project/d/workstream.md"
+check "the same marker scores undispositioned without a date in its sentence and terminal with one (1 and 1)" \
+  '[ "$(python3 "$SCRIPT" "$T/dated" | jq -r ".workstreams[0].learnings | \"\\(.terminal) \\(.undispositioned | length)\"")" = "1 1" ]'
 
 echo "== Conformance detector: continuation lines under open items, column 0 and indented alike"
 check "gamma reports wrapped open items (2 continuations under #PX-2, 3 under #G-SK, 1 each under #G-HW and #DF-1)" '[ "$(gq ".wrapped_lines.open_items")" = "7" ]'

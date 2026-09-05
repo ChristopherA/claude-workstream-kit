@@ -1,188 +1,55 @@
 #!/usr/bin/env python3
-"""workstream-record.py -- the record, one field per command, as JSON.
+"""workstream-record.py -- the kit's measures, one sub-command each.
 
-Derives the record (workstream-status SKILL.md, Move 2) for every
-.state/workstreams/*/*/workstream.md under a project root, plus the hold
-lines and cross-workstream references in .state/ACTIVE.md, and a per-field
-corpus-coverage count. Standard library only. Prints one JSON object to
-stdout; exits 2 with a message on stderr when the project root has no
-.state/ directory.
+Every sub-command reads state files, git, or the environment and prints
+what it found. None writes a file, and none scores the session or
+infers a judgment the caller names and the user decides -- which
+Decisions shipped, whether a criterion holds, whether a gate is ready.
+The rewrites live in workstream-rewrite.py, so a read-only skill runs a
+tool that cannot write. Standard library only.
 
-The state-file format is two-shaped and this script reads both shapes:
-backlog lines and deletion criteria are one line each, so their COUNTS
-anchor at line start; every prose section is hard-wrapped at roughly 70
-columns, so the prose-bearing fields (holds, cross references, gate
-markers, Learning dispositions, the critical path) read a folded BLOCK --
-a line plus its continuation lines -- never a single line. Reading a
-wrapped construct one line at a time returns a false empty, which is
-what six consumers reported at once.
+Usage:
+  workstream-record.py record <project-root>
+  workstream-record.py <project-root>            (alias of record)
 
-Usage: workstream-record.py <project-root>
+The bare form is kept because the status and extract skills, the record
+suite and consumers' scripts call it. Every sub-command takes its path
+explicitly, never a default of the current directory. Exit codes: 0
+success, 1 a failed check (self-check), 2 usage or a root with no
+.state/ directory. Prints JSON to stdout.
+
+`record` derives the record (workstream-status SKILL.md, Move 2) for
+every .state/workstreams/*/*/workstream.md under the root, plus the hold
+lines and cross-workstream references in .state/ACTIVE.md, and a
+per-field corpus-coverage count.
 """
 
-import glob
 import json
 import os
 import re
 import sys
 
-# --- patterns -----------------------------------------------------------
-
-TOTAL_OPEN_RE = re.compile(r'^ *- \[ \] #')
-GATE_LINE_RE = re.compile(r'^ *- \[ \] #G-')
-CHECKBOX_RE = re.compile(r'^ *- \[[ xX]\] ')
-DELETION_OPEN_RE = re.compile(r'^ *- \[ \]')
-DELETION_DONE_RE = re.compile(r'^ *- \[[xX]\]')
-LEARNING_RE = re.compile(r'^- L[0-9]+')
-DECISION_HEADING_RE = re.compile(r'^### D([0-9]+)\b')
-# A phase heading is `### <Name> (<XX>)` or `### <Name> (<XX> / <YY>)`;
-# text after the code ("-- retired", "-- rollout residue") is tolerated,
-# since real files carry it, and so is a multi-code heading.
-PHASE_HEADING_RE = re.compile(
-    r'^###\s+(.+?)\s*\(([A-Za-z0-9]+(?:\s*/\s*[A-Za-z0-9]+)*)\)'
-)
-TOP_HEADING_RE = re.compile(r'^##\s')
-ANY_HEADING_RE = re.compile(r'^#{1,6}\s')
-LIST_ITEM_RE = re.compile(r'^ *(?:[-*+]|[0-9]+\.) ')
-TASK_CODE_RE = re.compile(r'#(?:G-)?([A-Z]+)-?')
-
-# Gate markers are the DATED forms the rule names. A bare word is a
-# mention -- a build note quoting "the SATISFIED sentence" -- and a date is
-# what turns a mention into a marking.
-DATE = r'[0-9]{4}-[0-9]{2}-[0-9]{2}'
-SATISFIED_MARK_RE = re.compile(
-    r'\b(?:SATISFIED|READY|criterion is met) ' + DATE
-)
-HOLDS_RE = re.compile(r'\bHOLDS (' + DATE + ')')
-
-# Holds: a hold VERB WITH ITS OBJECT, since the bare verb is ordinary
-# prose -- "the two retired checkpoints held", "conditions that hold" --
-# and 29 of 34 hits on one project were that. Word boundaries also
-# exclude a hyphen, since `-` is a word boundary to the engine and
-# `Held-out validation` is not a hold. A match whose clause is negated
-# (`Nothing in this file is held by ...`) is dropped: a critical-path
-# paragraph is exactly where a workstream says it is NOT held. A
-# struck-through span (`~~...~~`) is blanked before matching, so a hold
-# already retired in place does not count.
-HOLD_RE = re.compile(
-    r'(?<![\w-])(?:held (?:by|behind|until|pending|for|on|back)|'
-    r'holds? (?:for|until|behind|pending|back))\b|blocked (?:by|on)|unblocks when|'
-    r'\bwait(?:s|ing)? (?:for|on)\b|not before|sequenced after',
-    re.IGNORECASE,
-)
-STRIKE_RE = re.compile(r'~~.*?~~', re.S)
-NEGATION_RE = re.compile(r'\b(?:no|not|nothing|never|nor|neither|without)\b', re.IGNORECASE)
-CLAUSE_SPLIT_RE = re.compile(r'[.;:]')
-
-# Cross references: the type must not be the tail of a longer path or
-# name (`ml-explore/mlx` is a repository, not `explore/mlx`), and a name
-# may carry dots (`project/omlx-0.4.x-finalize`).
-CROSS_REF_WS_RE = re.compile(
-    r'(?<![\w./-])(?:explore|feature|fix|project|maintain)/[a-z0-9-]+(?:\.[a-z0-9-]+)*'
-)
-CROSS_REF_TAG_RE = re.compile(r'(?<![\w./-])ws/[a-z0-9-]+(?:\.[a-z0-9-]+)*')
-
-ID_RE = re.compile(
-    r'#[A-Z]+-[0-9]+[a-z]?|\bD[0-9]+\b|\bL[0-9]+\b|\bOQ-[0-9]+\b'
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from workstream_state import (  # noqa: E402
+    ANY_HEADING_RE, CHECKBOX_RE, CROSS_REF_TAG_RE, CROSS_REF_WS_RE, DECISION_HEADING_RE,
+    DELETION_DONE_RE, DELETION_OPEN_RE, DONE_GATE_RE, DONE_LINE_RE, GATE_LINE_RE, HOLDS_RE,
+    HOLD_RE, ID_RE, LEARNING_RE, LIST_ITEM_RE, PHASE_HEADING_RE, SATISFIED_MARK_RE,
+    TASK_CODE_RE, TOP_HEADING_RE, TOTAL_OPEN_RE,
+    blank_strikes, disposition, extract_section, find_workstreams, fold_blocks, join_block,
+    line_at, negated, require_root, split_sentences, strip_frontmatter,
 )
 
-# Disposition markers, as the rule publishes them (Learnings convention).
-# TERMINAL: the insight has left the file. DEFERRED: it is tracked work
-# that has not landed. Anything else is undispositioned.
-TERMINAL_MARKERS = (
-    'APPLIED', 'ROUTED', 'DROPPED', 'EXTRACTED', 'SENT', 'HANDED OFF',
-    'RESOLVED', 'FULFILLED', 'VERIFIED', 'EXTENDED', 'SUPERSEDED',
-    'DISPOSITIONED', 'DISPOSITION', 'DONE', 'SPENT',
-)
-DEFERRED_MARKERS = ('QUEUED', 'DEFERRED', 'PENDING')
-TERMINAL_RE = re.compile(r'\b(?:' + '|'.join(re.escape(m) for m in TERMINAL_MARKERS) + r')\b')
-DEFERRED_RE = re.compile(r'\b(?:' + '|'.join(re.escape(m) for m in DEFERRED_MARKERS) + r')\b')
+PROG = 'workstream-record.py'
 
 
-# --- blocks: the paragraph-aware read ------------------------------------
-
-def fold_blocks(lines):
-    """Group lines into blocks: a heading is its own block; a list item or
-    a paragraph absorbs the non-blank lines that follow it until a blank
-    line, a heading, or a new list item. Returns (start_line_no, kind,
-    joined_text, raw_lines) with 1-indexed line numbers. Continuations at
-    column 0 and indented continuations join alike -- the reflow wraps
-    prose flush left, and a completion note is an indented block."""
-    blocks = []
-    current = None
-    for i, line in enumerate(lines):
-        no = i + 1
-        if line.strip() == '':
-            if current:
-                blocks.append(current)
-                current = None
-            continue
-        if ANY_HEADING_RE.match(line):
-            if current:
-                blocks.append(current)
-            blocks.append((no, 'heading', line.strip(), [line]))
-            current = None
-            continue
-        if LIST_ITEM_RE.match(line):
-            if current:
-                blocks.append(current)
-            current = (no, 'item', line.strip(), [line])
-            continue
-        if current:
-            start, kind, text, raw = current
-            current = (start, kind, text + ' ' + line.strip(), raw + [line])
-        else:
-            current = (no, 'para', line.strip(), [line])
-    if current:
-        blocks.append(current)
-    return blocks
+def usage(msg=None):
+    if msg:
+        sys.stderr.write("%s: %s\n" % (PROG, msg))
+    sys.stderr.write(__doc__)
+    sys.exit(2)
 
 
-def extract_section(lines, header_regex):
-    """Lines (1-indexed via enumerate) between a heading matching
-    header_regex and the next top-level '## ' heading (exclusive of both),
-    or to EOF. Returns a list of (line_no, text) tuples, blanks included."""
-    header_re = re.compile(header_regex)
-    start = None
-    for i, line in enumerate(lines):
-        if header_re.match(line):
-            start = i
-            break
-    if start is None:
-        return []
-    section = []
-    for i in range(start + 1, len(lines)):
-        line = lines[i]
-        if TOP_HEADING_RE.match(line):
-            break
-        section.append((i + 1, line))
-    return section
-
-
-def strip_frontmatter(lines):
-    """Drop a leading '---' ... '---' flat-frontmatter block if present.
-    Returns the remaining lines as (line_no, text) tuples, numbered against
-    the ORIGINAL file (so line numbers stay citable)."""
-    if not lines or lines[0].strip() != '---':
-        return list(enumerate(lines, start=1))
-    end = None
-    for i in range(1, len(lines)):
-        if lines[i].strip() == '---':
-            end = i
-            break
-    if end is None:
-        return list(enumerate(lines, start=1))
-    return [(i + 1, lines[i]) for i in range(end + 1, len(lines))]
-
-
-# --- sentence splitting for Purpose --------------------------------------
-
-def split_sentences(text):
-    text = text.strip()
-    if not text:
-        return []
-    return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
-
+# --- record: the per-workstream fields -----------------------------------
 
 def purpose_fields(lines):
     section = extract_section(lines, r'^##\s+Purpose\s*$')
@@ -193,45 +60,6 @@ def purpose_fields(lines):
     first = sentences[0]
     done = next((s for s in sentences if 'Done means' in s), sentences[-1])
     return {"first": first, "done": done}
-
-
-# --- hold lines and cross refs (shared by workstream and ACTIVE.md) -----
-
-def negated(text, start):
-    """True when the clause the match sits in carries a negation word
-    before it. The clause runs back to the previous `.`, `;` or `:`."""
-    head = text[:start]
-    parts = CLAUSE_SPLIT_RE.split(head)
-    return bool(NEGATION_RE.search(parts[-1])) if parts else False
-
-
-def join_block(raw, start_no):
-    """The block's lines joined by single spaces (the same text fold_blocks
-    builds), with the offset at which each line starts, so a match can
-    cite the LINE holding it rather than the block's first line -- a
-    scout sent to verify 'line 30' found the phrase on line 41."""
-    text = ''
-    starts = []
-    for i, line in enumerate(raw):
-        if text:
-            text += ' '
-        starts.append((len(text), start_no + i))
-        text += line.strip()
-    return text, starts
-
-
-def line_at(starts, offset):
-    line_no = starts[0][1] if starts else None
-    for off, no in starts:
-        if off <= offset:
-            line_no = no
-        else:
-            break
-    return line_no
-
-
-def blank_strikes(text):
-    return STRIKE_RE.sub(lambda m: ' ' * len(m.group(0)), text)
 
 
 def hold_matches(start_no, raw):
@@ -276,8 +104,6 @@ def cross_ref_matches(start_no, raw):
     return out
 
 
-# --- per-workstream record ------------------------------------------------
-
 def critical_path_field(blocks):
     """The critical-path paragraph: the block beginning `**Critical path`,
     or the first paragraph under a heading naming the critical path.
@@ -301,7 +127,9 @@ def phase_records(lines):
     heading it sits under, so the per-heading sum plus the outside count
     equals the total by construction and a negative is unrepresentable.
     A task whose code the heading does not declare is reported as a
-    mismatch, provenance rather than arithmetic."""
+    mismatch, provenance rather than arithmetic. Each phase carries its
+    DONE counts beside the open ones, so a completed phase -- done above
+    zero, nothing open -- is visible without a second scan."""
     backlog = extract_section(lines, r'^##\s+Backlog\s*$')
     phases = []
     current = None
@@ -315,8 +143,16 @@ def phase_records(lines):
             codes = [c.strip() for c in m.group(2).split('/')]
             declared_codes.update(codes)
             current = {"name": m.group(1), "code": m.group(2),
-                       "codes": codes, "open_tasks": 0, "open_gates": 0}
+                       "codes": codes, "open_tasks": 0, "open_gates": 0,
+                       "done_tasks": 0, "done_gates": 0}
             phases.append(current)
+            continue
+        if DONE_LINE_RE.match(text):
+            if current is not None:
+                if DONE_GATE_RE.match(text):
+                    current["done_gates"] += 1
+                else:
+                    current["done_tasks"] += 1
             continue
         if not TOTAL_OPEN_RE.match(text):
             continue
@@ -336,7 +172,8 @@ def phase_records(lines):
             mismatches.append({"line": line_no, "code": code,
                                "heading": current["name"], "heading_code": current["code"]})
     records = [{"name": p["name"], "code": p["code"],
-                "open_tasks": p["open_tasks"], "open_gates": p["open_gates"]}
+                "open_tasks": p["open_tasks"], "open_gates": p["open_gates"],
+                "done_tasks": p["done_tasks"], "done_gates": p["done_gates"]}
                for p in phases]
     codes_without_heading = sorted(task_codes - declared_codes)
     return records, outside, mismatches, codes_without_heading
@@ -404,6 +241,32 @@ def composition(lines):
     }
 
 
+def learnings_field(lines, blocks):
+    """Learnings, block-scoped and bounded to ## Learnings: a disposition
+    marker on a wrapped continuation counts, and a list item beginning
+    `- L` inside a Decision does not -- one scored as a 65th Learning in
+    a section holding 64. A marker is told from a MENTION by the rule in
+    workstream_state.disposition: sentence-start position plus a date in
+    the sentence. Terminal and deferred are reported apart."""
+    learnings_lines = {no for no, _t in extract_section(lines, r'^##\s+Learnings\s*$')}
+    terminal = 0
+    deferred = []
+    undispositioned = []
+    count = 0
+    for start, kind, text, raw in blocks:
+        if kind == 'item' and LEARNING_RE.match(raw[0]) and start in learnings_lines:
+            count += 1
+            d = disposition(text)
+            if d == 'terminal':
+                terminal += 1
+            elif d == 'deferred':
+                deferred.append(text)
+            else:
+                undispositioned.append(text)
+    return {"count": count, "terminal": terminal, "deferred": deferred,
+            "undispositioned": undispositioned}
+
+
 def build_workstream_record(path, rel_path):
     size_bytes = os.path.getsize(path)
     with open(path, 'r', encoding='utf-8', errors='replace') as f:
@@ -416,7 +279,6 @@ def build_workstream_record(path, rel_path):
     phases, tasks_outside_phases, code_mismatches, codes_without_heading = phase_records(lines)
     total_open = sum(1 for line in lines if TOTAL_OPEN_RE.match(line))
 
-    # First open task.
     first_open_task = None
     for i, line in enumerate(lines):
         if TOTAL_OPEN_RE.match(line):
@@ -434,7 +296,6 @@ def build_workstream_record(path, rel_path):
                 "satisfied_text": bool(SATISFIED_MARK_RE.search(text)),
             })
 
-    # Critical path.
     critical_path, cp_line, cp_raw = critical_path_field(blocks)
 
     # Hold lines / cross refs. Sources: every open task block and gate
@@ -466,32 +327,8 @@ def build_workstream_record(path, rel_path):
         "count": len(decision_nums),
     }
 
-    # Learnings, block-scoped and bounded to ## Learnings: a disposition
-    # marker on a wrapped continuation counts, and a list item beginning
-    # `- L` inside a Decision does not -- one scored as a 65th Learning in
-    # a section holding 64. Terminal and deferred are reported apart.
-    learnings_lines = {no for no, _t in extract_section(lines, r'^##\s+Learnings\s*$')}
-    terminal = 0
-    deferred = []
-    undispositioned = []
-    learning_count = 0
-    for start, kind, text, raw in blocks:
-        if kind == 'item' and LEARNING_RE.match(raw[0]) and start in learnings_lines:
-            learning_count += 1
-            if TERMINAL_RE.search(text):
-                terminal += 1
-            elif DEFERRED_RE.search(text):
-                deferred.append(text)
-            else:
-                undispositioned.append(text)
-    learnings = {
-        "count": learning_count,
-        "terminal": terminal,
-        "deferred": deferred,
-        "undispositioned": undispositioned,
-    }
+    learnings = learnings_field(lines, blocks)
 
-    # Deletion criteria.
     deletion_section = extract_section(lines, r'^##\s+Deletion Criteria\s*$')
     deletion_open = sum(1 for _n, text in deletion_section
                         if DELETION_OPEN_RE.match(text) and 'STANDING' not in text)
@@ -583,36 +420,41 @@ def coverage(workstreams):
     }
 
 
-def main():
-    if len(sys.argv) != 2:
-        sys.stderr.write("usage: workstream-record.py <project-root>\n")
-        sys.exit(2)
-
-    root = os.path.abspath(sys.argv[1])
-    state_dir = os.path.join(root, '.state')
-    if not os.path.isdir(state_dir):
-        sys.stderr.write("workstream-record.py: no .state/ directory under %s\n" % root)
-        sys.exit(2)
-
-    pattern = os.path.join(state_dir, 'workstreams', '*', '*', 'workstream.md')
-    workstreams = []
-    for path in glob.glob(pattern):
-        rel_path = os.path.relpath(path, root)
-        workstreams.append(build_workstream_record(path, rel_path))
-    workstreams.sort(key=lambda r: r["path"])
-
-    active_path = os.path.join(state_dir, 'ACTIVE.md')
+def build_record(root):
+    workstreams = [build_workstream_record(p, rel) for p, rel in find_workstreams(root)]
+    active_path = os.path.join(root, '.state', 'ACTIVE.md')
     active = None
     if os.path.isfile(active_path):
         active = build_active_record(active_path, os.path.relpath(active_path, root))
+    return {"workstreams": workstreams, "active": active, "coverage": coverage(workstreams)}
 
-    result = {
-        "workstreams": workstreams,
-        "active": active,
-        "coverage": coverage(workstreams),
-    }
-    print(json.dumps(result, indent=2))
-    sys.exit(0)
+
+def cmd_record(args):
+    if len(args) != 1:
+        usage("record takes exactly one project root")
+    root = require_root(args[0], PROG)
+    print(json.dumps(build_record(root), indent=2))
+    return 0
+
+
+# --- dispatch --------------------------------------------------------------
+
+COMMANDS = {
+    'record': cmd_record,
+}
+
+
+def main():
+    argv = sys.argv[1:]
+    if not argv:
+        usage()
+    if argv[0] in COMMANDS:
+        sys.exit(COMMANDS[argv[0]](argv[1:]))
+    if argv[0].startswith('-'):
+        usage("unknown option %s" % argv[0])
+    if len(argv) == 1:
+        sys.exit(cmd_record(argv))
+    usage("unknown sub-command %s" % argv[0])
 
 
 if __name__ == '__main__':
