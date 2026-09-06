@@ -151,6 +151,8 @@ A release that changes the kit's model of itself — a skill added or removed, a
 
 Every release owes a different pass: before it is declared, each skill the release REWROTE runs once, from the checkout, against a live workstream, and what the run finds folds into the release or is queued with the release named. A first live run finds what green suites, fresh-context reads and a holistic review cannot — an interaction between two skills' texts, an instruction that returns noise against the template's shared codes, a script report against its reader — because those read each artifact alone and a run reads them together.
 
+Kit commit messages carry no workstream task IDs. The repository is public, the steward's pre-push sweep reads the commit messages in the range, and a `#XX-N` trailer found at re-cut time costs a rebuild of every commit after it; the task-to-commit map belongs on the task line in the steward's workstream, which is where it is read.
+
 ## Status line
 
 The kit ships a self-contained status line that shows `project » branch » workstream` and the percent of context remaining before auto-compaction, reading the active workstream from `.state/ACTIVE.md`. It also writes a per-session context JSON to `/tmp` that sessions read for context-budget decisions. It needs only `jq`. The other dependency in the payload is `python3`, which the measuring skills -- status, review, extract, close, capture, work -- run through the two scripts above; the session-start hook prints the drain's symptoms when it is on the path and its plain roster otherwise, so a project without python loses the measures and keeps the conventions.
