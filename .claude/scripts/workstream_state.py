@@ -283,7 +283,8 @@ def marker_counts(text, marker_re):
     142 undispositioned where 0.10.3 scored 89, one drained workstream
     re-scoring as 7 of 7. The emphasis characters are stripped from the
     head before the test, so a bold marker mid-sentence is still a
-    mention."""
+    mention. Asterisk emphasis only: an underscore is a word character
+    to the marker regex's boundary, so `__DONE__` never matches at all."""
     out = []
     for m in marker_re.finditer(text):
         head = text[:m.start()].rstrip()

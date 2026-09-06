@@ -1226,7 +1226,7 @@ SELF_CHECKS = [
       "- L4 (2026-01-01): An insight that is spent. SPENT 2026-01-02 -- routed to docs/design.md.",
       "- ~~L9 (2026-01-01): struck through whole.~~",
       "- L5 (2026-01-01): An insight. **APPLIED 2026-09-05** at abc123.",
-      "- L5 (2026-01-01): An insight. __HANDED OFF__ to feature/beta, 2026-09-05."],
+      "- L5 (2026-01-01): An insight. *HANDED OFF* to feature/beta, 2026-09-05."],
      ["- L7 (2026-09-04): The record quotes the two-word `HANDED OFF` marker mid-sentence, a mention.",
       "- L6 (2026-01-01): the thing was **DONE** by then, on 2026-01-01, bold mid-sentence.",
       "- L8 (2026-01-01): An insight. APPLIED to docs/design.md, the author forgetting the date.",
