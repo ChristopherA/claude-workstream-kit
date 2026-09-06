@@ -285,7 +285,7 @@ if [ -n "$INSTALLED" ]; then
       AHEAD=$(git -C "$KIT_DIR" rev-list --count "${SOURCE}..HEAD" 2>/dev/null || true)
     fi
     if [ "$AVAILABLE" != "$INSTALLED" ]; then
-      echo "Kit: $INSTALLED installed, kit checkout has $AVAILABLE -- upgrade by re-running install.sh from the kit checkout (README, Upgrading) once this project's session is closed."
+      echo "Kit: $INSTALLED installed, kit checkout has $AVAILABLE -- upgrade with /workstream-upgrade (re-runs install.sh from the kit checkout; README, Upgrading)."
     elif [ -n "$AHEAD" ] && [ "$AHEAD" -gt 0 ]; then
       echo "Kit: $INSTALLED installed from $SOURCE; the kit checkout is $AHEAD commit(s) past it at the same VERSION -- an unreleased build, not a match."
     else

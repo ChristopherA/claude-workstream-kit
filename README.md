@@ -39,6 +39,7 @@ Because the state is plain files in git, it is portable across machines, account
 | Lifecycle skills | `.claude/skills/workstream-create/`, `workstream-work/`, `workstream-capture/`, `workstream-review/`, `workstream-extract/`, `workstream-close/` |
 | Cross-project handoffs | `.claude/skills/handoff/` |
 | Cross-workstream status | `.claude/skills/workstream-status/` (read-only, on demand) |
+| Upgrade | `.claude/skills/workstream-upgrade/` -- the order around `install.sh` (refresh, preview, stop on a local edit, stash after the preview, apply, commit, restore) |
 | Measures | `.claude/scripts/workstream-record.py` -- every measurement the skills ask for as a sub-command (`record`, `cites`, `refs`, `paths`, `decay`, `git`, `fires`, `self-check`), with no write path; over `workstream_state.py`, the shared folder and patterns |
 | Rewrites | `.claude/scripts/workstream-rewrite.py` -- every mechanical rewrite (`records`, `decisions`, `learnings`, `rotate`), dry-run by default, refusing when the structure it preserves has changed; `condense-completed-records.py` forwards to it for one release |
 | Delegate agents | `.claude/agents/scout.md`, `worker.md`, `verifier.md` -- each inherits the session's model |
@@ -56,7 +57,7 @@ What the kit deliberately does NOT carry — use the native capability instead:
 | Planning | Plan mode + plan files |
 | Keep-working discipline | `/goal` (the workstream-work skill derives the condition) |
 | Recurring work | `/loop`, `/schedule` |
-| Distribution/updates | Re-run `install.sh`; plugin packaging is a planned follow-up |
+| Distribution/updates | Re-run `install.sh` (`/workstream-upgrade` is that order); plugin packaging is a planned follow-up |
 
 ## Install
 
@@ -96,7 +97,7 @@ Tracking the payload is therefore not only how the kit travels; it is the condit
 
 ## Upgrading
 
-There is no sync layer: upgrading is re-running `install.sh` from a newer copy, and your `.state/` is never overwritten — a seed file that is missing is restored and staged, and nothing else there is read or written. Always update by running the installer, not by hand-copying files. There is no push: a project upgrades when a session next opens it and the session-start hook's `Kit:` line reports the installed version behind the kit checkout's, and that line says what to run. A release that changes what sessions WRITE — the disposition-marker list, a state-file shape — names that in its release message, so a project reading the gap knows the upgrade is more than text. The installer runs under `#!/bin/sh`, so it is immune to the macOS interactive `cp -i` / `mv -i` aliases that silently no-op a copy in a non-interactive shell and leave you thinking an update applied when it did not.
+There is no sync layer: upgrading is re-running `install.sh` from a newer copy, and your `.state/` is never overwritten — a seed file that is missing is restored and staged, and nothing else there is read or written. Always update by running the installer, not by hand-copying files. There is no push: a project upgrades when a session next opens it and the session-start hook's `Kit:` line reports the installed version behind the kit checkout's, and that line says what to run — `/workstream-upgrade`, the kit's own skill, is the order around the installer that the rest of this section explains. A release that changes what sessions WRITE — the disposition-marker list, a state-file shape — names that in its release message, so a project reading the gap knows the upgrade is more than text. The installer runs under `#!/bin/sh`, so it is immune to the macOS interactive `cp -i` / `mv -i` aliases that silently no-op a copy in a non-interactive shell and leave you thinking an update applied when it did not.
 
 Preview first with `--dry-run` (alias `--check`). It compares the kit against your project file by file, reports what a real run would change, and exits without writing:
 
@@ -166,6 +167,7 @@ Install registers it in `settings.json` automatically — but only when no `stat
 6. **Extract** — `/workstream-extract`: the periodic drain, for a workstream that has accreted rather than drifted — durable content out to permanent homes, spent reasoning condensed, completed phases moved to an in-file archive, standing criteria re-checked against current evidence. It is the half of closure that never needed an ending, which is why a `maintain` workstream that never closes still gets it. Runs on accretion symptoms, and under a close.
 7. **Hand off** — `/handoff`: write a self-contained item file into another project's `.state/handoffs/`; receive by triaging your own inbox.
 8. **Close** — `/workstream-close`: narrative summary, extraction delegated to `/workstream-extract`, per-criterion evidence at the user gate, then archive (one line in `.state/workstreams/ARCHIVE.md`, a git tag, the directory removed). Asked to close a workstream with no closure milestone, it offers extraction instead.
+9. **Upgrade** — `/workstream-upgrade`: when the session-start hook reports the installed version behind the kit checkout's — refresh the checkout, preview, stop on any locally edited payload file, stash after the preview, apply, commit the kit-owned changes, restore.
 
 ## Reporting a gap in the kit
 

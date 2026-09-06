@@ -244,9 +244,9 @@ mkdir -p "$T/kit"
 echo "0.10.1" > "$T/.claude/workstream-kit.version"
 echo "0.10.2" > "$T/kit/VERSION"
 check "behind: the line names both versions and the installer" \
-  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, kit checkout has 0.10.2 -- upgrade by re-running install.sh from the kit checkout'"
-check "the gap line names no fleet command and no worktree" \
-  "! WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep '^Kit:' | grep -qE 'workstream-upgrade|worktree'"
+  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, kit checkout has 0.10.2 -- upgrade with /workstream-upgrade (re-runs install.sh from the kit checkout'"
+check "the gap line names the kit's own skill and install.sh, and no worktree" \
+  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep '^Kit:' | grep -q 'install.sh' && ! WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep '^Kit:' | grep -q 'worktree'"
 echo "0.10.1" > "$T/kit/VERSION"
 check "equal: the line says it matches" \
   "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, matches the kit checkout'"
