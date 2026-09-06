@@ -34,7 +34,7 @@ A fixture.
 ## Backlog
 ### Build (BD) -- the heading carries a suffix, as real files do
 FIX
-  printf -- '- [x] #BD-1: Decide the widget shape. Evaluate (do NOT pre-decide): (i) round; (ii) square. DECIDED 2026-01-02 (D2) (i): round, because %s %s. Built at commit abc1234 and released 2026-01-03.\n' "$LONG" "$LONG"
+  printf -- '- [x] #BD-1: Decide the widget shape. Evaluate (do NOT pre-decide): (i) round; (ii) square. DECIDED 2026-01-02 (D2) (i): round, because %s %s. Built at commit abc1234, mirrored as 1bbfbd74 in the other repo, 1234567 bytes moved, and released 2026-01-03.\n' "$LONG" "$LONG"
   cat <<'FIX'
 - [x] #BD-2: a short done task, DONE 2026-01-01
 - [ ] #BD-3: an open task wrapped against the convention, with a
@@ -72,10 +72,16 @@ echo "== records: dry run, write, idempotence"
 OUT=$(python3 "$SCRIPT" records "$W" --date 2026-05-05)
 check "dry run reports condensed=1 and leaves the file byte-identical" \
   "printf '%s' \"\$OUT\" | grep -q '^condensed=1 ' && ! printf '%s' \"\$OUT\" | grep -q WRITTEN && cmp -s \"\$W\" \"\$T/original.md\""
+check "dry run prints one entry line per condensed record in the report shape: ID, bytes before->after, the condensed line" \
+  "printf '%s' \"\$OUT\" | grep -qE '^#BD-1 [0-9]+->[0-9]+: - \\[x\\] #BD-1: Decide the widget shape\\.' && [ \"\$(printf '%s\\n' \"\$OUT\" | grep -cE '^#[A-Z]+-[0-9]+ [0-9]+->[0-9]+: ')\" = 1 ]"
+check "the entry line's byte figures are the fixture line's length and the note's" \
+  "[ \"\$(printf '%s\\n' \"\$OUT\" | sed -n 's/^#BD-1 \\([0-9]*\\)->.*/\\1/p')\" = \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | tr -d '\\n' | wc -c | tr -d ' ')\" ]"
 OUT=$(python3 "$SCRIPT" records "$W" --write --date 2026-05-05)
 check "write reports condensed=1 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q '^condensed=1 ' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
 check "#BD-1 fits the completion-note form, keeps status, date, Decision, commit and the dated marker" \
-  "[ \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'DECIDED 2026-01-03; reasoning in D2; commits abc1234. Condensed 2026-05-05 at extract'"
+  "[ \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'DECIDED 2026-01-03; reasoning in D2; commits abc1234, 1bbfbd74. Condensed 2026-05-05 at extract'"
+check "the eight-character hash in another repo is kept verbatim and the seven-digit number is not taken for one" \
+  "grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q '1bbfbd74' && ! grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q '1234567'"
 check "removed side: the evaluation prose is gone from the file" "! grep -q 'do NOT pre-decide' \"\$W\""
 check "#BD-2, the wrapped #BD-3, the indented #BD-3a and the gate are byte-identical" \
   "grep -qF -- '- [x] #BD-2: a short done task, DONE 2026-01-01' \"\$W\" && grep -q '^second line\$' \"\$W\" && grep -qF -- '  - [ ] #BD-3a: an indented sub-task' \"\$W\" && grep -qF -- '- [ ] #G-BD: USER CHECKPOINT -- the build gate; three Decisions stand' \"\$W\""
@@ -90,6 +96,8 @@ echo "== decisions: dry run, write, reorder, idempotence, the count a surviving 
 OUT=$(python3 "$SCRIPT" decisions "$W" --decisions D1,D3 --release v0.1.0 --date 2026-05-05)
 check "dry run reports decisions_condensed=2 reordered=yes and writes nothing" \
   "printf '%s' \"\$OUT\" | grep -q 'decisions_condensed=2 .*reordered=yes' && cmp -s \"\$W\" \"\$T/after1.md\""
+check "decisions dry run prints the same entry shape: D3 and D1, bytes before->after, the heading" \
+  "printf '%s' \"\$OUT\" | grep -qE '^D3 [0-9]+->[0-9]+: ### D3 ' && printf '%s' \"\$OUT\" | grep -qE '^D1 [0-9]+->[0-9]+: ### D1 ' && [ \"\$(printf '%s\\n' \"\$OUT\" | grep -cE '^D[0-9]+ [0-9]+->[0-9]+: ')\" = 2 ]"
 OUT=$(python3 "$SCRIPT" decisions "$W" --write --decisions D1,D3 --release v0.1.0 --date 2026-05-05)
 check "write reports decisions_condensed=2 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q 'decisions_condensed=2' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
 check "Decisions now run D1, D2, D3" "[ \"\$(grep -E '^### D[0-9]+' \"\$W\" | cut -d' ' -f2 | tr '\\n' ' ')\" = 'D1 D2 D3 ' ]"

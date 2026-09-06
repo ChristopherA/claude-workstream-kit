@@ -83,6 +83,8 @@ echo "== Dry run"
 OUT=$(python3 "$SCRIPT" learnings "$W" --date 2026-05-05)
 check "dry run reports learnings_condensed=1 (L1 alone) and leaves the file byte-identical" \
   "printf '%s' \"\$OUT\" | grep -q '^learnings_condensed=1 ' && ! printf '%s' \"\$OUT\" | grep -q WRITTEN && cmp -s \"\$W\" \"\$T/original.md\""
+check "learnings dry run prints one entry line in the shared report shape: L1, bytes before->after, the condensed line" \
+  "printf '%s' \"\$OUT\" | grep -qE '^L1 [0-9]+->[0-9]+: - L1 \\(' && [ \"\$(printf '%s\\n' \"\$OUT\" | grep -cE '^L[0-9]+ [0-9]+->[0-9]+: ')\" = 1 ]"
 
 echo "== Write"
 OUT=$(python3 "$SCRIPT" learnings "$W" --write --date 2026-05-05)

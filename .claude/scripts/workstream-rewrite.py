@@ -55,7 +55,14 @@ with wrapped open lines is refused as non-conforming.
 
 Exit 0 on success (a dry run included), 1 on a refusal or a failed
 check, 2 on usage or an unreadable file. Prints a report, then WRITTEN
-or NO CHANGE (a dry run with changes prints the report alone).
+or NO CHANGE (a dry run with changes prints the report alone). The
+report is one shape for records, decisions and learnings: a summary
+line, then one line per condensed entry -- `<ID> <bytes before>-><bytes
+after>: <the condensed line's first 160 characters>` -- so a dry run
+shows what a write would leave. The commit hashes a condensed record
+keeps are those its note names VERBATIM, 7 to 40 hex characters with
+at least one letter, in any repository, kept as written; the script
+never derives one, and a note naming none says so.
 """
 
 import datetime
@@ -147,8 +154,13 @@ def finish(path, text, new, dry, report, extra_lines=()):
 DONE_RE = re.compile(r"^( *- \[x\] )(#[A-Z]+-[0-9]+[a-z]?|#G-[A-Z]+)(: ?)(.*)$")
 DATE_RE = re.compile(r"\b(20[0-9]{2}-[0-9]{2}-[0-9]{2})\b")
 DEC_RE = re.compile(r"\bD[0-9]+\b")
-SHA_RE = re.compile(r"\b[0-9a-f]{7}\b")
+SHA_RE = re.compile(r"\b(?=[0-9]*[a-f])[0-9a-f]{7,40}\b")  # a hash the note names verbatim, any repo; never a bare number
 STATUS_RE = re.compile(r"\b(DONE|DECIDED|RETIRED|SUPERSEDED|CLOSED|SHIPPED|ABSORBED|RESOLVED|APPROVED|UNBLOCKED|MERGED)\b")
+
+
+def entry_line(ident, before, after, line):
+    """The per-entry report line every rewrite prints."""
+    return "%s %d->%d: %s" % (ident, before, after, line.strip()[:160])
 
 
 def condense_records(lines, mark):
@@ -159,7 +171,7 @@ def condense_records(lines, mark):
     out = []
     condensed = 0
     saved = 0
-    samples = []
+    entries = []
     for i in range(start, end):
         ln = lines[i]
         m = DONE_RE.match(ln)
@@ -188,10 +200,9 @@ def condense_records(lines, mark):
         out.append(note)
         condensed += 1
         saved += len(ln) - len(note)
-        if len(samples) < 3:
-            samples.append((tid, len(ln), len(note), note[:300]))
+        entries.append(entry_line(tid, len(ln), len(note), note))
     report = "condensed=%d bytes_saved=%d backlog_lines %d->%d" % (condensed, saved, end - start, len(out))
-    return lines[:start] + out + lines[end:], report, samples
+    return lines[:start] + out + lines[end:], report, entries
 
 
 def parse_decisions(spec):
@@ -243,6 +254,7 @@ def condense_decisions(lines, wanted, release, mark):
         raise Refusal("no Decision heading for %s" % ", ".join("D%d" % n for n in missing))
     condensed = 0
     saved = 0
+    entries = []
     new_blocks = []
     for n, bl in blocks:
         bl = strip_blank(bl)
@@ -258,8 +270,11 @@ def condense_decisions(lines, wanted, release, mark):
                 para.append(l)
             tail = "Shipped in %s. %s; full text in git before that commit." % (release, mark)
             cond = [head] + para + [tail]
-            saved += sum(len(l) + 1 for l in bl) - sum(len(l) + 1 for l in cond)
+            before_b = sum(len(l) + 1 for l in bl)
+            after_b = sum(len(l) + 1 for l in cond)
+            saved += before_b - after_b
             condensed += 1
+            entries.append(entry_line("D%d" % n, before_b, after_b, head))
             bl = cond
         new_blocks.append((n, bl))
     order_before = [n for n, _ in new_blocks]
@@ -272,7 +287,7 @@ def condense_decisions(lines, wanted, release, mark):
         rebuilt.extend(bl)
     rebuilt.append("")
     report = "decisions_condensed=%d bytes_saved=%d reordered=%s" % (condensed, saved, "yes" if reordered else "no")
-    return lines[:start + 1] + rebuilt + lines[end:], report
+    return lines[:start + 1] + rebuilt + lines[end:], report, entries
 
 
 def run_condense(path, do_tasks, decisions, release, date, dry):
@@ -282,18 +297,20 @@ def run_condense(path, do_tasks, decisions, release, date, dry):
     lines = text.split("\n")
     mark = "Condensed %s at extract" % date
     report = []
-    samples = []
+    entries = []
     try:
         if do_tasks:
-            lines, r, samples = condense_records(lines, mark)
+            lines, r, ents = condense_records(lines, mark)
             report.append(r)
+            entries.extend(ents)
         if decisions is not None:
-            lines, r = condense_decisions(lines, parse_decisions(decisions), release, mark)
+            lines, r, ents = condense_decisions(lines, parse_decisions(decisions), release, mark)
             report.append(r)
+            entries.extend(ents)
     except Refusal as e:
         sys.stderr.write("%s: %s in %s\n" % (PROG, e, path))
         return 1
-    return finish(path, text, "\n".join(lines), dry, report, [str(s) for s in samples])
+    return finish(path, text, "\n".join(lines), dry, report, entries)
 
 
 def cmd_records(args):
@@ -352,7 +369,7 @@ def condense_learnings(lines):
     out = []
     condensed = 0
     saved = 0
-    i = 0
+    entries = []
     blocks = fold_blocks(section)
     consumed = 0
     for bstart, kind, text, raw in blocks:
@@ -363,8 +380,12 @@ def condense_learnings(lines):
             new = condense_learning(text)
             if new is not None:
                 wrapped = wrap(new, 70, indent='  ')
-                saved += sum(len(l) + 1 for l in raw) - sum(len(l) + 1 for l in wrapped)
+                before_b = sum(len(l) + 1 for l in raw)
+                after_b = sum(len(l) + 1 for l in wrapped)
+                saved += before_b - after_b
                 condensed += 1
+                lm = LEARNING_RE.match(raw[0])
+                entries.append(entry_line("L" + lm.group(1), before_b, after_b, wrapped[0]))
                 out.extend(wrapped)
                 continue
         out.extend(raw)
@@ -374,7 +395,7 @@ def condense_learnings(lines):
     if before != after:
         raise Refusal("Learnings count changed %d->%d" % (before, after))
     report = "learnings_condensed=%d bytes_saved=%d learnings=%d" % (condensed, saved, after)
-    return lines[:start + 1] + out + lines[end:], report
+    return lines[:start + 1] + out + lines[end:], report, entries
 
 
 def cmd_learnings(args):
@@ -384,11 +405,11 @@ def cmd_learnings(args):
     path = rest[0]
     text = load(path)
     try:
-        lines, report = condense_learnings(text.split("\n"))
+        lines, report, entries = condense_learnings(text.split("\n"))
     except Refusal as e:
         sys.stderr.write("%s: %s in %s\n" % (PROG, e, path))
         return 1
-    return finish(path, text, "\n".join(lines), not o['--write'], [report])
+    return finish(path, text, "\n".join(lines), not o['--write'], [report], entries)
 
 
 # --- rotate: Move 3b with the removed-side checks -----------------------------
