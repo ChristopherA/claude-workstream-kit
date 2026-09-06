@@ -40,6 +40,7 @@ across a line against the convention, and read `.claude/scripts/tool.py`
   - [ ] #BD-1a: an indented sub-task naming docs/missing.md and CLAUDE.md
 - [ ] #BD-2: ~~edit docs/gone.md~~ superseded; see https://example.invalid/docs/x.md and/or scope/name, not #XX-N/foo
 - [x] #BD-3: done, its note naming docs/never-existed.md
+- [ ] #BD-4: a kit file this project does not hold, tests/kitonly.sh, and docs/nowhere.md
 
 ## Decisions
 ### D1 (2026-09-04): A kit script is about the file, never about the session
@@ -61,7 +62,7 @@ templates at ~/ (the home itself); the metavariable
 - L1 (2026-01-01): A Learning naming docs/learning-only.md, out of scope.
 FIX
 
-python3 "$SCRIPT" paths "$T" > "$T/out.json"
+env -u WORKSTREAM_KIT_DIR python3 "$SCRIPT" paths "$T" > "$T/out.json"
 q() { jq -r "$1" "$T/out.json"; }
 ent() { jq -r ".paths[] | select(.path == \"$1\") | \"\\(.exists) \\(.struck) \\(.anchored) \\(.owning_id) \\(.section)\"" "$T/out.json"; }
 
@@ -75,8 +76,8 @@ true false true null ## Decisions" ]'
 check "the code-span path on #BD-1's wrapped line exists and cites the SECOND line" \
   '[ "$(q ".paths[] | select(.path == \".claude/scripts/tool.py\") | .line")" = "$(grep -n "^across a line" "$T/.state/workstreams/feature/alpha/workstream.md" | cut -d: -f1)" ]'
 check "docs/missing.md in the indented sub-task is missing, owned by #BD-1a" '[ "$(ent docs/missing.md)" = "false false true #BD-1a ## Backlog" ]'
-check "missing holds docs/missing.md, the command's docs/a.md and the ~ path, and nothing that exists" \
-  '[ "$(q "[.missing[].path] | sort | join(\",\")")" = "docs/a.md,docs/missing.md,~/.no-such-dir-for-this-suite/rule.md" ]'
+check "missing holds docs/missing.md, the command's docs/a.md, the ~ path and #BD-4's two (no kit named yet), and nothing that exists" \
+  '[ "$(q "[.missing[].path] | sort | join(\",\")")" = "docs/a.md,docs/missing.md,docs/nowhere.md,tests/kitonly.sh,~/.no-such-dir-for-this-suite/rule.md" ]'
 
 echo "== Struck, URL, word pair, workstream reference, metavariable, glob, command words"
 check "docs/gone.md is reported with struck true and is not in missing" \
@@ -106,6 +107,21 @@ check "docs/never-existed.md (done task) and docs/learning-only.md (Learning) ar
 printf 'x\n' > "$T/docs/missing.md"
 check "creating docs/missing.md removes it from missing" \
   '[ "$(python3 "$SCRIPT" paths "$T" | jq -r "[.missing[] | select(.path == \"docs/missing.md\")] | length")" = "0" ]'
+
+echo "== A relative path that exists only in the kit checkout"
+mkdir -p "$T/kit/tests" && printf 'x\n' > "$T/kit/tests/kitonly.sh"
+check "fixture: tests/kitonly.sh is absent from the project and present in the kit" "[ ! -e \"$T/tests/kitonly.sh\" ] && [ -f \"$T/kit/tests/kitonly.sh\" ]"
+check "with no kit named, tests/kitonly.sh is missing" \
+  '[ "$(env -u WORKSTREAM_KIT_DIR python3 "$SCRIPT" paths "$T" | jq -r "[.missing[] | select(.path == \"tests/kitonly.sh\")] | length")" = "1" ]'
+check "with WORKSTREAM_KIT_DIR in the environment, it exists, resolved_in kit, listed under kit, absent from missing" \
+  '[ "$(WORKSTREAM_KIT_DIR="$T/kit" python3 "$SCRIPT" paths "$T" | jq -r "[(.paths[] | select(.path == \"tests/kitonly.sh\") | \"\\(.exists) \\(.resolved_in)\"), ([.kit[].path] | join(\",\")), ([.missing[] | select(.path == \"tests/kitonly.sh\")] | length)] | join(\" \")")" = "true kit tests/kitonly.sh 0" ]'
+printf '{"env": {"WORKSTREAM_KIT_DIR": "%s"}}\n' "$T/kit" > "$T/.claude/settings.json"
+check "with the kit named only in settings.json env (as install.sh writes it), the same" \
+  '[ "$(env -u WORKSTREAM_KIT_DIR python3 "$SCRIPT" paths "$T" | jq -r ".paths[] | select(.path == \"tests/kitonly.sh\") | .resolved_in")" = "kit" ]'
+check "docs/nowhere.md on the same line stays missing with the kit named" \
+  '[ "$(WORKSTREAM_KIT_DIR="$T/kit" python3 "$SCRIPT" paths "$T" | jq -r "[.missing[] | select(.path == \"docs/nowhere.md\")] | length")" = "1" ]'
+check "a project path reports resolved_in project" \
+  '[ "$(q ".paths[] | select(.path == \"docs/design.md\") | .resolved_in" | sort -u)" = "project" ]'
 
 echo "== Exit codes"
 rc=0; python3 "$SCRIPT" paths >/dev/null 2>&1 || rc=$?

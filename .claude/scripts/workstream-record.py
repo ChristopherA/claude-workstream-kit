@@ -52,11 +52,16 @@ the literal #G-XX are skipped. Classes with their lines, never a count.
 `paths` is the review skill's cheapest staleness probe: every
 path-like token in Decisions and open task blocks -- a token with a `/`
 or a known extension, code spans included, URLs and workstream or tag
-references excluded -- with whether it exists relative to the root or,
-for a `~` path, the home directory, and whether it sits in a strike. A
-BARE name (`CLAUDE.md`, `rules/`: one segment, unanchored) could sit
-anywhere and is listed apart, never as missing; `missing` holds the
-anchored, unstruck tokens that do not exist.
+references excluded -- with whether it exists relative to the root, else
+relative to the kit checkout (WORKSTREAM_KIT_DIR in the environment or in
+the project's settings.json env, where install.sh records it), or, for a
+`~` path, the home directory, and whether it sits in a strike. Each entry
+says where it resolved (`resolved_in`: project, kit, absolute or null); a
+path found only in the kit is also listed under `kit`, since a task in a
+kit-using project routinely names the kit's own files. A BARE name
+(`CLAUDE.md`, `rules/`: one segment, unanchored) could sit anywhere and
+is listed apart, never as missing; `missing` holds the anchored, unstruck
+tokens that resolve nowhere.
 
 `decay` is the status skill's critical-path decay compare: for each
 workstream with a critical-path paragraph, the newest commit timestamp
@@ -826,19 +831,44 @@ def anchored(tok):
     return len(parts) >= 2
 
 
-def path_exists(root, tok):
+def kit_dir(root):
+    """The kit checkout a project installed from: WORKSTREAM_KIT_DIR in
+    the environment, else the same key in the project's settings.json
+    env, which install.sh writes. None when neither names a directory."""
+    cand = os.environ.get('WORKSTREAM_KIT_DIR')
+    if not cand:
+        try:
+            with open(os.path.join(root, '.claude', 'settings.json')) as fh:
+                cand = (json.load(fh).get('env') or {}).get('WORKSTREAM_KIT_DIR')
+        except (OSError, ValueError, AttributeError):
+            cand = None
+    if cand and os.path.isdir(cand):
+        return cand
+    return None
+
+
+def path_resolves(root, tok, kit):
+    """Where the token resolves: 'absolute' for a `/` or `~` path that
+    exists, 'project' under the root, 'kit' under the kit checkout when
+    the root lacks it, None when nowhere. A relative path in a task that
+    names a kit file (`tests/x.sh`, `install.sh`) was reported missing
+    from the project while it existed in the checkout the project
+    installed from -- ten of eleven rows on one review."""
     tok = re.sub(r':[0-9]+(?:-[0-9]+)?$', '', tok)  # a `file:line` citation
     if tok.startswith('~'):
-        target = os.path.expanduser(tok)
-    elif tok.startswith('/'):
-        target = tok
-    else:
-        target = os.path.join(root, tok)
-    return os.path.exists(target)
+        return 'absolute' if os.path.exists(os.path.expanduser(tok)) else None
+    if tok.startswith('/'):
+        return 'absolute' if os.path.exists(tok) else None
+    if os.path.exists(os.path.join(root, tok)):
+        return 'project'
+    if kit and os.path.exists(os.path.join(kit, tok)):
+        return 'kit'
+    return None
 
 
 def paths(root):
     entries = []
+    kit = kit_dir(root)
     for path, rel in find_workstreams(root):
         lines = read_lines(path)
         sections = section_of(lines)
@@ -856,14 +886,16 @@ def paths(root):
             if m:
                 owner = m.group(2)
             for off, tok in path_tokens(text):
+                where = path_resolves(root, tok, kit)
                 entries.append({
                     "file": rel, "line": line_at(starts, off), "section": sec,
                     "owning_id": owner, "path": tok, "anchored": anchored(tok),
-                    "exists": path_exists(root, tok),
+                    "exists": where is not None, "resolved_in": where,
                     "struck": in_strike(text, off),
                 })
     return {"paths": entries,
             "missing": [e for e in entries if e["anchored"] and not e["exists"] and not e["struck"]],
+            "kit": [e for e in entries if e["resolved_in"] == 'kit'],
             "bare": [e for e in entries if not e["anchored"]]}
 
 
