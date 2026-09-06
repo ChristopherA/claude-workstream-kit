@@ -57,6 +57,14 @@ check_or_held() {
   else check "$1" "$2"; fi
 }
 
+# What each session SAID is kept: two findings on 2026-09-05 (a close skill
+# archiving with status: active, a rule gap a session could not edit)
+# surfaced only because a capture read the log past the PASS lines. Each
+# session's output is teed to a file and its closing paragraph printed
+# under OBSERVATIONS after the verdict, where a reader cannot miss it.
+SAID=$(mktemp -d "${TMPDIR:-/tmp}/va3-said.XXXXXX")
+closing_paragraph() { awk 'BEGIN{RS=""} {p=$0} END{print p}' "$1"; }
+
 echo "== Setup: fresh project at $PROJ"
 cd "$PROJ"
 git init -q -b main && git commit -q --allow-empty -m init
@@ -64,7 +72,7 @@ git init -q -b main && git commit -q --allow-empty -m init
 git add -A && git commit -q -m 'install workstream kit'
 
 echo "== Session A: create"
-claude -p --dangerously-skip-permissions 'I want a workstream for this small deliverable. Follow .claude/skills/workstream-create/SKILL.md (read it and its templates first, plus .claude/rules/workstreams-rule.md). This is a non-interactive session, so take these as my interview answers and as my approval at the review gate: Purpose: produce a greeting script with a passing smoke test. Type: project, name: greeting-script. Deletion criteria: (1) scripts/hello.sh exists and prints "hello, workstream" with exit 0; (2) test/smoke.sh exists, runs hello.sh, and exits 0; (3) both committed. First tasks, phase Build (BD): #BD-1 write scripts/hello.sh; #BD-2 write test/smoke.sh and verify it passes; #G-BD USER CHECKPOINT -- deliverable works. Create the state files exactly per the templates and commit them (plain git commit, no signing flags).'
+claude -p --dangerously-skip-permissions 'I want a workstream for this small deliverable. Follow .claude/skills/workstream-create/SKILL.md (read it and its templates first, plus .claude/rules/workstreams-rule.md). This is a non-interactive session, so take these as my interview answers and as my approval at the review gate: Purpose: produce a greeting script with a passing smoke test. Type: project, name: greeting-script. Deletion criteria: (1) scripts/hello.sh exists and prints "hello, workstream" with exit 0; (2) test/smoke.sh exists, runs hello.sh, and exits 0; (3) both committed. First tasks, phase Build (BD): #BD-1 write scripts/hello.sh; #BD-2 write test/smoke.sh and verify it passes; #G-BD USER CHECKPOINT -- deliverable works. Create the state files exactly per the templates and commit them (plain git commit, no signing flags).' 2>&1 | tee "$SAID/session-A.txt"
 
 check "workstream.md created" "[ -f .state/workstreams/project/greeting-script/workstream.md ]"
 check "work NOT auto-started" "[ ! -f scripts/hello.sh ]"
@@ -79,7 +87,7 @@ MARK=$(mktemp "${TMPDIR:-/tmp}/va3-mark.XXXXXX")  # outside the fixture: an untr
 PROJ_REAL=$(pwd -P)
 
 echo "== Session B: /goal-style work with delegation"
-claude -p --dangerously-skip-permissions 'Work the active workstream. Follow .claude/skills/workstream-work/SKILL.md (read it, .claude/rules/workstreams-rule.md, .state/ACTIVE.md, and the active workstream.md first). Derive the goal condition for the Build phase and state it; this non-interactive session stands in for the /goal session, so proceed under that condition. Requirements: delegate the implementation of #BD-1 and #BD-2 to the worker agent as bounded packets, verify the result with the verifier agent before accepting, make only grounded progress claims (cite commits and command output), check off completed tasks with evidence notes, STOP AT #G-BD with a substantive summary (do not check the gate), update ACTIVE.md, and commit work and state files (plain git commit, no signing flags).'
+claude -p --dangerously-skip-permissions 'Work the active workstream. Follow .claude/skills/workstream-work/SKILL.md (read it, .claude/rules/workstreams-rule.md, .state/ACTIVE.md, and the active workstream.md first). Derive the goal condition for the Build phase and state it; this non-interactive session stands in for the /goal session, so proceed under that condition. Requirements: delegate the implementation of #BD-1 and #BD-2 to the worker agent as bounded packets, verify the result with the verifier agent before accepting, make only grounded progress claims (cite commits and command output), check off completed tasks with evidence notes, STOP AT #G-BD with a substantive summary (do not check the gate), update ACTIVE.md, and commit work and state files (plain git commit, no signing flags).' 2>&1 | tee "$SAID/session-B.txt"
 
 check "smoke test passes" "sh test/smoke.sh >/dev/null 2>&1"
 check "stopped AT gate (G-BD unchecked)" "grep -q '^- \[ \] #G-BD' .state/workstreams/project/greeting-script/workstream.md"
@@ -90,7 +98,7 @@ check "stopped AT gate (G-BD unchecked)" "grep -q '^- \[ \] #G-BD' .state/workst
 check "tasks have evidence notes" "awk '/^ *- \\[x\\] #BD-2/{f=1; blk=\$0; next} f && /^ +[^ ]/{blk=blk \" \" \$0; next} f{exit} END{exit !(blk ~ /commit|[0-9a-f]{7}/)}' .state/workstreams/project/greeting-script/workstream.md"
 
 echo "== Session C: close and archive"
-claude -p --dangerously-skip-permissions 'As the user I approve the #G-BD gate: the deliverable works. Check it off, then close the workstream following .claude/skills/workstream-close/SKILL.md (read it and .claude/rules/workstreams-rule.md first). This is a non-interactive session: present the Move 2 narrative summary and the Move 4 per-criterion evidence in your output, and take this message as my closure approval at the Move 4 gate PROVIDED every deletion criterion genuinely has evidence -- if any lacks evidence, stop and say so instead. Work the Completion tasks (#CL-1..#CL-3): run the Move 3 extraction per .claude/skills/workstream-extract/SKILL.md, dispositioning any Learnings/Open Questions (if none exist, state that) -- disposition each Learning by APPLYING it to a named file in this repository or DROPPING it with stated rationale, never by handoff, since this throwaway project has no sibling project to send to -- and confirming durable artifacts live outside .state/, then archive exactly per Move 5 (ARCHIVE.md line, annotated tag ws/greeting-script, remove the workstream directory, reset ACTIVE.md fully, commit -- plain git commit, no signing flags).'
+claude -p --dangerously-skip-permissions 'As the user I approve the #G-BD gate: the deliverable works. Check it off, then close the workstream following .claude/skills/workstream-close/SKILL.md (read it and .claude/rules/workstreams-rule.md first). This is a non-interactive session: present the Move 2 narrative summary and the Move 4 per-criterion evidence in your output, and take this message as my closure approval at the Move 4 gate PROVIDED every deletion criterion genuinely has evidence -- if any lacks evidence, stop and say so instead. Work the Completion tasks (#CL-1..#CL-3): run the Move 3 extraction per .claude/skills/workstream-extract/SKILL.md, dispositioning any Learnings/Open Questions (if none exist, state that) -- disposition each Learning by APPLYING it to a named file in this repository or DROPPING it with stated rationale, never by handoff, since this throwaway project has no sibling project to send to -- and confirming durable artifacts live outside .state/, then archive exactly per Move 5 (ARCHIVE.md line, annotated tag ws/greeting-script, remove the workstream directory, reset ACTIVE.md fully, commit -- plain git commit, no signing flags).' 2>&1 | tee "$SAID/session-C.txt"
 
 check_or_held "archive tag exists" "git tag -l | grep -q '^ws/greeting-script$'"
 check_or_held "the tagged snapshot reads status: done" "git show ws/greeting-script:.state/workstreams/project/greeting-script/workstream.md 2>/dev/null | grep -q '^status: done'"
@@ -107,6 +115,13 @@ else
   REFS_READ=$(printf '%s\n' "$TRANSCRIPTS" | xargs grep -l 'references/failures\.md' 2>/dev/null | wc -l | tr -d ' ')
   echo "OBSERVATION: $(printf '%s\n' "$TRANSCRIPTS" | wc -l | tr -d ' ') transcript(s) for Sessions B and C; references/failures.md opened in $REFS_READ of them (0 is conforming when no move was doubted)"
 fi
+
+echo
+echo "== OBSERVATIONS: what each session said as it finished (full logs in $SAID)"
+for s in A B C; do
+  echo "-- Session $s, closing paragraph:"
+  closing_paragraph "$SAID/session-$s.txt" | sed 's/^/   /'
+done
 
 echo
 if [ "$RESULT" -eq 0 ] && [ "$HELD" -eq 0 ]; then
