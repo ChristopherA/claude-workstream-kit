@@ -95,10 +95,11 @@ standing_summary() {
 # fired this flag on the kit's own gate, and a marker on the fourth line of a
 # fourteen-line gate was invisible to a first-line grep for weeks. Same
 # predicate as the record script's `satisfied_text`, written twice because
-# this is shell. Prints 1 or 0.
+# this is shell; the leading class is awk's word boundary, so UNSATISFIED
+# and NOTREADY do not fire. Prints 1 or 0.
 gate_ready() {
   awk '
-    function check() { if (blk ~ /(SATISFIED|READY|criterion is met) [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) found = 1 }
+    function check() { if (blk ~ /(^|[^A-Za-z0-9_])(SATISFIED|READY|criterion is met) [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) found = 1 }
     /^ *- \[ \] #G-/ { if (ingate) check(); blk = $0; ingate = 1; next }
     ingate && (/^ *$/ || /^#/ || /^ *- /) { check(); ingate = 0; blk = ""; next }
     ingate { blk = blk " " $0; next }

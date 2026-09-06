@@ -1,6 +1,5 @@
 #!/bin/sh
 # status-line.sh - Claude Code context monitor
-# Version: 0.9.2
 #
 # Two-line display:
 #   Line 1: project » branch » workstream

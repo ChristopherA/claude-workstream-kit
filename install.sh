@@ -153,7 +153,7 @@ ignored_payload_paths() {
 # --- --dry-run: compare only, write nothing, then exit ----------------------
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "DRY RUN: kit $VERSION ($SRC_DESC) vs $TARGET"
-  echo "  legend: = in sync / no-op   ~ would change   + would create   ? indeterminate"
+  echo "  legend: = in sync / no-op   ~ would change   + would create   - retired, would remove   ! untrackable (ignored by the target)   ? indeterminate"
 
   # Currency summary from the target's own stamps.
   tgt_ver="(none)"

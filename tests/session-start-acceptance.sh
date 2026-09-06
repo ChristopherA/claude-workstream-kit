@@ -130,6 +130,9 @@ several lines because the agenda accreted; the exit criterion is
 SATISFIED 2026-01-01 and it has not yet been presented
 G
 echo "- [ ] #G-BB: USER CHECKPOINT -- once the user is satisfied with the draft" >> "$T/.state/workstreams/project/beta/workstream.md"
+# beta's second gate carries the marker as the TAIL of a longer word, dated:
+# a word boundary the record script has and the hook's awk lacked.
+echo "- [ ] #G-BP: USER CHECKPOINT -- the draft is UNSATISFIED 2026-01-01 pending the review" >> "$T/.state/workstreams/project/beta/workstream.md"
 commit_at "$OLD" 'age gamma'
 echo "- [ ] #BD-2: another" >> "$T/.state/workstreams/feature/delta/workstream.md"
 echo "- [ ] #BD-2: another" >> "$T/.state/workstreams/feature/epsilon/workstream.md"
@@ -219,6 +222,10 @@ check "GATE-READY on the row whose wrapped gate is recorded satisfied (green sid
 check "fixture: beta's gate line says satisfied in lower case only" \
   "grep -q '#G-BB.*satisfied' \"\$T/.state/workstreams/project/beta/workstream.md\" && ! grep -q '#G-BB.*SATISFIED' \"\$T/.state/workstreams/project/beta/workstream.md\""
 check "no GATE-READY on the lower-case row (red side)" \
+  "! grep -q 'project/beta.*GATE-READY' \"\$T/out.txt\""
+check "fixture: beta carries a dated marker as the tail of a longer word" \
+  "grep -q 'UNSATISFIED 2026-01-01' \"\$T/.state/workstreams/project/beta/workstream.md\""
+check "no GATE-READY on the prefixed-word row (red side, the word boundary)" \
   "! grep -q 'project/beta.*GATE-READY' \"\$T/out.txt\""
 check "fixture: alpha's gate carries the capitalised word with no date after it (planted mention)" \
   "grep -q 'the SATISFIED sentence quoted' \"\$T/.state/workstreams/project/alpha/workstream.md\""

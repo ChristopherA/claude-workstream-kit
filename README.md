@@ -44,7 +44,7 @@ Because the state is plain files in git, it is portable across machines, account
 | Delegate agents | `.claude/agents/scout.md`, `worker.md`, `verifier.md` -- each inherits the session's model |
 | Session resume | `.claude/hooks/session-start.sh` + `settings.json` hook registration |
 | Boundary capture | workstreams-rule capture sweep + `.claude/skills/workstream-capture/` |
-| State seed | `.state/` (ACTIVE.md, PROJECT.md, workstreams/, handoffs/) |
+| State seed | `.state-seed/` in the kit, installed as `.state/` (ACTIVE.md, PROJECT.md, workstreams/, handoffs/) |
 | Status line | `.claude/scripts/status-line.sh`, registered set-if-absent by `install.sh` |
 
 What the kit deliberately does NOT carry — use the native capability instead:
@@ -129,7 +129,7 @@ A source commit merely older than the kit you hold, while the version matches, i
 
 Each install writes two stamps under `.claude/`:
 
-- `workstream-kit.version` — the released version, e.g. `0.4.0`.
+- `workstream-kit.version` — the kit's `VERSION` at install.
 - `workstream-kit.source` — the exact source commit installed from (`source:` short SHA, `ref:` `git describe`).
 
 They certify which kit release and which commit produced the payload now on disk. They do **not** certify that the payload is unmodified since install (local edits leave the stamp untouched — `--dry-run` reports them, and a real run refuses to overwrite them), nor that it is the newest kit (a stamp records the source at install time; compare its `source:` commit against the kit you hold to judge currency). The version can read current while the payload sits a commit or two behind: installing from a mid-stream checkout does this, and so does a content change shipped under an unchanged version number. Recording the source commit alongside the version is what makes that difference visible.
