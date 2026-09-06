@@ -75,7 +75,7 @@ check "work NOT auto-started" "[ ! -f scripts/hello.sh ]"
 # every file read; those written for THIS fixture from here on are read
 # after Session C and reported as an OBSERVATION, never a check: a session
 # that doubts no move reads nothing, and that is conforming too.
-MARK="$PROJ/.va3-mark"; touch "$MARK"
+MARK=$(mktemp "${TMPDIR:-/tmp}/va3-mark.XXXXXX")  # outside the fixture: an untracked file there fails the clean-tree check
 PROJ_REAL=$(pwd -P)
 
 echo "== Session B: /goal-style work with delegation"
