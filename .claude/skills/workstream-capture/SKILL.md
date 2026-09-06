@@ -20,7 +20,7 @@ A session is about to cross a boundary -- most often `/clear`, then `/workstream
 
 Run the workstreams-rule **capture sweep** -- detection, cascade and synthesis as that section states them, arrived handoffs included -- over this session against the durable files, and act on each finding rather than listing it: route every item to its home now, and write any synthesis-level pattern where it extends or supersedes an existing Decision or Learning.
 
-- A disagreement a `/workstream-status` run reported for ANOTHER workstream becomes one Backlog line in the owning workstream, with its provenance (`from /workstream-status <date>`), never a paragraph in ACTIVE.md's Reference -- the hook shows a backlog line; hand-written cross-workstream prose is what the status skill replaces.
+- A disagreement a `/workstream-status` run reported for ANOTHER workstream becomes one Backlog line in the owning workstream, with its provenance (`from /workstream-status <date>`), never a paragraph in ACTIVE.md's Now, Next or Blockers -- the hook shows a backlog line; hand-written cross-workstream prose is what the status skill replaces.
 - Synthesis is a different question from detection, not a harder pass at it; the test is whether anything in the sweep's output would change how a DIFFERENT piece of work is done -- if nothing would, the step is still owed.
 - Detection includes the claims this session AUTHORED: for each state change the session made -- a pause, a checkbox, a decision, a routing -- run `python3 .claude/scripts/workstream-record.py cites <project root> "<the thing changed>"` once, the session's own claims included -- the author is the reader least likely to re-open what they wrote an hour ago, and capture is the one place that sees the whole session.
 
@@ -30,7 +30,7 @@ Run the workstreams-rule **capture sweep** -- detection, cascade and synthesis a
 - Update `ACTIVE.md` -- `task`, `Now`, `Next`, `Blockers` -- so the next session resumes in one read. Name every reference that crosses a workstream or project boundary with a few words saying what it is (workstreams-rule, Task IDs), in ACTIVE.md and in what you say to the user alike.
 - Check off any Backlog items completed this session, each with its one-line evidence (a commit, a passing command, a count).
 - Mark any Learning that RESOLVED this session -- its integration target shipped, its handoff sent, its question settled -- with its disposition now, in the same commit -- in a never-closing workstream this is the moment the marker is owed, and the drain that would otherwise write it is periodic.
-- Commit the state files, signed and scoped to `.state/`; do not sweep unrelated working changes into the commit.
+- Commit the state files per the repository's own commit conventions, scoped to `.state/`; do not sweep unrelated working changes into the commit.
 
 When everything is captured and committed, say it is safe to cross the boundary and name what `Next` points at, so the next session knows where `/workstream-work` picks up. If nothing this session needs capturing, say so plainly -- do not invent items to look thorough.
 

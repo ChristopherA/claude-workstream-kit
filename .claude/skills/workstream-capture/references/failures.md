@@ -8,7 +8,7 @@ Each heading names a move in SKILL.md; the text under it is the narrative the mo
 
 ## Move 1 -- Sweep
 
-A disagreement a `/workstream-status` run reported for ANOTHER workstream is such an item: it becomes one Backlog line in the owning workstream, with its provenance (`from /workstream-status <date>`), so that workstream's session-start hook shows it -- never a paragraph in ACTIVE.md's Reference, which is the hand-written cross-workstream prose the status skill exists to replace.
+A disagreement a `/workstream-status` run reported for ANOTHER workstream is such an item: it becomes one Backlog line in the owning workstream, with its provenance (`from /workstream-status <date>`), so that workstream's session-start hook shows it -- never a paragraph in ACTIVE.md's Now, Next or Blockers, where hand-written cross-workstream prose is what the status skill exists to replace.
 
 Synthesis is a different question from detection, not a harder pass at it, and running detection more carefully converges on more instances and never on a rule; the tell that step three has not run is that nothing in the sweep's output would change how a DIFFERENT piece of work is done. Read the output and ask that; if the answer is nothing, the step is still owed.
 
