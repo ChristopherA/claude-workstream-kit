@@ -277,10 +277,17 @@ def marker_counts(text, marker_re):
     DONE"), which sits mid-sentence in a sentence that carries a date,
     so the position half is what rejects it. Requiring the date AFTER
     the word, the gate-ready precedent, would have scored eleven real
-    dispositions (`DISPOSITION 2026-01-01: ROUTED ...`) as mentions."""
+    dispositions (`DISPOSITION 2026-01-01: ROUTED ...`) as mentions.
+    Inline emphasis around the word (`**APPLIED 2026-01-01**`) is not
+    position: a consumer that bolds its markers as a house habit scored
+    142 undispositioned where 0.10.3 scored 89, one drained workstream
+    re-scoring as 7 of 7. The emphasis characters are stripped from the
+    head before the test, so a bold marker mid-sentence is still a
+    mention."""
     out = []
     for m in marker_re.finditer(text):
         head = text[:m.start()].rstrip()
+        head = head.rstrip('*_').rstrip()
         at_start = (head == '' or head.endswith(('.', '!', '?', '--', ':')))
         if not at_start:
             continue
