@@ -69,6 +69,15 @@ claude -p --dangerously-skip-permissions 'I want a workstream for this small del
 check "workstream.md created" "[ -f .state/workstreams/project/greeting-script/workstream.md ]"
 check "work NOT auto-started" "[ ! -f scripts/hello.sh ]"
 
+# Whether a split skill's references/ file is READ when a session doubts a
+# move is invisible in the session's final output, which is all this suite
+# keeps. The transcripts Claude Code writes under ~/.claude/projects/ hold
+# every file read; those written for THIS fixture from here on are read
+# after Session C and reported as an OBSERVATION, never a check: a session
+# that doubts no move reads nothing, and that is conforming too.
+MARK="$PROJ/.va3-mark"; touch "$MARK"
+PROJ_REAL=$(pwd -P)
+
 echo "== Session B: /goal-style work with delegation"
 claude -p --dangerously-skip-permissions 'Work the active workstream. Follow .claude/skills/workstream-work/SKILL.md (read it, .claude/rules/workstreams-rule.md, .state/ACTIVE.md, and the active workstream.md first). Derive the goal condition for the Build phase and state it; this non-interactive session stands in for the /goal session, so proceed under that condition. Requirements: delegate the implementation of #BD-1 and #BD-2 to the worker agent as bounded packets, verify the result with the verifier agent before accepting, make only grounded progress claims (cite commits and command output), check off completed tasks with evidence notes, STOP AT #G-BD with a substantive summary (do not check the gate), update ACTIVE.md, and commit work and state files (plain git commit, no signing flags).'
 
@@ -90,6 +99,14 @@ check_or_held "workstream dir removed" "[ ! -d .state/workstreams/project/greeti
 check_or_held "ACTIVE.md reset" "grep -q '^workstream: none' .state/ACTIVE.md"
 check "working tree clean" "[ -z \"\$(git status --porcelain)\" ]"
 check "deliverable survives" "sh test/smoke.sh >/dev/null 2>&1"
+
+TRANSCRIPTS=$(find "$HOME/.claude/projects" -name '*.jsonl' -newer "$MARK" 2>/dev/null | xargs -r grep -l -e "\"cwd\":\"$PROJ\"" -e "\"cwd\":\"$PROJ_REAL\"" 2>/dev/null || true)
+if [ -z "$TRANSCRIPTS" ]; then
+  echo "OBSERVATION: no transcript for this fixture found under ~/.claude/projects (the references read is unobservable this run)"
+else
+  REFS_READ=$(printf '%s\n' "$TRANSCRIPTS" | xargs grep -l 'references/failures\.md' 2>/dev/null | wc -l | tr -d ' ')
+  echo "OBSERVATION: $(printf '%s\n' "$TRANSCRIPTS" | wc -l | tr -d ' ') transcript(s) for Sessions B and C; references/failures.md opened in $REFS_READ of them (0 is conforming when no move was doubted)"
+fi
 
 echo
 if [ "$RESULT" -eq 0 ] && [ "$HELD" -eq 0 ]; then
