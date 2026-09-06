@@ -60,8 +60,10 @@ says where it resolved (`resolved_in`: project, kit, absolute or null); a
 path found only in the kit is also listed under `kit`, since a task in a
 kit-using project routinely names the kit's own files. A BARE name
 (`CLAUDE.md`, `rules/`: one segment, unanchored) could sit anywhere and
-is listed apart, never as missing; `missing` holds the anchored, unstruck
-tokens that resolve nowhere.
+is listed apart under `bare`, never as missing, with `exists` null
+rather than false; `missing` holds the anchored, unstruck tokens that
+resolve nowhere and is the verdict to read -- a row's `exists` alone is
+not.
 
 `decay` is the status skill's critical-path decay compare: for each
 workstream, its open task count and, where a critical-path paragraph
@@ -939,10 +941,15 @@ def paths(root):
                 owner = m.group(2)
             for off, tok in path_tokens(text):
                 where = path_resolves(root, tok, kit)
+                is_anchored = anchored(tok)
+                # A bare name resolves nowhere by construction; `false`
+                # on its row read as rot beside anchored rows that
+                # resolved (14 of 39 rows on one review), so it is null.
+                exists = (where is not None) if (is_anchored or where is not None) else None
                 entries.append({
                     "file": rel, "line": line_at(starts, off), "section": sec,
-                    "owning_id": owner, "path": tok, "anchored": anchored(tok),
-                    "exists": where is not None, "resolved_in": where,
+                    "owning_id": owner, "path": tok, "anchored": is_anchored,
+                    "exists": exists, "resolved_in": where,
                     "struck": in_strike(text, off),
                 })
     return {"paths": entries,

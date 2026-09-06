@@ -4,7 +4,7 @@
 # and open task blocks with whether it exists. Cases: an existing path;
 # a missing one; a path inside a code span; a URL not reported; a path
 # in a struck-through span reported as struck; a `~` path against the
-# home directory; a bare name listed apart and never as missing; a
+# home directory; a bare name listed apart, exists null, never missing; a
 # `file:line` citation checked on its file; a word pair (and/or), a
 # workstream reference and a metavariable not reported; a completed
 # task's path out of scope. Plus the non-conforming fixture (wrapped
@@ -96,8 +96,8 @@ check "~/ exists (the home directory itself)" '[ "$(ent "~/")" = "true false tru
 check ".claude/scripts/tool.py:12 is checked on its file and exists" '[ "$(ent ".claude/scripts/tool.py:12")" = "true false true null ## Decisions" ]'
 
 echo "== Bare names listed apart, never missing"
-check "CLAUDE.md is bare (anchored false) and absent from missing" \
-  '[ "$(ent CLAUDE.md)" = "false false false #BD-1a ## Backlog" ] && [ "$(q "[.missing[] | select(.path == \"CLAUDE.md\")] | length")" = "0" ]'
+check "CLAUDE.md is bare (anchored false), its exists is null rather than false, and it is absent from missing" \
+  '[ "$(ent CLAUDE.md)" = "null false false #BD-1a ## Backlog" ] && [ "$(q "[.missing[] | select(.path == \"CLAUDE.md\")] | length")" = "0" ]'
 check "bare lists exactly CLAUDE.md" '[ "$(q "[.bare[].path] | join(\",\")")" = "CLAUDE.md" ]'
 
 echo "== Out of scope: a completed task's note and a Learning"
