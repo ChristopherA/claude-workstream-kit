@@ -249,6 +249,17 @@ check "a phase with three done tasks, a done gate and nothing open reports done_
 check "the live phase beside it reports done 1, open 1" \
   '[ "$(python3 "$SCRIPT" "$T/donephase" | jq -r ".workstreams[0].phases[1] | \"\\(.done_tasks) \\(.open_tasks)\"")" = "1 1" ]'
 
+# An open task OUTSIDE ## Backlog is invisible to every phase count and
+# counted by the roster; the record names it by line and ID.
+mkdir -p "$T/outside/.state/workstreams/project/o"
+printf -- '## Backlog\n### Live (LV)\n- [ ] #LV-1: open\n\n## Decisions\n- [ ] #SW-9: appended after the Backlog ended\n### D1 (2026-01-01): a decision\n' > "$T/outside/.state/workstreams/project/o/workstream.md"
+check "an open task under ## Decisions is reported in open_outside_backlog with its line, ID and section" \
+  '[ "$(python3 "$SCRIPT" "$T/outside" | jq -r ".workstreams[0].open_outside_backlog[] | \"\\(.line) \\(.id) \\(.section)\"")" = "6 #SW-9 ## Decisions" ]'
+check "the same file: open_total 2 while the phases sum to 1 -- the gap the field names" \
+  '[ "$(python3 "$SCRIPT" "$T/outside" | jq -r ".workstreams[0] | \"\\(.open_total) \\([.phases[].open_tasks] | add)\"")" = "2 1" ]'
+check "alpha, whose orphan sits inside Backlog, reports open_outside_backlog empty" \
+  '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"project/alpha/workstream.md\")) | .open_outside_backlog | length" "$T/out.json")" = "0" ]'
+
 echo "== Open gates"
 alpha_gate_satisfied=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | .open_gates[0].satisfied_text' "$T/out.json")
 beta_gate_satisfied=$(jq -r '.workstreams[] | select(.path | endswith("feature/beta/workstream.md")) | .open_gates[0].satisfied_text' "$T/out.json")

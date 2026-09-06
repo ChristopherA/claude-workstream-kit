@@ -64,7 +64,8 @@ is listed apart, never as missing; `missing` holds the anchored, unstruck
 tokens that resolve nowhere.
 
 `decay` is the status skill's critical-path decay compare: for each
-workstream with a critical-path paragraph, the newest commit timestamp
+workstream, its open task count and, where a critical-path paragraph
+exists, the newest commit timestamp
 among the paragraph's lines (git blame) against each open task's mint
 timestamp (the first commit whose diff adds its `#XX-N:`), reporting
 every task minted after the paragraph. Timestamps, never dates, so a
@@ -81,7 +82,9 @@ network call, taken only under --tags.
 
 `fires` is the extract skill's firing symptoms as one verdict per
 workstream, each symptom named: undispositioned Learnings, a completed
-phase, size past the hook's threshold, a notes.md beside the file, a
+phase, an open task line outside ## Backlog (appended after the section
+ended, which the roster counts and no phase count sees), size past the
+hook's threshold, a notes.md beside the file, a
 file in the directory the kit does not know, a STANDING criterion
 never re-checked or last re-checked longer ago than the interval (30
 days unless --interval-days says otherwise). A paused workstream is
@@ -341,6 +344,22 @@ def learnings_field(lines, blocks):
             "undispositioned": undispositioned}
 
 
+def open_outside_backlog_field(lines):
+    """Every open checkbox line (task or gate) whose section is not
+    ## Backlog, with its line and ID -- a task the counts cannot see."""
+    sections = section_of(lines)
+    out = []
+    for i, line in enumerate(lines):
+        if not TOTAL_OPEN_RE.match(line):
+            continue
+        if sections[i] == '## Backlog':
+            continue
+        m = CHECKBOX_ID_RE.match(line)
+        out.append({"line": i + 1, "id": m.group(2) if m else None,
+                    "section": sections[i]})
+    return out
+
+
 def build_workstream_record(path, rel_path):
     size_bytes = os.path.getsize(path)
     with open(path, 'r', encoding='utf-8', errors='replace') as f:
@@ -352,6 +371,11 @@ def build_workstream_record(path, rel_path):
 
     phases, tasks_outside_phases, code_mismatches, codes_without_heading = phase_records(lines)
     total_open = sum(1 for line in lines if TOTAL_OPEN_RE.match(line))
+    # An open task line OUTSIDE ## Backlog -- appended after the section
+    # ended, under Decisions or below -- is counted by the hook's roster
+    # (which anchors on the line) and by nothing position-keyed: the
+    # phases sum fell one short of the roster with no field naming why.
+    open_outside_backlog = open_outside_backlog_field(lines)
 
     first_open_task = None
     for i, line in enumerate(lines):
@@ -440,6 +464,7 @@ def build_workstream_record(path, rel_path):
         "phases": phases,
         "open_total": total_open,
         "tasks_outside_phases": tasks_outside_phases,
+        "open_outside_backlog": open_outside_backlog,
         "codes_without_heading": codes_without_heading,
         "code_heading_mismatches": code_mismatches,
         "first_open_task": first_open_task,
@@ -969,6 +994,17 @@ def decay(root):
         cp_text, cp_line, cp_raw = critical_path_field(blocks)
         entry = {"path": rel, "critical_path": None, "unmeasurable": None,
                  "minted_after": [], "open_tasks": 0}
+        # The open count is a fact about the file, reported whether or
+        # not a paragraph exists to compare against: a file with seven
+        # open tasks and no paragraph once read as open_tasks 0.
+        open_ids = []
+        for line in lines:
+            if not TOTAL_OPEN_RE.match(line) or GATE_LINE_RE.match(line):
+                continue
+            m = CHECKBOX_ID_RE.match(line)
+            if m:
+                open_ids.append(m.group(2))
+        entry["open_tasks"] = len(open_ids)
         if cp_line is None:
             entry["critical_path"] = "not found"
             result.append(entry)
@@ -988,16 +1024,10 @@ def decay(root):
             result.append(entry)
             continue
         entry["critical_path"] = {"line": cp_line, "lines": len(cp_raw), "newest_commit_time": newest}
-        for line in lines:
-            if not TOTAL_OPEN_RE.match(line) or GATE_LINE_RE.match(line):
-                continue
-            m = CHECKBOX_ID_RE.match(line)
-            if not m:
-                continue
-            entry["open_tasks"] += 1
-            minted = mint_time(root, rel, m.group(2))
+        for oid in open_ids:
+            minted = mint_time(root, rel, oid)
             if minted is not None and minted > newest:
-                entry["minted_after"].append({"id": m.group(2), "mint_time": minted,
+                entry["minted_after"].append({"id": oid, "mint_time": minted,
                                               "after_by_seconds": minted - newest})
         result.append(entry)
     return {"workstreams": result}
@@ -1140,6 +1170,10 @@ def fires(root, only=None, interval_days=30):
         for ph in rec["phases"]:
             if (ph["done_tasks"] + ph["done_gates"]) > 0 and ph["open_tasks"] + ph["open_gates"] == 0:
                 symptoms.append({"symptom": "completed phase", "detail": "%s (%s)" % (ph["name"], ph["code"])})
+        if rec["open_outside_backlog"]:
+            symptoms.append({"symptom": "open task outside Backlog",
+                             "detail": ", ".join("line %d (%s)" % (e["line"], e["id"] or "no ID")
+                                                 for e in rec["open_outside_backlog"])})
         if rec["size_bytes"] > SIZE_BYTES:
             symptoms.append({"symptom": "size", "detail": "%dKB past %dKB" % (rec["size_bytes"] // 1024, SIZE_BYTES // 1024)})
         d = os.path.dirname(path)

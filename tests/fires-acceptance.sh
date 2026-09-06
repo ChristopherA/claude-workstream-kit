@@ -45,6 +45,8 @@ printf 'x\n' > "$T/.state/workstreams/feature/stray/draft.md"
 mk feature/never active '' '' "- [ ] STANDING: never re-checked\n"
 mk feature/stale paused '' '' "- [ ] STANDING: re-checked long ago -- HOLDS $OLD\n"
 mk feature/big active '' '' ''
+mk feature/outside active '' '' ''
+printf -- '\n## Decisions\n- [ ] #LV-9: appended after the Backlog ended\n' >> "$T/.state/workstreams/feature/outside/workstream.md"
 head -c 70000 /dev/zero | tr '\0' 'x' >> "$T/.state/workstreams/feature/big/workstream.md"
 
 python3 "$SCRIPT" fires "$T" > "$T/out.txt"
@@ -53,7 +55,7 @@ line() { grep "^feature/$1:" "$T/out.txt"; }
 sym() { jq -r ".workstreams[] | select(.workstream == \"feature/$1\") | [.symptoms[].symptom] | join(\"|\")" "$T/out.json"; }
 
 echo "== Sanity"
-check "eight workstreams, one line each" '[ "$(wc -l < "$T/out.txt" | tr -d " ")" = "8" ]'
+check "nine workstreams, one line each" '[ "$(wc -l < "$T/out.txt" | tr -d " ")" = "9" ]'
 check "the big fixture is past 65536 bytes" '[ "$(wc -c < "$T/.state/workstreams/feature/big/workstream.md" | tr -d " ")" -gt 65536 ]'
 check "the threshold agrees with the session-start hook (both files carry 65536, and nothing else in the payload does)" \
   '[ "$(grep -rn "65536" "$KIT_DIR/.claude/hooks/session-start.sh" "$KIT_DIR/.claude/scripts" | wc -l | tr -d " ")" = "2" ] && [ "$(jq -r ".threshold_bytes" "$T/out.json")" = "65536" ]'
@@ -68,6 +70,7 @@ check "stray: unknown file in the directory, named" '[ "$(sym stray)" = "unknown
 check "never: STANDING criteria never re-checked" '[ "$(sym never)" = "STANDING criteria never re-checked" ]'
 check "stale (PAUSED, still measured): STANDING re-check older than the interval, with the date" \
   '[ "$(sym stale)" = "STANDING re-check older than the interval" ] && line stale | grep -q "oldest HOLDS $OLD"'
+check "outside: open task outside Backlog, with its line and ID" '[ "$(sym outside)" = "open task outside Backlog" ] && line outside | grep -q "line $(grep -n "#LV-9" "$T/.state/workstreams/feature/outside/workstream.md" | cut -d: -f1) (#LV-9)"'
 check "big: size, in KB past 64KB" '[ "$(sym big)" = "size" ] && line big | grep -q "past 64KB"'
 
 echo "== The interval and the filter"

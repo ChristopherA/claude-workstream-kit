@@ -100,6 +100,8 @@ check "#OG-1 (minted before the edit, re-worded after it) is NOT reported: rewor
   '[ "$(q "[.minted_after[] | select(.id == \"#OG-1\")] | length")" = "0" ]'
 check "the gate #G-OG is not a task and is not reported" '[ "$(q "[.minted_after[] | select(.id == \"#G-OG\")] | length")" = "0" ]'
 check "open_tasks counts the three tasks, not the gate" '[ "$(q ".open_tasks")" = "3" ]'
+check "the workstream with no paragraph still counts its open task (open_tasks 1)" \
+  '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"plain/workstream.md\")) | .open_tasks" "$T/out.json")" = "1" ]'
 check "the workstream with no paragraph reports not found" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"plain/workstream.md\")) | .critical_path" "$T/out.json")" = "not found" ]'
 
