@@ -150,6 +150,8 @@ rc=0; python3 "$SCRIPT" cites "$T/nowhere" '#BT-1' >/dev/null 2>&1 || rc=$?
 check "cites on a root with no .state: exit 2" '[ "$rc" -eq 2 ]'
 rc=0; python3 "$SCRIPT" cites "$T" '#BT-1' --bogus >/dev/null 2>&1 || rc=$?
 check "an unknown option: exit 2" '[ "$rc" -eq 2 ]'
+rc=0; HELP=$(python3 "$SCRIPT" --help 2>/dev/null) || rc=$?
+check "--help prints the usage text to stdout and exits 0" '[ "$rc" -eq 0 ] && printf "%s" "$HELP" | grep -q "^Usage:"'
 check "the sweep wrote nothing (git-free fixture: the tree's file count is unchanged)" \
   '[ "$(find "$T" -type f ! -name out.json | wc -l | tr -d " ")" = "4" ]'
 

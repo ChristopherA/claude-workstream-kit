@@ -1286,6 +1286,9 @@ def main():
     argv = sys.argv[1:]
     if not argv:
         usage()
+    if argv[0] in ('-h', '--help'):
+        sys.stdout.write(__doc__)
+        sys.exit(0)
     if argv[0] in COMMANDS:
         sys.exit(COMMANDS[argv[0]](argv[1:]))
     if argv[0].startswith('-'):

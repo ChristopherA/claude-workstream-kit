@@ -126,6 +126,8 @@ rc=0; python3 "$SCRIPT" records "$T/absent.md" >/dev/null 2>&1 || rc=$?
 check "a missing file: exit 2" '[ "$rc" -eq 2 ]'
 rc=0; python3 "$SCRIPT" records "$W" --bogus >/dev/null 2>&1 || rc=$?
 check "an unknown option: exit 2" '[ "$rc" -eq 2 ]'
+rc=0; HELP=$(python3 "$SCRIPT" --help 2>/dev/null) || rc=$?
+check "--help prints the usage text to stdout and exits 0" '[ "$rc" -eq 0 ] && printf "%s" "$HELP" | grep -q "^Usage:"'
 rc=0; python3 "$SCRIPT" "$W" >/dev/null 2>&1 || rc=$?
 check "no sub-command: exit 2" '[ "$rc" -eq 2 ]'
 printf -- '## Learnings\n- L1: x\n' > "$T/nobacklog.md"

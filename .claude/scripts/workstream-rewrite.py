@@ -797,6 +797,9 @@ COMMANDS = {
 
 def main():
     argv = sys.argv[1:]
+    if argv and argv[0] in ('-h', '--help'):
+        sys.stdout.write(__doc__)
+        sys.exit(0)
     if not argv or argv[0] not in COMMANDS:
         usage("sub-command required: %s" % ", ".join(COMMANDS))
     sys.exit(COMMANDS[argv[0]](argv[1:]))
