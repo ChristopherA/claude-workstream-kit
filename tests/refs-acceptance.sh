@@ -78,6 +78,7 @@ are metavariables and not references
 - [x] #LV-4: done, its note citing #ZZ-9 bare, frozen provenance
 - [ ] #G-LV: USER CHECKPOINT -- decided against D1 and OQ-1
 - [ ] #LV-5: two homes in one sentence: #OT-1 lives in ws/old, which is read as #OL-3 in feature/other
+- [ ] #LV-6: cites D17 in ws/old first. Later in the block D17 recurs where `feature/other`'s row is the only name in the sentence, a possessive and not a home.
 
 ## Decisions
 FIX
@@ -136,7 +137,7 @@ check "live carries thirteen Decisions, none of them D17" \
   "[ \"\$(grep -c '^### D' .state/workstreams/feature/live/workstream.md)\" = 13 ] && ! grep -q '^### D17' .state/workstreams/feature/live/workstream.md"
 
 echo "== Homed and resolved through an archive tag (two git reads)"
-check "D17 in ws/old resolves at the tag" '[ "$(cls homed_resolved D17)" = "live ws/old" ]'
+check "D17 in ws/old resolves at the tag (twice from live: #LV-1 and #LV-6)" '[ "$(cls homed_resolved D17 | sort -u)" = "live ws/old" ] && [ "$(cls homed_resolved D17 | wc -l | tr -d " ")" = "2" ]'
 check "#OL-3 in ws/old resolves through the no-colon definition form (cited twice, both at ws/old)" '[ "$(cls homed_resolved \#OL-3 | sort -u)" = "live ws/old" ]'
 check "L45 in ws/old (from ACTIVE.md) is homed, home lacks it -- the tag holds old and old defines no L45" \
   '[ "$(cls homed_home_lacks L45)" = ".state ws/old" ]'
@@ -160,6 +161,13 @@ check "L2 in the STANDING criterion is unhomed" '[ "$(cls unhomed L2)" = "live n
 check "the metavariable #XX-N and the literal #G-XX appear in no class" \
   '[ "$(q "[.classes[][] | select(.id == \"#XX-N\" or .id == \"#G-XX\")] | length")" = "0" ]'
 check "the struck ~~superseded by D9~~ is not a reference" '[ "$(q "[.classes[][] | select(.id == \"D9\")] | length")" = "0" ]'
+
+echo "== A possessive type/name is not a home"
+check "#LV-6: D17's first mention resolves at ws/old, on #LV-6's own line" \
+  '[ "$(q "[.classes.homed_resolved[] | select(.id == \"D17\")] | length")" = "2" ]'
+check "#LV-6: D17's second mention, whose sentence names only feature/other's, is unhomed rather than home-lacking at feature/other" \
+  '[ "$(q "[.classes.homed_home_lacks[] | select(.id == \"D17\")] | length")" = "0" ] && [ "$(q "[.classes.unhomed[] | select(.id == \"D17\")] | length")" = "1" ]'
+check "the possessive is still a workstream reference elsewhere: feature/other homes #OT-7 on #LV-2" '[ "$(cls homed_home_lacks \#OT-7 | grep -c "feature/other")" = "1" ]'
 
 echo "== Out of scope: completed tasks, done criteria, resolved Open Questions"
 check "#ZZ-9 (a done task's note), #ZZ-8 (a done criterion) and #QQ-1 (a struck OQ) appear in no class" \

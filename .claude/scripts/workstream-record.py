@@ -630,6 +630,15 @@ def defines(lines, ref):
     return any(rx.match(l) for l in lines)
 
 
+def _possessive(text, end):
+    """True when the name ending at `end` is followed by 's (a closing
+    backtick in between is allowed: `project/x`'s)."""
+    rest = text[end:end + 3]
+    if rest.startswith('`'):
+        rest = rest[1:]
+    return rest.startswith("'s")
+
+
 def homes_near(text, start, end):
     """Every workstream or tag named in the ID's sentence, nearest first:
     those after the ID by distance, then those before. This project's
@@ -638,8 +647,14 @@ def homes_near(text, start, end):
     #SW-5 in project/b") homes each ID at the wrong one if only the
     nearest is tried, so the caller resolves against each in turn."""
     s, e = sentence_span(text, start)
-    homes = [(m.start(), m.group(0), 'workstream') for m in CROSS_REF_WS_RE.finditer(text, s, e)]
-    homes += [(m.start(), m.group(0), 'tag') for m in CROSS_REF_TAG_RE.finditer(text, s, e)]
+    # A name followed by an apostrophe-s ("project/x's row") is a
+    # possessive, not a home: a bare second mention of an ID whose
+    # sentence named only such a possessive was reported home-lacking
+    # at the possessive while the block's first mention had resolved.
+    homes = [(m.start(), m.group(0), 'workstream') for m in CROSS_REF_WS_RE.finditer(text, s, e)
+             if not _possessive(text, m.end())]
+    homes += [(m.start(), m.group(0), 'tag') for m in CROSS_REF_TAG_RE.finditer(text, s, e)
+              if not _possessive(text, m.end())]
     after = sorted((h for h in homes if h[0] >= end), key=lambda h: h[0])
     before = sorted((h for h in homes if h[0] < start), key=lambda h: -h[0])
     out = []
