@@ -61,6 +61,24 @@ else
   SRC_DESC="unknown (kit is not a git checkout)"
 fi
 
+# The payload is what the kit's index says it is, not what sits on disk: a
+# `find` over the payload directories once listed a scratch file and a
+# python __pycache__ in the steward's checkout as files to install into every
+# consumer. From a checkout, enumerate tracked files under the five payload
+# directories; from a plain copy (no index to ask) fall back to find. Absolute
+# paths, one per line, sorted; a tracked path deleted from the working tree is
+# skipped rather than copied as nothing.
+payload_files() {
+  if [ "$KIT_IS_GIT" -eq 1 ]; then
+    git -C "$KIT_DIR" ls-files -- .claude/rules .claude/skills .claude/agents .claude/hooks .claude/scripts \
+      | while IFS= read -r pf; do [ -f "$KIT_DIR/$pf" ] && echo "$KIT_DIR/$pf"; done
+  else
+    for pf_d in rules skills agents hooks scripts; do
+      find "$KIT_DIR/.claude/$pf_d" -type f
+    done
+  fi | sort
+}
+
 # The settings.json hook program -- single source of truth for both the real
 # install and the --dry-run no-op check. It adds the session-start registration
 # if its command is absent (idempotent), and REMOVES the registrations of a hook
@@ -134,9 +152,7 @@ ignored_payload_paths() {
     return 0
   fi
   {
-    for ip_d in rules skills agents hooks scripts; do
-      find "$KIT_DIR/.claude/$ip_d" -type f
-    done | while IFS= read -r ip_f; do echo "${ip_f#"$KIT_DIR"/}"; done
+    payload_files | while IFS= read -r ip_f; do echo "${ip_f#"$KIT_DIR"/}"; done
     # The merged files and the provenance stamps live under .claude/ too, so an
     # ignored .claude/ takes the version and source stamps with it.
     echo ".claude/CLAUDE.md"
@@ -178,9 +194,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   # Payload files (rules/skills/agents/hooks/scripts). In-sync files are silent;
   # a summary line affirms how many were checked.
   payload_list=$(mktemp)
-  for d in rules skills agents hooks scripts; do
-    find "$KIT_DIR/.claude/$d" -type f
-  done | sort > "$payload_list"
+  payload_files > "$payload_list"
   checked=0
   pdrift=0
   while IFS= read -r f; do
@@ -318,9 +332,7 @@ fi
 # local improvement is actually lost.
 if [ "$FORCE" -eq 0 ] && [ "$KIT_IS_GIT" -eq 1 ]; then
   ahead_file=$(mktemp)
-  for d in rules skills agents hooks scripts; do
-    find "$KIT_DIR/.claude/$d" -type f
-  done | sort | while IFS= read -r f; do
+  payload_files | while IFS= read -r f; do
     rel=${f#"$KIT_DIR"/}
     tf="$TARGET/$rel"
     if [ ! -f "$tf" ]; then
@@ -382,7 +394,11 @@ echo "Installing claude-workstream-kit $VERSION ($SRC_DESC) into $TARGET"
 mkdir -p "$TARGET/.claude"
 for d in rules skills agents hooks scripts; do
   mkdir -p "$TARGET/.claude/$d"
-  cp -R "$KIT_DIR/.claude/$d/." "$TARGET/.claude/$d/"
+done
+payload_files | while IFS= read -r f; do
+  rel=${f#"$KIT_DIR"/}
+  mkdir -p "$TARGET/$(dirname "$rel")"
+  cp "$f" "$TARGET/$rel"
 done
 for rp in $RETIRED_PAYLOAD; do
   if [ -f "$TARGET/$rp" ]; then
