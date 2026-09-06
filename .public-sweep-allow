@@ -1,4 +1,6 @@
-# Allowlist for check-public-artifact.sh.
+# Allowlist for check-public-artifact.sh, the MAINTAINER's pre-publish leak
+# sweep. That script is not part of this repository and nothing here runs it;
+# an adopter can ignore this file, and the installer never copies it.
 #
 # This repository DOCUMENTS the workstream convention, so its published examples
 # are the exact strings the sweep must flag in every other repo. Entries are
