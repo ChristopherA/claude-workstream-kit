@@ -2,7 +2,7 @@
 # Offline acceptance test for the session-start hook's signals: the
 # open-task count, the substantive-change dates, the roster with its type
 # column, the paused and ghost rows, the dated gate marker read over a
-# wrapped gate block, the named inbox, and the installed-versus-worktree
+# wrapped gate block, the named inbox, and the installed-versus-checkout
 # kit version line. Fast and self-contained -- it builds a fixture repo and
 # fires the hook against it, so a release can verify these without the
 # three-session va3 run.
@@ -232,16 +232,18 @@ check "handoff line names .state/handoffs/" \
   "CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Handoffs pending in .state/handoffs/: 1'"
 rm -f "$T/.state/handoffs/from-elsewhere-20260101-000000.md"
 
-echo "== Installed kit version against the worktree's VERSION"
+echo "== Installed kit version against the kit checkout's VERSION"
 mkdir -p "$T/kit"
 echo "0.10.1" > "$T/.claude/workstream-kit.version"
 echo "0.10.2" > "$T/kit/VERSION"
-check "behind: the line names both versions and the upgrade command" \
-  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, worktree has 0.10.2 -- /workstream-upgrade'"
+check "behind: the line names both versions and the installer" \
+  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, kit checkout has 0.10.2 -- upgrade by re-running install.sh from the kit checkout'"
+check "the gap line names no fleet command and no worktree" \
+  "! WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep '^Kit:' | grep -qE 'workstream-upgrade|worktree'"
 echo "0.10.1" > "$T/kit/VERSION"
 check "equal: the line says it matches" \
-  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, matches the worktree'"
-# Same VERSION, but the worktree carries commits past the installed source:
+  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, matches the kit checkout'"
+# Same VERSION, but the checkout carries commits past the installed source:
 # the kit's own steward sees this at every session start of a build, and
 # "matches" there is false. The source stamp names the installed commit.
 git -C "$T/kit" init -q
@@ -253,12 +255,12 @@ KIT_SRC=$(git -C "$T/kit" rev-parse --short HEAD)
 echo later > "$T/kit/later" && git -C "$T/kit" add later && git -C "$T/kit" commit -q -m 'unreleased'
 printf 'version: 0.10.1\nsource: %s\nref: v0.10.1\n' "$KIT_SRC" > "$T/.claude/workstream-kit.source"
 check "ahead at the same VERSION: names the source and the commit count, says unreleased" \
-  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed from $KIT_SRC; the worktree is 1 commit(s) past it at the same VERSION -- an unreleased build'"
+  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed from $KIT_SRC; the kit checkout is 1 commit(s) past it at the same VERSION -- an unreleased build'"
 check "ahead at the same VERSION: does NOT say matches (red side)" \
-  "! WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'matches the worktree'"
+  "! WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'matches the kit checkout'"
 printf 'version: 0.10.1\nsource: %s\nref: v0.10.1\n' "$(git -C "$T/kit" rev-parse --short HEAD)" > "$T/.claude/workstream-kit.source"
-check "source at the worktree HEAD: matches again" \
-  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, matches the worktree'"
+check "source at the checkout HEAD: matches again" \
+  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, matches the kit checkout'"
 rm -f "$T/.claude/workstream-kit.source"
 check "WORKSTREAM_KIT_DIR names no checkout: silent, no Kit line (degrades rather than guesses)" \
   "! WORKSTREAM_KIT_DIR=\"\$T/nokit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q '^Kit:'"
