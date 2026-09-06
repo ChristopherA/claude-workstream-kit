@@ -77,6 +77,7 @@ are metavariables and not references
 - [ ] #LV-3: ~~superseded by D9~~ now reads D1 here
 - [x] #LV-4: done, its note citing #ZZ-9 bare, frozen provenance
 - [ ] #G-LV: USER CHECKPOINT -- decided against D1 and OQ-1
+- [ ] #LV-5: two homes in one sentence: #OT-1 lives in ws/old, which is read as #OL-3 in feature/other
 
 ## Decisions
 FIX
@@ -136,7 +137,7 @@ check "live carries thirteen Decisions, none of them D17" \
 
 echo "== Homed and resolved through an archive tag (two git reads)"
 check "D17 in ws/old resolves at the tag" '[ "$(cls homed_resolved D17)" = "live ws/old" ]'
-check "#OL-3 in ws/old resolves through the no-colon definition form" '[ "$(cls homed_resolved \#OL-3)" = "live ws/old" ]'
+check "#OL-3 in ws/old resolves through the no-colon definition form (cited twice, both at ws/old)" '[ "$(cls homed_resolved \#OL-3 | sort -u)" = "live ws/old" ]'
 check "L45 in ws/old (from ACTIVE.md) is homed, home lacks it -- the tag holds old and old defines no L45" \
   '[ "$(cls homed_home_lacks L45)" = ".state ws/old" ]'
 
@@ -149,6 +150,11 @@ check "#G-TR in project/workspace-config-migration (ACTIVE.md): home missing" \
 echo "== Defined here, unhomed, skipped"
 check "#LV-2 cited by OQ-1 is defined here (with its own line's self-mention, two entries)" '[ "$(cls defined_here \#LV-2 | grep -c "^live null")" = "2" ]'
 check "D1 cited by #LV-3 and #G-LV is defined here (two entries)" '[ "$(q "[.classes.defined_here[] | select(.id == \"D1\")] | length")" = "2" ]'
+check "#OT-1 in a two-home sentence resolves at feature/other, the home that defines it, not the nearer ws/old" '[ "$(cls homed_resolved \#OT-1)" = "live feature/other" ]'
+check "#OL-3 in the same sentence resolves at ws/old, not the nearer feature/other" '[ "$(cls homed_resolved \#OL-3 | grep -c "^live ws/old")" = "2" ]'
+check "neither ID of the two-home sentence is reported as home-lacking" '[ "$(q "[.classes.homed_home_lacks[] | select(.id == \"#OT-1\" or .id == \"#OL-3\")] | length")" = "0" ]'
+check "a two-home entry lists both candidates" '[ "$(q "[.classes.homed_resolved[] | select(.id == \"#OT-1\") | .candidates | join(\",\")] | .[0]")" = "ws/old,feature/other" ]'
+check "a one-home entry carries no candidates field" '[ "$(q "[.classes.homed_resolved[] | select(.id == \"D17\") | has(\"candidates\")] | .[0]")" = "false" ]'
 check "#SW-4 in the critical-path paragraph is unhomed" '[ "$(cls unhomed \#SW-4)" = "live null" ]'
 check "L2 in the STANDING criterion is unhomed" '[ "$(cls unhomed L2)" = "live null" ]'
 check "the metavariable #XX-N and the literal #G-XX appear in no class" \

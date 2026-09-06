@@ -613,20 +613,23 @@ def defines(lines, ref):
     return any(rx.match(l) for l in lines)
 
 
-def home_near(text, start, end):
-    """The workstream or tag named beside the ID in the same sentence:
-    the nearest one after it, else the nearest before it. This project's
-    corpus writes the home after the ID far more often than before."""
+def homes_near(text, start, end):
+    """Every workstream or tag named in the ID's sentence, nearest first:
+    those after the ID by distance, then those before. This project's
+    corpus writes the home after the ID far more often than before, and
+    a sentence naming two homes ("#EX-3 lives in project/a ... read as
+    #SW-5 in project/b") homes each ID at the wrong one if only the
+    nearest is tried, so the caller resolves against each in turn."""
     s, e = sentence_span(text, start)
     homes = [(m.start(), m.group(0), 'workstream') for m in CROSS_REF_WS_RE.finditer(text, s, e)]
     homes += [(m.start(), m.group(0), 'tag') for m in CROSS_REF_TAG_RE.finditer(text, s, e)]
     after = sorted((h for h in homes if h[0] >= end), key=lambda h: h[0])
-    if after:
-        return after[0][1], after[0][2]
     before = sorted((h for h in homes if h[0] < start), key=lambda h: -h[0])
-    if before:
-        return before[0][1], before[0][2]
-    return None, None
+    out = []
+    for _pos, name, kind in after + before:
+        if (name, kind) not in out:
+            out.append((name, kind))
+    return out
 
 
 def live_blocks(lines):
@@ -721,26 +724,35 @@ def refs(root):
                 if own_lines is not None and defines(own_lines, ref):
                     classes["defined_here"].append(entry)
                     continue
-                home, kind = home_near(blanked, m.start(), m.end())
-                if home is None:
+                candidates = homes_near(blanked, m.start(), m.end())
+                if not candidates:
                     classes["unhomed"].append(entry)
                     continue
+                # Resolve against each home the sentence names, nearest
+                # first; the one that defines the ID wins. When none does,
+                # the nearest is reported as before, and every candidate
+                # is listed so the reader sees what was tried.
+                verdict = None
+                for home, kind in candidates:
+                    if kind == 'workstream':
+                        hpath = os.path.join(root, '.state', 'workstreams', home, 'workstream.md')
+                        hlines = lines_of(hpath)
+                    else:
+                        hlines = tags.lines_at(home)
+                        if hlines == 'missing':
+                            hlines = None
+                        elif hlines is None:
+                            hlines = []
+                    if hlines is not None and defines(hlines, ref):
+                        verdict = ("homed_resolved", home)
+                        break
+                    if verdict is None:
+                        verdict = ("homed_home_missing" if hlines is None else "homed_home_lacks", home)
+                cls, home = verdict
                 entry["home"] = home
-                if kind == 'workstream':
-                    hpath = os.path.join(root, '.state', 'workstreams', home, 'workstream.md')
-                    hlines = lines_of(hpath)
-                else:
-                    hlines = tags.lines_at(home)
-                    if hlines == 'missing':
-                        hlines = None
-                    elif hlines is None:
-                        hlines = []
-                if hlines is None:
-                    classes["homed_home_missing"].append(entry)
-                elif defines(hlines, ref):
-                    classes["homed_resolved"].append(entry)
-                else:
-                    classes["homed_home_lacks"].append(entry)
+                if len(candidates) > 1:
+                    entry["candidates"] = [h for h, _k in candidates]
+                classes[cls].append(entry)
     return {"classes": classes}
 
 
