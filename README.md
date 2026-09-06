@@ -96,7 +96,7 @@ Tracking the payload is therefore not only how the kit travels; it is the condit
 
 ## Upgrading
 
-There is no sync layer: upgrading is re-running `install.sh` from a newer copy, and your `.state/` is never overwritten — a seed file that is missing is restored and staged, and nothing else there is read or written. Always update by running the installer, not by hand-copying files. The installer runs under `#!/bin/sh`, so it is immune to the macOS interactive `cp -i` / `mv -i` aliases that silently no-op a copy in a non-interactive shell and leave you thinking an update applied when it did not.
+There is no sync layer: upgrading is re-running `install.sh` from a newer copy, and your `.state/` is never overwritten — a seed file that is missing is restored and staged, and nothing else there is read or written. Always update by running the installer, not by hand-copying files. There is no push: a project upgrades when a session next opens it and the session-start hook's `Kit:` line reports the installed version behind the kit checkout's, and that line says what to run. A release that changes what sessions WRITE — the disposition-marker list, a state-file shape — names that in its release message, so a project reading the gap knows the upgrade is more than text. The installer runs under `#!/bin/sh`, so it is immune to the macOS interactive `cp -i` / `mv -i` aliases that silently no-op a copy in a non-interactive shell and leave you thinking an update applied when it did not.
 
 Preview first with `--dry-run` (alias `--check`). It compares the kit against your project file by file, reports what a real run would change, and exits without writing:
 
