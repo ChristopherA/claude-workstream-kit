@@ -33,7 +33,11 @@
 set -eu
 
 KIT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-PROJ="$HOME/va3-proj"
+# A fresh temp directory per run: two runs minutes apart on a fixed path
+# collided, the second deleting the first's project mid-session. The path
+# is printed at setup and in every outcome line so the fixture can still be
+# inspected; nothing here deletes it.
+PROJ=$(mktemp -d "${TMPDIR:-/tmp}/va3-proj.XXXXXX")
 RESULT=0
 check() { if eval "$2"; then echo "PASS: $1"; else echo "FAIL: $1"; RESULT=1; fi; }
 
@@ -54,8 +58,7 @@ check_or_held() {
 }
 
 echo "== Setup: fresh project at $PROJ"
-rm -rf "$PROJ"
-mkdir -p "$PROJ" && cd "$PROJ"
+cd "$PROJ"
 git init -q -b main && git commit -q --allow-empty -m init
 "$KIT_DIR/install.sh" "$PROJ"
 git add -A && git commit -q -m 'install workstream kit'
@@ -89,7 +92,7 @@ check "deliverable survives" "sh test/smoke.sh >/dev/null 2>&1"
 
 echo
 if [ "$RESULT" -eq 0 ] && [ "$HELD" -eq 0 ]; then
-  echo "VA-3 ACCEPTANCE: ALL CHECKS PASS"
+  echo "VA-3 ACCEPTANCE: ALL CHECKS PASS -- fixture at $PROJ (read Session C and its Learnings before deleting it)"
 elif [ "$RESULT" -eq 0 ]; then
   echo "VA-3 ACCEPTANCE: HELD AT A GATE -- no check failed, but the archive path was not exercised; not evidence either way. Inspect $PROJ"
   exit 2
