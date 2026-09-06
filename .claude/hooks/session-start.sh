@@ -280,12 +280,26 @@ if [ -n "$INSTALLED" ]; then
     # commits past it is what is reported.
     KIT_DIR=${KIT_VERSION_FILE%/VERSION}
     SOURCE=$(sed -n 's/^source: //p' "$PROJECT_DIR/.claude/workstream-kit.source" 2>/dev/null | head -1 | tr -d ' ')
+    # The installed source has to be an ANCESTOR of the checkout's tip
+    # before commits past it mean anything: after a re-cut the old
+    # release commit is gone from history (or reachable only through a
+    # backup tag), and both earlier branches misread that -- an
+    # unresolvable source fell through to "matches", a tag-reachable one
+    # counted the re-cut's commits as "an unreleased build".
     AHEAD=""
-    if [ -n "$SOURCE" ] && git -C "$KIT_DIR" rev-parse --verify -q "${SOURCE}^{commit}" >/dev/null 2>&1; then
-      AHEAD=$(git -C "$KIT_DIR" rev-list --count "${SOURCE}..HEAD" 2>/dev/null || true)
+    ANCESTOR=""
+    if [ -n "$SOURCE" ]; then
+      if git -C "$KIT_DIR" merge-base --is-ancestor "$SOURCE" HEAD >/dev/null 2>&1; then
+        ANCESTOR=yes
+        AHEAD=$(git -C "$KIT_DIR" rev-list --count "${SOURCE}..HEAD" 2>/dev/null || true)
+      else
+        ANCESTOR=no
+      fi
     fi
     if [ "$AVAILABLE" != "$INSTALLED" ]; then
       echo "Kit: $INSTALLED installed, kit checkout has $AVAILABLE -- upgrade with /workstream-upgrade (re-runs install.sh from the kit checkout; README, Upgrading)."
+    elif [ "$ANCESTOR" = no ]; then
+      echo "Kit: $INSTALLED installed from $SOURCE, which is not in this kit checkout's history (a re-cut, or another checkout) -- re-install with /workstream-upgrade."
     elif [ -n "$AHEAD" ] && [ "$AHEAD" -gt 0 ]; then
       echo "Kit: $INSTALLED installed from $SOURCE; the kit checkout is $AHEAD commit(s) past it at the same VERSION -- an unreleased build, not a match."
     else

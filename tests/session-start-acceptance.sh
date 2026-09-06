@@ -271,6 +271,22 @@ check "ahead at the same VERSION: does NOT say matches (red side)" \
 printf 'version: 0.10.1\nsource: %s\nref: v0.10.1\n' "$(git -C "$T/kit" rev-parse --short HEAD)" > "$T/.claude/workstream-kit.source"
 check "source at the checkout HEAD: matches again" \
   "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed, matches the kit checkout'"
+# A source commit ABSENT from the checkout's history (a re-cut dropped it,
+# or the stamp came from another checkout): neither "matches" nor "an
+# unreleased build" -- the project is the one behind.
+printf 'version: 0.10.1\nsource: 0123abc\nref: v0.10.1\n' > "$T/.claude/workstream-kit.source"
+check "a source commit that does not exist in the checkout: not in history, re-install" \
+  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'Kit: 0.10.1 installed from 0123abc, which is not in this kit checkout.s history'"
+# The same with a commit that EXISTS but is not an ancestor of the tip
+# (the re-cut case: the old release commit survives at a backup tag).
+KIT_BRANCH=$(git -C "$T/kit" rev-parse --abbrev-ref HEAD)
+git -C "$T/kit" checkout -q --detach && git -C "$T/kit" commit -q --allow-empty -m 'old release, kept only at a tag'
+KIT_OLD=$(git -C "$T/kit" rev-parse --short HEAD)
+git -C "$T/kit" -c tag.gpgsign=false tag -a -m old backup/old "$KIT_OLD" && git -C "$T/kit" checkout -q "$KIT_BRANCH"
+printf 'version: 0.10.1\nsource: %s\nref: v0.10.1\n' "$KIT_OLD" > "$T/.claude/workstream-kit.source"
+check "a source commit reachable only through a tag, not an ancestor of the tip: not in history, never 'unreleased build' or 'matches'" \
+  "WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep '^Kit:' | grep -q 'not in this kit checkout.s history' && ! WORKSTREAM_KIT_DIR=\"\$T/kit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep '^Kit:' | grep -q -e 'unreleased' -e 'matches'"
+printf 'version: 0.10.1\nsource: %s\nref: v0.10.1\n' "$(git -C "$T/kit" rev-parse --short HEAD)" > "$T/.claude/workstream-kit.source"
 rm -f "$T/.claude/workstream-kit.source"
 check "WORKSTREAM_KIT_DIR names no checkout: silent, no Kit line (degrades rather than guesses)" \
   "! WORKSTREAM_KIT_DIR=\"\$T/nokit\" CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q '^Kit:'"
