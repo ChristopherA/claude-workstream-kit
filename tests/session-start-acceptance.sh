@@ -54,6 +54,13 @@ mk_ws() { # <path> <type> <status> <open-tasks> <gates> <criteria>
   } > "$1"
 }
 
+# Insert backlog lines INSIDE the Backlog: mk_ws writes Deletion Criteria
+# last, so a plain >> append lands outside the section, which the record
+# script's fires names as a symptom (an open task outside Backlog).
+ins_backlog() { # <file> <text, \n-separated>
+  awk -v add="$2" '/^## Deletion Criteria$/ { print add; print "" } { print }' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+}
+
 echo "== Setup: fixture project at $T"
 mkdir -p "$T/.state/handoffs" "$T/.claude"
 cd "$T"
@@ -123,19 +130,15 @@ commit_at "$NOW" 'fixture'
 # gate block (the GATE-READY green side, wrapped); beta carries a gate
 # whose lower-case "satisfied" is ordinary prose (a red side; alpha's
 # mention above is the other).
-echo "- [ ] #BD-2: another" >> "$T/.state/workstreams/maintain/gamma/workstream.md"
-cat >> "$T/.state/workstreams/maintain/gamma/workstream.md" <<'G'
-- [ ] #G-BX: USER CHECKPOINT -- the release gate, whose line wraps over
-several lines because the agenda accreted; the exit criterion is
-SATISFIED 2026-01-01 and it has not yet been presented
-G
-echo "- [ ] #G-BB: USER CHECKPOINT -- once the user is satisfied with the draft" >> "$T/.state/workstreams/project/beta/workstream.md"
+ins_backlog "$T/.state/workstreams/maintain/gamma/workstream.md" "- [ ] #BD-2: another"
+ins_backlog "$T/.state/workstreams/maintain/gamma/workstream.md" "- [ ] #G-BX: USER CHECKPOINT -- the release gate, whose line wraps over\nseveral lines because the agenda accreted; the exit criterion is\nSATISFIED 2026-01-01 and it has not yet been presented"
+ins_backlog "$T/.state/workstreams/project/beta/workstream.md" "- [ ] #G-BB: USER CHECKPOINT -- once the user is satisfied with the draft"
 # beta's second gate carries the marker as the TAIL of a longer word, dated:
 # a word boundary the record script has and the hook's awk lacked.
-echo "- [ ] #G-BP: USER CHECKPOINT -- the draft is UNSATISFIED 2026-01-01 pending the review" >> "$T/.state/workstreams/project/beta/workstream.md"
+ins_backlog "$T/.state/workstreams/project/beta/workstream.md" "- [ ] #G-BP: USER CHECKPOINT -- the draft is UNSATISFIED 2026-01-01 pending the review"
 commit_at "$OLD" 'age gamma'
-echo "- [ ] #BD-2: another" >> "$T/.state/workstreams/feature/delta/workstream.md"
-echo "- [ ] #BD-2: another" >> "$T/.state/workstreams/feature/epsilon/workstream.md"
+ins_backlog "$T/.state/workstreams/feature/delta/workstream.md" "- [ ] #BD-2: another"
+ins_backlog "$T/.state/workstreams/feature/epsilon/workstream.md" "- [ ] #BD-2: another"
 commit_at "$OLDER" 'age delta and epsilon'
 # A whitespace-only reflow of gamma's prose, committed NOW: no checkbox
 # or Decision changed, so gamma's age must NOT reset.
@@ -177,7 +180,7 @@ check "genuinely old workstream IS flagged STALE despite the reflow commit (gree
 check "recently-committed workstream is NOT flagged STALE (red side)" \
   "! grep -q 'project/alpha.*STALE' \"\$T/out.txt\""
 # Vary the input that must change the verdict: a checkbox change at NOW.
-echo "- [ ] #BD-3: fresh task" >> "$T/.state/workstreams/maintain/gamma/workstream.md"
+ins_backlog "$T/.state/workstreams/maintain/gamma/workstream.md" "- [ ] #BD-3: fresh task"
 commit_at "$NOW" 'gamma checkbox'
 check "a checkbox change at NOW clears STALE on gamma (the substantive test moves)" \
   "! CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'maintain/gamma.*STALE'"

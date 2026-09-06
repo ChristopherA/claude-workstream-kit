@@ -67,10 +67,10 @@ not.
 
 `decay` is the status skill's critical-path decay compare: for each
 workstream, its open task count and, where a critical-path paragraph
-exists, the newest commit timestamp
-among the paragraph's lines (git blame) against each open task's mint
-timestamp (the first commit whose diff adds its `#XX-N:`), reporting
-every task minted after the paragraph. Timestamps, never dates, so a
+exists, the newest commit timestamp among the paragraph's lines (git
+blame) against each open task's mint timestamp (the first commit whose
+diff adds its `#XX-N:`), reporting every task minted after the
+paragraph. Timestamps, never dates, so a
 task minted the same day but hours after the paragraph is reported. A
 workstream.md with uncommitted changes is unmeasurable, not current.
 
@@ -84,14 +84,15 @@ network call, taken only under --tags.
 
 `fires` is the extract skill's firing symptoms as one verdict per
 workstream, each symptom named: undispositioned Learnings, a completed
-phase, an open task line outside ## Backlog (appended after the section
-ended, which the roster counts and no phase count sees), a sentence
-severed inside a wrapped block (a continuation opening lowercase under
-a line ending in a full stop -- an insertion landed mid-sentence, and
-every count still passes), size past the hook's threshold, a notes.md beside the file, a
-file in the directory the kit does not know, a STANDING criterion
-never re-checked or last re-checked longer ago than the interval (30
-days unless --interval-days says otherwise). A paused workstream is
+phase, an open task line outside ## Backlog (appended after the
+section ended, which the roster counts and no phase count sees), a
+sentence severed inside a wrapped block (a continuation opening
+lowercase under a line ending in a full stop -- an insertion landed
+mid-sentence, and every count still passes), size past the hook's
+threshold, a notes.md beside the file, a file in the directory the kit
+does not know, a STANDING criterion never re-checked or last
+re-checked longer ago than the interval (30 days unless
+--interval-days says otherwise). A paused workstream is
 still measured: the exposed case is the one nobody reads. Prints one
 text line per workstream for the session-start hook, JSON with --json.
 It says what fires, never who should run the drain.
