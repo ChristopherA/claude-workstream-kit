@@ -404,13 +404,24 @@ def build_workstream_record(path, rel_path):
     learnings = learnings_field(lines, blocks)
 
     deletion_section = extract_section(lines, r'^##\s+Deletion Criteria\s*$')
-    deletion_open = sum(1 for _n, text in deletion_section
+    # Criteria are read as BLOCKS, the rule's discipline for anything that
+    # reads a marker or a hold: the rule keeps each criterion on one line,
+    # but a file that breaks the exemption must mis-score nothing -- a
+    # consumer's two STANDING criteria with five HOLDS cycles each on
+    # continuation lines read as `standing: 0, open: 2` for months, a
+    # quiet wrong answer. `wrapped` counts the continuation lines so the
+    # breach is visible beside the fields it would have degraded.
+    crit_blocks = [(text, raw) for _s, kind, text, raw
+                   in fold_blocks([t for _n, t in deletion_section]) if kind == 'item']
+    deletion_open = sum(1 for text, _r in crit_blocks
                         if DELETION_OPEN_RE.match(text) and 'STANDING' not in text)
-    deletion_done = sum(1 for _n, text in deletion_section if DELETION_DONE_RE.match(text))
+    deletion_done = sum(1 for text, _r in crit_blocks if DELETION_DONE_RE.match(text))
+    wrapped_criteria = sum(len(raw) - 1 for text, raw in crit_blocks
+                           if DELETION_OPEN_RE.match(text) or DELETION_DONE_RE.match(text))
     # STANDING criteria are health conditions, never unmet; the last HOLDS
-    # date on each line is its latest re-check, and the oldest of those
+    # date in each block is its latest re-check, and the oldest of those
     # is what a reader needs.
-    standing_lines = [text for _n, text in deletion_section
+    standing_lines = [text for text, _r in crit_blocks
                       if DELETION_OPEN_RE.match(text) and 'STANDING' in text]
     holds_dates = []
     never = 0
@@ -443,6 +454,7 @@ def build_workstream_record(path, rel_path):
             "standing": len(standing_lines),
             "standing_oldest_holds": min(holds_dates) if holds_dates else None,
             "standing_never_rechecked": never,
+            "wrapped": wrapped_criteria,
         },
         "wrapped_lines": {"open_items": open_cont, "done_items": done_cont},
         "size_bytes": size_bytes,

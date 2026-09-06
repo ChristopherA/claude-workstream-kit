@@ -401,6 +401,18 @@ printf -- '## Learnings\n- L1 (2026-01-01): An insight. APPLIED to docs/design.m
 check "the same marker scores undispositioned without a date in its sentence and terminal with one (1 and 1)" \
   '[ "$(python3 "$SCRIPT" "$T/dated" | jq -r ".workstreams[0].learnings | \"\\(.terminal) \\(.undispositioned | length)\"")" = "1 1" ]'
 
+echo "== Deletion Criteria are read as blocks: a wrapped STANDING criterion still scores"
+mkdir -p "$T/wrapped/.state/workstreams/maintain/w"
+printf -- '## Deletion Criteria\n- [ ] STANDING: the inbox stays empty and the roster\n  reads clean -- HOLDS 2026-01-01, HOLDS 2026-02-02\n- [ ] the split lands, wrapped\nacross a line\n- [x] done criterion\n' > "$T/wrapped/.state/workstreams/maintain/w/workstream.md"
+wq() { python3 "$SCRIPT" "$T/wrapped" | jq -r ".workstreams[0].deletion_criteria | $1"; }
+check "fixture: the STANDING marker is on the first line and every HOLDS on the continuation" \
+  "grep -q '^- \\[ \\] STANDING' \"$T/wrapped/.state/workstreams/maintain/w/workstream.md\" && ! grep -q '^- .*HOLDS' \"$T/wrapped/.state/workstreams/maintain/w/workstream.md\""
+check "standing is 1, open is 1, done is 1 (the wrapped criteria score as their blocks)" '[ "$(wq "\"\\(.standing) \\(.open) \\(.done)\"")" = "1 1 1" ]'
+check "standing_oldest_holds reads the LAST date of the wrapped block (2026-02-02) and never_rechecked is 0" '[ "$(wq "\"\\(.standing_oldest_holds) \\(.standing_never_rechecked)\"")" = "2026-02-02 0" ]'
+check "wrapped reports the two continuation lines under criteria" '[ "$(wq ".wrapped")" = "2" ]'
+check "alpha's one-line criteria report wrapped 0" \
+  '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"project/alpha/workstream.md\")) | .deletion_criteria.wrapped" "$T/out.json")" = "0" ]'
+
 echo "== Conformance detector: continuation lines under open items, column 0 and indented alike"
 check "gamma reports wrapped open items (2 continuations under #PX-2, 3 under #G-SK, 1 each under #G-HW and #DF-1)" '[ "$(gq ".wrapped_lines.open_items")" = "7" ]'
 check "alpha reports zero wrapped open items (its backlog lines are one line each)" \
