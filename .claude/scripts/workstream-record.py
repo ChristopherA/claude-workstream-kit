@@ -85,8 +85,10 @@ network call, taken only under --tags.
 `fires` is the extract skill's firing symptoms as one verdict per
 workstream, each symptom named: undispositioned Learnings, a completed
 phase, an open task line outside ## Backlog (appended after the section
-ended, which the roster counts and no phase count sees), size past the
-hook's threshold, a notes.md beside the file, a
+ended, which the roster counts and no phase count sees), a sentence
+severed inside a wrapped block (a continuation opening lowercase under
+a line ending in a full stop -- an insertion landed mid-sentence, and
+every count still passes), size past the hook's threshold, a notes.md beside the file, a
 file in the directory the kit does not know, a STANDING criterion
 never re-checked or last re-checked longer ago than the interval (30
 days unless --interval-days says otherwise). A paused workstream is
@@ -1161,6 +1163,36 @@ def cmd_git(args):
 KNOWN_FILES = ('workstream.md', 'notes.md')
 
 
+SEVERED_LOWER_RE = re.compile(r'^[a-z]')
+SEVERED_ENUM_RE = re.compile(r'^[a-z]+\)')
+
+
+def severed_sentences(lines):
+    """Lines where a wrapped block's sentence was cut by an insertion:
+    a continuation (two-space indent) opening with a lowercase word
+    under a line that ends in a full stop. Ordinary wrapping never
+    ends a line at a period mid-paragraph, so the shape is almost
+    always a severed sentence; a lowercase proper noun is the false
+    positive to expect. Code fences are skipped. From a consumer whose
+    gate line ended mid-clause for five days while every count passed."""
+    out = []
+    fenced = False
+    for i in range(1, len(lines)):
+        cur = lines[i]
+        if cur.lstrip().startswith('```'):
+            fenced = not fenced
+            continue
+        if fenced or not cur.startswith('  '):
+            continue
+        body = cur.strip()
+        prev = lines[i - 1].rstrip()
+        if not body or not prev.endswith('.'):
+            continue
+        if SEVERED_LOWER_RE.match(body) and not SEVERED_ENUM_RE.match(body):
+            out.append(i + 1)
+    return out
+
+
 def fires(root, only=None, interval_days=30):
     import datetime
     today = datetime.date.today()
@@ -1177,6 +1209,10 @@ def fires(root, only=None, interval_days=30):
         for ph in rec["phases"]:
             if (ph["done_tasks"] + ph["done_gates"]) > 0 and ph["open_tasks"] + ph["open_gates"] == 0:
                 symptoms.append({"symptom": "completed phase", "detail": "%s (%s)" % (ph["name"], ph["code"])})
+        severed = severed_sentences(read_lines(path))
+        if severed:
+            symptoms.append({"symptom": "severed sentence",
+                             "detail": ", ".join("line %d" % n for n in severed)})
         if rec["open_outside_backlog"]:
             symptoms.append({"symptom": "open task outside Backlog",
                              "detail": ", ".join("line %d (%s)" % (e["line"], e["id"] or "no ID")
