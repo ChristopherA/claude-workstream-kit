@@ -50,7 +50,9 @@ the record before it is at <tag>` first under Purpose. Three checks
 the hand rotation of 2026-09-04 passed while losing content: before
 writing, every leaving block's ID and lead phrase is searched for in
 the surviving text and in the live content of every other state file,
-and any hit refuses the run unless the hit's sentence names the tag;
+and any hit refuses the run unless the hit's sentence names the tag
+(the report's line numbers index the files on disk, never the rotated
+output, and each names the block's first line beside the citing line);
 after the rewrite, every count a surviving criterion, gate line or
 critical-path sentence states about a section that was true before
 and is false after is reported with both figures and refuses the run
@@ -693,12 +695,22 @@ def rotate(path, lines, tag, date, keeps):
     return out, leaving, report
 
 
-def sweep_removed(root, path, new_lines, leaving, tag):
+def sweep_removed(root, path, new_lines, leaving, tag, old_lines=None):
     """Hits in the surviving text and in the live content of every other
     state file for each leaving block's ID and lead phrase. A hit whose
-    sentence names the tag is a re-pointed reference and is not a hit."""
+    sentence names the tag is a re-pointed reference and is not a hit.
+    Line numbers index the file ON DISK: a surviving block is looked up
+    in old_lines, since the rotated output's numbering (the Rotated
+    paragraph alone shifts everything after it) sent an operator's
+    `sed -n` to the wrong line for every hit of the first rotation.
+    A block the rotation wrote has no source line and is cited as
+    written."""
     hits = []
     targets = [(os.path.relpath(path, root), new_lines, 'surviving text')]
+    source_start = {}
+    if old_lines is not None:
+        for s, _k, _t, r in fold_blocks(old_lines):
+            source_start.setdefault(tuple(r), s)
     for p, rel in find_workstreams(root):
         if os.path.abspath(p) == os.path.abspath(path):
             continue
@@ -740,6 +752,8 @@ def sweep_removed(root, path, new_lines, leaving, tag):
     for rel, lines, scope in targets:
         whole = scope == 'surviving text'
         for start, raw in live_blocks_of(lines, whole):
+            if whole and source_start:
+                start = source_start.get(tuple(raw), start)
             text, starts = join_block(raw, start)
             blanked = blank_strikes(text)
             for kind, needle, rx, first in needles:
@@ -750,8 +764,9 @@ def sweep_removed(root, path, new_lines, leaving, tag):
                     sentence = blanked[s:e]
                     if tag in sentence or re.search(r'\b(?:rotation|archive) tag\b|\bat (?:its|the) tag\b', sentence):
                         continue
-                    hits.append({"file": rel, "line": line_at(starts, m.start()), "scope": scope,
-                                 "leaving": kind, "needle": needle, "sentence": sentence[:160]})
+                    hits.append({"file": rel, "line": line_at(starts, m.start()), "block": start,
+                                 "scope": scope, "leaving": kind, "needle": needle,
+                                 "sentence": sentence[:160]})
     return hits
 
 
@@ -821,12 +836,14 @@ def cmd_rotate(args):
     except Refusal as e:
         sys.stderr.write("%s: %s in %s\n" % (PROG, e, path))
         return 1
-    hits = sweep_removed(root, path, new_lines, leaving, tag)
+    hits = sweep_removed(root, path, new_lines, leaving, tag, old_lines)
     if hits:
-        sys.stderr.write("%s: %d reference(s) to a leaving block; refusing to write\n" % (PROG, len(hits)))
+        sys.stderr.write("%s: %d reference(s) to a leaving block; refusing to write "
+                         "(line numbers index the files on disk; block = the block's first line)\n"
+                         % (PROG, len(hits)))
         for h in hits:
-            sys.stderr.write("  %s:%s (%s) cites leaving %s %r: %s\n" % (
-                h["file"], h["line"], h["scope"], h["leaving"], h["needle"], h["sentence"]))
+            sys.stderr.write("  %s:%s (block %s, %s) cites leaving %s %r: %s\n" % (
+                h["file"], h["line"], h["block"], h["scope"], h["leaving"], h["needle"], h["sentence"]))
         return 1
     claims = stale_claims(old_lines, new_lines)
     if claims:

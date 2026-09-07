@@ -135,6 +135,12 @@ rc=0; python3 "$SCRIPT" rotate "$W" --tag ws/kit-2026-02-02 --write --date 2026-
 check "refused (exit 1), naming the surviving critical-path line and the leaving paragraph" \
   '[ "$rc" -eq 1 ] && grep -q "intake-channel note" "$T/e.txt" && grep -q "leaving paragraph" "$T/e.txt" && cmp -s "$W" "$T/original.md"'
 check "the same run also names the other workstream's live reference to leaving D2" 'grep -q "feature/other/workstream.md.*leaving decision .D2." "$T/e.txt"'
+# The phrase "the intake-channel note" starts on the line ending "(the"
+# and wraps; the citing line is where the match STARTS.
+CP_LINE=$(grep -n 'both inboxes (the$' "$W" | cut -d: -f1)
+CP_BLOCK=$(grep -n '^\*\*Critical path' "$W" | cut -d: -f1)
+check "the surviving-text hit cites the citing line and the block's first line as they sit ON DISK (the Rotated paragraph would shift them by two), and the header says so" \
+  'grep -q "kit/workstream.md:$CP_LINE (block $CP_BLOCK, surviving text) cites leaving paragraph" "$T/e.txt" && grep -q "index the files on disk" "$T/e.txt" && [ "$CP_LINE" -eq "$((CP_BLOCK + 2))" ]'
 
 echo "== --keep carries the note; the other workstream's D2 reference still refuses"
 rc=0; python3 "$SCRIPT" rotate "$W" --tag ws/kit-2026-02-02 --write --date 2026-02-02 --keep "intake-channel note" >"$T/o.txt" 2>"$T/e.txt" || rc=$?
