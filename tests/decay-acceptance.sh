@@ -45,11 +45,31 @@ status: active
 ## Backlog
 **Critical path.** Order only, by design (D80): status and
 measurements live on the #G-OG gate line, which every gate updates.
-OG evaluations queue -> #G-OG (each item decided or deferred) ->
-build of the approved items -> release -> AD re-install of the
-consumers -> the next queue.
+OG evaluations queue, #OG-1 first -> #G-OG (each item decided or
+deferred) -> build of the approved items -> release -> AD re-install
+of the consumers -> the next queue.
 
 ### Observed Kit Gaps (OG) -- the heading carries a suffix, as real files do
+- [ ] #OG-1: the first evaluation, minted with the paragraph
+- [ ] #G-OG: USER CHECKPOINT -- approve any kit change
+FIX
+# queue: the same paragraph with NO task named (the order-only shape,
+# D80 in the workstream it was lifted from): a task minted after it is
+# what the paragraph predicts, so it is reported as a count, not a list.
+mkdir -p .state/workstreams/maintain/queue
+Q=.state/workstreams/maintain/queue/workstream.md
+cat > "$Q" <<'FIX'
+---
+name: queue
+type: maintain
+status: active
+---
+## Backlog
+**Critical path.** Order only, by design: OG evaluations queue ->
+#G-OG (each item decided or deferred) -> build -> release -> the
+next queue.
+
+### Observed Kit Gaps (OG)
 - [ ] #OG-1: the first evaluation, minted with the paragraph
 - [ ] #G-OG: USER CHECKPOINT -- approve any kit change
 FIX
@@ -76,6 +96,7 @@ cat >> "$W" <<'FIX'
 paragraph's last edit, wrapped against the convention
   - [ ] #OG-2a: an indented sub-task minted with it
 FIX
+printf -- '- [ ] #OG-2: minted after the order-only paragraph\n' >> "$Q"
 commit_at "$((DAY + 5 * 3600))" "mint OG-2"
 
 # Commit 4 (next day): #OG-1 re-worded; its mint stays at commit 1.
@@ -92,6 +113,10 @@ check "#OG-2 sits on a wrapped line and #OG-2a is indented" "grep -q '^paragraph
 
 echo "== The compare"
 check "the paragraph's newest commit time is +3h (the edit), not +0" '[ "$(q ".critical_path.newest_commit_time")" = "'$((DAY + 3 * 3600))'" ]'
+check "the paragraph names a task, so its shape is named and minted_since counts the two" '[ "$(q ".shape")" = "named" ] && [ "$(q ".minted_since")" = "2" ]'
+qq() { jq -r ".workstreams[] | select(.path | endswith(\"queue/workstream.md\")) | $1" "$T/out.json"; }
+check "queue: a paragraph naming no task (the gate aside) is queue-shaped, reports minted_since 1 and lists no task" \
+  '[ "$(qq ".shape")" = "queue" ] && [ "$(qq ".minted_since")" = "1" ] && [ "$(qq ".minted_after | length")" = "0" ] && [ "$(qq ".open_tasks")" = "2" ]'
 check "the paragraph spans 5 lines from its first" '[ "$(q ".critical_path.lines")" = "5" ]'
 check "#OG-2 (minted +5h, two hours after the edit) is reported with after_by_seconds 7200" \
   '[ "$(q ".minted_after[] | select(.id == \"#OG-2\") | .after_by_seconds")" = "7200" ]'

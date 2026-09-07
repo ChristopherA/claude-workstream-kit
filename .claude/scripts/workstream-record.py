@@ -73,9 +73,12 @@ workstream, its open task count and, where a critical-path paragraph
 exists, the newest commit timestamp among the paragraph's lines (git
 blame) against each open task's mint timestamp (the first commit whose
 diff adds its `#XX-N:`), reporting every task minted after the
-paragraph. Timestamps, never dates, so a
-task minted the same day but hours after the paragraph is reported. A
-workstream.md with uncommitted changes is unmeasurable, not current.
+paragraph. Timestamps, never dates, so a task minted the same day but
+hours after the paragraph is reported. A paragraph naming no task ID
+(gates aside) is `shape: queue`: it states order, a task minted after
+it is what it predicts, and only the count (`minted_since`) is
+reported, with no task list to review. A workstream.md with
+uncommitted changes is unmeasurable, not current.
 
 `git` is the status skill's three git reads -- last-commit date per
 state file, commits ahead of the upstream or the named remote branch,
@@ -1024,7 +1027,7 @@ def decay(root):
         blocks = fold_blocks(lines)
         cp_text, cp_line, cp_raw = critical_path_field(blocks)
         entry = {"path": rel, "critical_path": None, "unmeasurable": None,
-                 "minted_after": [], "open_tasks": 0}
+                 "shape": None, "minted_since": 0, "minted_after": [], "open_tasks": 0}
         # The open count is a fact about the file, reported whether or
         # not a paragraph exists to compare against: a file with seven
         # open tasks and no paragraph once read as open_tasks 0.
@@ -1055,11 +1058,21 @@ def decay(root):
             result.append(entry)
             continue
         entry["critical_path"] = {"line": cp_line, "lines": len(cp_raw), "newest_commit_time": newest}
+        # A paragraph naming no task (gates aside) states ORDER, not a
+        # plan -- "queue -> gate -> build -> release" -- and a task minted
+        # after it is what it predicts, not drift. Such a path is
+        # reported queue-shaped with the count minted since and no
+        # task list, so the reader has nothing to route to a review.
+        named = [m.group(0) for m in TASK_ID_RE.finditer(blank_strikes(cp_text))
+                 if not m.group(0).startswith('#G-')]
+        entry["shape"] = "named" if named else "queue"
         for oid in open_ids:
             minted = mint_time(root, rel, oid)
             if minted is not None and minted > newest:
-                entry["minted_after"].append({"id": oid, "mint_time": minted,
-                                              "after_by_seconds": minted - newest})
+                entry["minted_since"] += 1
+                if named:
+                    entry["minted_after"].append({"id": oid, "mint_time": minted,
+                                                  "after_by_seconds": minted - newest})
         result.append(entry)
     return {"workstreams": result}
 
