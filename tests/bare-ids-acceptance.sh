@@ -146,6 +146,22 @@ check "the glossed #AL-1 and the code-span #AL-9 are not reported" '! printf "%s
 check "stop_hook_active true: no output, exit 0" '[ -z "$(python3 "$GUARD" < "$T/in-true.json")" ]'
 sed -i.bak 's/#G-AL waits/#G-AL (the build gate) waits/' "$T/t.jsonl" && rm -f "$T/t.jsonl.bak"
 check "a glossed turn: no output, exit 0" '[ -z "$(python3 "$GUARD" < "$T/in-plain.json")" ]'
+cat > "$T/t2.jsonl" <<'FIX'
+{"type":"user","message":{"role":"user","content":"go"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"A recap early in the turn with #ZZ-1 bare, already shown."}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"y","name":"Bash","input":{}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"y","content":"ok"}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Closing message, clean: #ZZ-2 (the second) landed."}]}}
+FIX
+printf '{"transcript_path":"%s"}' "$T/t2.jsonl" > "$T/in-t2.json"
+check "only the FINAL message is judged: a bare id in an earlier message of the same turn does not block a clean closing message" '[ -z "$(python3 "$GUARD" < "$T/in-t2.json")" ]'
+cat > "$T/t3.jsonl" <<'FIX'
+{"type":"user","message":{"role":"user","content":"go"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"First paragraph of the final message, #ZZ-3 bare."}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Second text record of the same final message, clean."}]}}
+FIX
+printf '{"transcript_path":"%s"}' "$T/t3.jsonl" > "$T/in-t3.json"
+check "a final message split across two text records is judged whole (the first record's bare id blocks)" 'python3 "$GUARD" < "$T/in-t3.json" | jq -r .reason | grep -q "#ZZ-3"'
 check "a missing transcript: no output, exit 0" '[ -z "$(python3 "$GUARD" < "$T/in-missing.json")" ] && printf "{}" | python3 "$GUARD" >/dev/null'
 
 echo "== The session-start hook's Gloss section"

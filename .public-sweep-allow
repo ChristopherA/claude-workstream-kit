@@ -76,7 +76,7 @@
 # The gloss-check suite: fixture workstream alpha (phase AL, gate G-AL), a
 # fixture transcript naming an earlier turn's #OLD-1, and draft strings
 # under the OG code; its paths are the temp fixture's.
-^tests/bare-ids-acceptance\.sh:[0-9]+:.*#(G-(AL|OG)|(AL|OLD|OG)-[0-9]+[a-z]?)\b
+^tests/bare-ids-acceptance\.sh:[0-9]+:.*#(G-(AL|OG)|(AL|OLD|OG|ZZ)-[0-9]+[a-z]?)\b
 ^tests/bare-ids-acceptance\.sh:[0-9]+:.*(\$T/p/)?\.state/workstreams/feature/alpha\b
 
 # The state module's gloss pattern comment names the gate form it must
