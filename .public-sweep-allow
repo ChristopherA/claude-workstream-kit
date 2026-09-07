@@ -73,6 +73,16 @@
 ^tests/cites-acceptance\.sh:[0-9]+:.*#G-OG\b
 ^tests/decay-acceptance\.sh:[0-9]+:.*commit_at .*\bOG-[0-9]\b
 
+# The gloss-check suite: fixture workstream alpha (phase AL, gate G-AL), a
+# fixture transcript naming an earlier turn's #OLD-1, and draft strings
+# under the OG code; its paths are the temp fixture's.
+^tests/bare-ids-acceptance\.sh:[0-9]+:.*#(G-(AL|OG)|(AL|OLD|OG)-[0-9]+[a-z]?)\b
+^tests/bare-ids-acceptance\.sh:[0-9]+:.*(\$T/p/)?\.state/workstreams/feature/alpha\b
+
+# The state module's gloss pattern comment names the gate form it must
+# not miss, with the kit workstream's own gate as the example.
+^\.claude/scripts/workstream_state\.py:[0-9]+:.*#G-OG\b
+
 # The record script's docstring and self-check strings quote fixture IDs
 # as examples of the word-boundary rule, and one commit message repeats
 # the docstring's sentence.
