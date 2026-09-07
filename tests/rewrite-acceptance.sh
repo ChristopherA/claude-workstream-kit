@@ -37,6 +37,9 @@ FIX
   printf -- '- [x] #BD-1: Decide the widget shape. Evaluate (do NOT pre-decide): (i) round; (ii) square. DECIDED 2026-01-02 (D2) (i): round, because %s %s. Built at commit abc1234, mirrored as 1bbfbd74 in the other repo, 1234567 bytes moved, and released 2026-01-03.\n' "$LONG" "$LONG"
   cat <<'FIX'
 - [x] #BD-2: a short done task, DONE 2026-01-01
+FIX
+  printf -- '- [x] #BD-4: An inventory task whose markers ran in order. VERIFIED 2026-08-21 against the tree. HAZARD FOUND 2026-08-21 in the second file. DONE 2026-08-22 at commit fedcb98. CORRECTED 2026-08-22 (the hazard). The other project fixed its side at commit 9ab0123 of 2026-07-02, mentioned last: %s.\n' "$LONG"
+  cat <<'FIX'
 - [ ] #BD-3: an open task wrapped against the convention, with a
 second line
   - [ ] #BD-3a: an indented sub-task
@@ -70,16 +73,18 @@ fp "$W" > "$T/fp-before.txt"
 
 echo "== records: dry run, write, idempotence"
 OUT=$(python3 "$SCRIPT" records "$W" --date 2026-05-05)
-check "dry run reports condensed=1 and leaves the file byte-identical" \
-  "printf '%s' \"\$OUT\" | grep -q '^condensed=1 ' && ! printf '%s' \"\$OUT\" | grep -q WRITTEN && cmp -s \"\$W\" \"\$T/original.md\""
+check "dry run reports condensed=2 and leaves the file byte-identical" \
+  "printf '%s' \"\$OUT\" | grep -q '^condensed=2 ' && ! printf '%s' \"\$OUT\" | grep -q WRITTEN && cmp -s \"\$W\" \"\$T/original.md\""
 check "dry run prints one entry line per condensed record in the report shape: ID, bytes before->after, the condensed line" \
-  "printf '%s' \"\$OUT\" | grep -qE '^#BD-1 [0-9]+->[0-9]+: - \\[x\\] #BD-1: Decide the widget shape\\.' && [ \"\$(printf '%s\\n' \"\$OUT\" | grep -cE '^#[A-Z]+-[0-9]+ [0-9]+->[0-9]+: ')\" = 1 ]"
+  "printf '%s' \"\$OUT\" | grep -qE '^#BD-1 [0-9]+->[0-9]+: - \\[x\\] #BD-1: Decide the widget shape\\.' && [ \"\$(printf '%s\\n' \"\$OUT\" | grep -cE '^#[A-Z]+-[0-9]+ [0-9]+->[0-9]+: ')\" = 2 ]"
 check "the entry line's byte figures are the fixture line's length and the note's" \
   "[ \"\$(printf '%s\\n' \"\$OUT\" | sed -n 's/^#BD-1 \\([0-9]*\\)->.*/\\1/p')\" = \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | tr -d '\\n' | wc -c | tr -d ' ')\" ]"
 OUT=$(python3 "$SCRIPT" records "$W" --write --date 2026-05-05)
-check "write reports condensed=1 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q '^condensed=1 ' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
-check "#BD-1 fits the completion-note form, keeps status, date, Decision, commit and the dated marker" \
-  "[ \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'DECIDED 2026-01-03; reasoning in D2; commits abc1234, 1bbfbd74. Condensed 2026-05-05 at extract'"
+check "write reports condensed=2 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q '^condensed=2 ' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
+check "#BD-1 fits the completion-note form, keeps status, the date of the status word's OWN sentence (not the later release date), Decision, commit and the dated marker" \
+  "[ \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'DECIDED 2026-01-02; reasoning in D2; commits abc1234, 1bbfbd74. Condensed 2026-05-05 at extract'"
+check "#BD-4 pairs the last status word with its own sentence's date (DONE 2026-08-22), never the block's last date (2026-07-02), and keeps both commits" \
+  "grep '^- \\[x\\] #BD-4' \"\$W\" | grep -q 'DONE 2026-08-22; commits fedcb98, 9ab0123. Condensed 2026-05-05 at extract'"
 check "the eight-character hash in another repo is kept verbatim and the seven-digit number is not taken for one" \
   "grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q '1bbfbd74' && ! grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q '1234567'"
 check "removed side: the evaluation prose is gone from the file" "! grep -q 'do NOT pre-decide' \"\$W\""

@@ -163,6 +163,26 @@ def entry_line(ident, before, after, line):
     return "%s %d->%d: %s" % (ident, before, after, line.strip()[:160])
 
 
+def status_and_date(body, dates):
+    """The record's LAST status word and the date in that word's own
+    sentence (the record script's marker rule): after the word first,
+    else anywhere in the sentence, else n.d. Never the block's last
+    date, which can belong to another sentence -- a record that ran
+    VERIFIED, DONE, CORRECTED condensed to the date of another
+    project's commit mentioned last. With no status word the block's
+    last date stands, since nothing else ties a date to the status."""
+    marks = list(STATUS_RE.finditer(body))
+    if not marks:
+        return "DONE", (dates[-1] if dates else "n.d.")
+    m = marks[-1]
+    s, e = sentence_span(body, m.start())
+    after = DATE_RE.search(body, m.end(), e)
+    if after:
+        return m.group(1), after.group(1)
+    within = DATE_RE.search(body, s, e)
+    return m.group(1), (within.group(1) if within else "n.d.")
+
+
 def condense_records(lines, mark):
     bounds = section_bounds(lines, "Backlog")
     if bounds is None:
@@ -185,9 +205,7 @@ def condense_records(lines, mark):
         dates = DATE_RE.findall(body)
         decs = sorted(set(DEC_RE.findall(body)), key=lambda d: int(d[1:]))
         shas = list(dict.fromkeys(SHA_RE.findall(body)))
-        marks = list(dict.fromkeys(STATUS_RE.findall(body)))
-        mark_word = marks[-1] if marks else "DONE"
-        date = dates[-1] if dates else "n.d."
+        mark_word, date = status_and_date(body, dates)
         ev = []
         if decs:
             ev.append("reasoning in " + ", ".join(decs))

@@ -79,8 +79,8 @@ OUT=$(python3 "$SCRIPT" "$W" --write --date 2026-05-05)
 check "write reports condensed=1 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q '^condensed=1 ' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
 check "#BD-1 now fits the completion-note form under 400 bytes" \
   "[ \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | wc -c)\" -lt 400 ]"
-check "#BD-1's note keeps the status word and date, the Decision and the commit" \
-  "grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'DECIDED 2026-01-03; reasoning in D2; commits abc1234'"
+check "#BD-1's note keeps the status word and the date of its own sentence (not the later release date), the Decision and the commit" \
+  "grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'DECIDED 2026-01-02; reasoning in D2; commits abc1234'"
 check "#BD-1's note carries the dated condensation marker" \
   "grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'Condensed 2026-05-05 at extract'"
 check "#BD-2 (short) is untouched" "grep -qF -- '- [x] #BD-2: a short done task, DONE 2026-01-01' \"\$W\""
