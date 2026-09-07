@@ -34,7 +34,7 @@ The target is this project's root, `git rev-parse --show-toplevel`. Show the pat
 
 ## Move 4 — Preview, writing nothing
 
-Run `sh <kit>/install.sh --dry-run <project root>` and show the whole report (README, What the dry run reports). Then act on it:
+Run `sh <kit>/install.sh --dry-run <project root>` and show the whole report (README, What the dry run reports). The preview's exit code is part of the report, not a failure: 0 in sync, 1 drift or a behind stamp (the expected code before any upgrade), 2 usage, 3 a payload the target's git cannot track — so never chain it with `&&`, and read the code as a finding. Then act on it:
 
 - **In sync** -- nothing to upgrade. Report that and stop.
 - Any file marked **instance-ahead** -- STOP. It was edited locally and matches no kit version, so a real run would overwrite a local improvement; the installer refuses, and `--force` would not. List each and ask how to handle it (report it to the kit and port it, or discard the local edit) before applying anything.
