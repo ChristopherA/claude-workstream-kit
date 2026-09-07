@@ -46,8 +46,11 @@ blocks, the critical path, unresolved Open Questions, open and standing
 criteria, ACTIVE.md -- classified as defined here, homed and resolved,
 homed with the home missing, homed with the home lacking it, or
 unhomed. A home is `in type/name` or `in ws/<tag>` beside the ID; a tag
-home is read with `git show`. Placeholders with no digit (#XX-N) and
-the literal #G-XX are skipped. Classes with their lines, never a count.
+home is read with `git show`. A home is named once per block: a bare
+mention AFTER a homed one in the same block inherits its class and
+home (`homed_by_line` says which). Placeholders with no digit (#XX-N)
+and the literal #G-XX are skipped. Classes with their lines, never a
+count.
 
 `paths` is the review skill's cheapest staleness probe: every
 path-like token in Decisions and open task blocks -- a token with a `/`
@@ -782,6 +785,11 @@ def refs(root):
         for start, raw in blocks:
             text, starts = join_block(raw, start)
             blanked = blank_strikes(text)
+            # The rule names a home once per readable unit, and a block
+            # is the unit: a homed mention covers every LATER bare
+            # mention of the same ID in the block, which inherits its
+            # class and home (an earlier bare mention stays unhomed).
+            homed_in_block = {}
             for m in REF_RE.finditer(blanked):
                 ref = m.group(0)
                 if ref == PLACEHOLDER_GATE:
@@ -793,7 +801,13 @@ def refs(root):
                     continue
                 candidates = homes_near(blanked, m.start(), m.end())
                 if not candidates:
-                    classes["unhomed"].append(entry)
+                    if ref in homed_in_block:
+                        cls, home, at = homed_in_block[ref]
+                        entry["home"] = home
+                        entry["homed_by_line"] = at
+                        classes[cls].append(entry)
+                    else:
+                        classes["unhomed"].append(entry)
                     continue
                 # Resolve against each home the sentence names, nearest
                 # first; the one that defines the ID wins. When none does,
@@ -820,6 +834,8 @@ def refs(root):
                 if len(candidates) > 1:
                     entry["candidates"] = [h for h, _k in candidates]
                 classes[cls].append(entry)
+                if ref not in homed_in_block:
+                    homed_in_block[ref] = (cls, home, entry["line"])
     return {"classes": classes}
 
 

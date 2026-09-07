@@ -79,6 +79,7 @@ are metavariables and not references
 - [ ] #G-LV: USER CHECKPOINT -- decided against D1 and OQ-1
 - [ ] #LV-5: two homes in one sentence: #OT-1 lives in ws/old, which is read as #OL-3 in feature/other
 - [ ] #LV-6: cites D17 in ws/old first. Later in the block D17 recurs where `feature/other`'s row is the only name in the sentence, a possessive and not a home.
+- [ ] #LV-7: names #OT-1 bare first. Then #OT-1 in feature/other, homed. Then #OT-1 bare again, covered by the homed mention.
 
 ## Decisions
 FIX
@@ -137,7 +138,7 @@ check "live carries thirteen Decisions, none of them D17" \
   "[ \"\$(grep -c '^### D' .state/workstreams/feature/live/workstream.md)\" = 13 ] && ! grep -q '^### D17' .state/workstreams/feature/live/workstream.md"
 
 echo "== Homed and resolved through an archive tag (two git reads)"
-check "D17 in ws/old resolves at the tag (twice from live: #LV-1 and #LV-6)" '[ "$(cls homed_resolved D17 | sort -u)" = "live ws/old" ] && [ "$(cls homed_resolved D17 | wc -l | tr -d " ")" = "2" ]'
+check "D17 in ws/old resolves at the tag (three times from live: #LV-1 and both mentions on #LV-6)" '[ "$(cls homed_resolved D17 | sort -u)" = "live ws/old" ] && [ "$(cls homed_resolved D17 | wc -l | tr -d " ")" = "3" ]'
 check "#OL-3 in ws/old resolves through the no-colon definition form (cited twice, both at ws/old)" '[ "$(cls homed_resolved \#OL-3 | sort -u)" = "live ws/old" ]'
 check "L45 in ws/old (from ACTIVE.md) is homed, home lacks it -- the tag holds old and old defines no L45" \
   '[ "$(cls homed_home_lacks L45)" = ".state ws/old" ]'
@@ -151,10 +152,10 @@ check "#G-TR in project/workspace-config-migration (ACTIVE.md): home missing" \
 echo "== Defined here, unhomed, skipped"
 check "#LV-2 cited by OQ-1 is defined here (with its own line's self-mention, two entries)" '[ "$(cls defined_here \#LV-2 | grep -c "^live null")" = "2" ]'
 check "D1 cited by #LV-3 and #G-LV is defined here (two entries)" '[ "$(q "[.classes.defined_here[] | select(.id == \"D1\")] | length")" = "2" ]'
-check "#OT-1 in a two-home sentence resolves at feature/other, the home that defines it, not the nearer ws/old" '[ "$(cls homed_resolved \#OT-1)" = "live feature/other" ]'
+check "#OT-1 in a two-home sentence resolves at feature/other, the home that defines it, not the nearer ws/old" '[ "$(cls homed_resolved \#OT-1 | sort -u)" = "live feature/other" ]'
 check "#OL-3 in the same sentence resolves at ws/old, not the nearer feature/other" '[ "$(cls homed_resolved \#OL-3 | grep -c "^live ws/old")" = "2" ]'
 check "neither ID of the two-home sentence is reported as home-lacking" '[ "$(q "[.classes.homed_home_lacks[] | select(.id == \"#OT-1\" or .id == \"#OL-3\")] | length")" = "0" ]'
-check "a two-home entry lists both candidates" '[ "$(q "[.classes.homed_resolved[] | select(.id == \"#OT-1\") | .candidates | join(\",\")] | .[0]")" = "ws/old,feature/other" ]'
+check "a two-home entry lists both candidates" '[ "$(q "[.classes.homed_resolved[] | select(.id == \"#OT-1\" and has(\"candidates\")) | .candidates | join(\",\")] | .[0]")" = "ws/old,feature/other" ]'
 check "a one-home entry carries no candidates field" '[ "$(q "[.classes.homed_resolved[] | select(.id == \"D17\") | has(\"candidates\")] | .[0]")" = "false" ]'
 check "#SW-4 in the critical-path paragraph is unhomed" '[ "$(cls unhomed \#SW-4)" = "live null" ]'
 check "L2 in the STANDING criterion is unhomed" '[ "$(cls unhomed L2)" = "live null" ]'
@@ -162,11 +163,14 @@ check "the metavariable #XX-N and the literal #G-XX appear in no class" \
   '[ "$(q "[.classes[][] | select(.id == \"#XX-N\" or .id == \"#G-XX\")] | length")" = "0" ]'
 check "the struck ~~superseded by D9~~ is not a reference" '[ "$(q "[.classes[][] | select(.id == \"D9\")] | length")" = "0" ]'
 
-echo "== A possessive type/name is not a home"
-check "#LV-6: D17's first mention resolves at ws/old, on #LV-6's own line" \
-  '[ "$(q "[.classes.homed_resolved[] | select(.id == \"D17\")] | length")" = "2" ]'
-check "#LV-6: D17's second mention, whose sentence names only feature/other's, is unhomed rather than home-lacking at feature/other" \
-  '[ "$(q "[.classes.homed_home_lacks[] | select(.id == \"D17\")] | length")" = "0" ] && [ "$(q "[.classes.unhomed[] | select(.id == \"D17\")] | length")" = "1" ]'
+echo "== A possessive type/name is not a home, and a home is named once per block"
+check "#LV-6: D17's second mention, whose sentence names only feature/other's, is not home-lacking at feature/other" \
+  '[ "$(q "[.classes.homed_home_lacks[] | select(.id == \"D17\")] | length")" = "0" ]'
+LV6=$(grep -n '^- \[ \] #LV-6' .state/workstreams/feature/live/workstream.md | cut -d: -f1)
+check "#LV-6: D17's second mention inherits the first mention's home, naming the line that homed it, and is not unhomed" \
+  '[ "$(q "[.classes.unhomed[] | select(.id == \"D17\")] | length")" = "0" ] && [ "$(q "[.classes.homed_resolved[] | select(.id == \"D17\" and .homed_by_line == '"$LV6"')] | length")" = "1" ]'
+check "#LV-7: the bare mention BEFORE the homed one stays unhomed; the one after inherits (one unhomed, two resolved)" \
+  '[ "$(q "[.classes.unhomed[] | select(.id == \"#OT-1\")] | length")" = "1" ] && [ "$(q "[.classes.homed_resolved[] | select(.id == \"#OT-1\" and .line == '"$(grep -n '^- \[ \] #LV-7' .state/workstreams/feature/live/workstream.md | cut -d: -f1)"')] | length")" = "2" ]'
 check "the possessive is still a workstream reference elsewhere: feature/other homes #OT-7 on #LV-2" '[ "$(cls homed_home_lacks \#OT-7 | grep -c "feature/other")" = "1" ]'
 
 echo "== Out of scope: completed tasks, done criteria, resolved Open Questions"
