@@ -238,6 +238,16 @@ if command -v python3 >/dev/null 2>&1 && [ -f "$RECORD_PY" ]; then
     echo "Drain (workstream-record.py fires -- run /workstream-extract on what fires):"
     printf '%s\n' "$FIRES" | sed 's/^/  /'
   fi
+  # Bare ID mentions in live prose, one line per file that has any: the
+  # rule's gloss convention as a check. Not a drain symptom -- extract
+  # does not gloss -- so it prints under its own heading; the fix is a
+  # pass over the named file (a review, or the capture that next writes
+  # it).
+  BARE=$(python3 "$RECORD_PY" bare-ids "$PROJECT_DIR" --text 2>/dev/null || true)
+  if [ -n "$BARE" ]; then
+    echo "Gloss (workstream-record.py bare-ids -- an id outside its backlog line carries a few words, \`#EX-37 (the phase split question)\`):"
+    printf '%s\n' "$BARE" | sed 's/^/  /'
+  fi
 fi
 
 # Handoff inbox count + oldest age. The directory is NAMED: a project whose
