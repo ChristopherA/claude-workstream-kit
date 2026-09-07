@@ -65,6 +65,13 @@ Its second paragraph, which must survive because D2 is not named.
 
 ## Learnings
 - L1 (2026-01-01): an insight. APPLIED 2026-01-02 to a file.
+
+## Archive
+### Inventory (IV) -- moved 2026-01-05
+FIX
+  printf -- '- [x] #IV-1: Inventory the payload. DONE 2026-01-04 at commit 5ee0aaf, with the full listing kept here: %s %s.\n' "$LONG" "$LONG"
+  cat <<'FIX'
+- [x] #IV-2: a short archived record, DONE 2026-01-04
 FIX
 } > "$W"
 cp "$W" "$T/original.md"
@@ -73,14 +80,16 @@ fp "$W" > "$T/fp-before.txt"
 
 echo "== records: dry run, write, idempotence"
 OUT=$(python3 "$SCRIPT" records "$W" --date 2026-05-05)
-check "dry run reports condensed=2 and leaves the file byte-identical" \
-  "printf '%s' \"\$OUT\" | grep -q '^condensed=2 ' && ! printf '%s' \"\$OUT\" | grep -q WRITTEN && cmp -s \"\$W\" \"\$T/original.md\""
+check "dry run reports condensed=3 (two in the Backlog, one under Archive), both sections' line counts, and leaves the file byte-identical" \
+  "printf '%s' \"\$OUT\" | grep -q '^condensed=3 .*backlog_lines [0-9]*->[0-9]* archive_lines [0-9]*->[0-9]*' && ! printf '%s' \"\$OUT\" | grep -q WRITTEN && cmp -s \"\$W\" \"\$T/original.md\""
 check "dry run prints one entry line per condensed record in the report shape: ID, bytes before->after, the condensed line" \
-  "printf '%s' \"\$OUT\" | grep -qE '^#BD-1 [0-9]+->[0-9]+: - \\[x\\] #BD-1: Decide the widget shape\\.' && [ \"\$(printf '%s\\n' \"\$OUT\" | grep -cE '^#[A-Z]+-[0-9]+ [0-9]+->[0-9]+: ')\" = 2 ]"
+  "printf '%s' \"\$OUT\" | grep -qE '^#BD-1 [0-9]+->[0-9]+: - \\[x\\] #BD-1: Decide the widget shape\\.' && [ \"\$(printf '%s\\n' \"\$OUT\" | grep -cE '^#[A-Z]+-[0-9]+ [0-9]+->[0-9]+: ')\" = 3 ]"
 check "the entry line's byte figures are the fixture line's length and the note's" \
   "[ \"\$(printf '%s\\n' \"\$OUT\" | sed -n 's/^#BD-1 \\([0-9]*\\)->.*/\\1/p')\" = \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | tr -d '\\n' | wc -c | tr -d ' ')\" ]"
 OUT=$(python3 "$SCRIPT" records "$W" --write --date 2026-05-05)
-check "write reports condensed=2 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q '^condensed=2 ' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
+check "write reports condensed=3 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q '^condensed=3 ' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
+check "#IV-1 under Archive condenses to the note form with its commit; #IV-2 and the Archive heading are byte-identical" \
+  "[ \"\$(grep '^- \\[x\\] #IV-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #IV-1' \"\$W\" | grep -q 'DONE 2026-01-04; commits 5ee0aaf. Condensed 2026-05-05 at extract' && grep -qF -- '- [x] #IV-2: a short archived record, DONE 2026-01-04' \"\$W\" && grep -qF '### Inventory (IV) -- moved 2026-01-05' \"\$W\""
 check "#BD-1 fits the completion-note form, keeps status, the date of the status word's OWN sentence (not the later release date), Decision, commit and the dated marker" \
   "[ \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'DECIDED 2026-01-02; reasoning in D2; commits abc1234, 1bbfbd74. Condensed 2026-05-05 at extract'"
 check "#BD-4 pairs the last status word with its own sentence's date (DONE 2026-08-22), never the block's last date (2026-07-02), and keeps both commits" \

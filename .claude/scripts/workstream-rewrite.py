@@ -20,10 +20,11 @@ Usage:
                                   [--date YYYY-MM-DD] [--keep <phrase>]...
                                   [--allow-stale-claims]
 
-`records`: every `- [x]` record in the live Backlog longer than the
-rule's completion-note form condenses to that form (the ID, the
-description's first sentence, the last status word and date, its
-Decision citations and commit hashes, a dated marker).
+`records`: every `- [x]` record in the live Backlog, and under
+## Archive when that section exists, longer than the rule's
+completion-note form condenses to that form (the ID, the description's
+first sentence, the last status word and the date in its own sentence,
+its Decision citations and commit hashes, a dated marker).
 
 `decisions`: each named Decision condenses to its heading, its first
 paragraph and a line naming the release; the section is restored to
@@ -184,10 +185,32 @@ def status_and_date(body, dates):
 
 
 def condense_records(lines, mark):
+    """Records under ## Backlog and, when the section exists, under
+    ## Archive: the extract skill's Move 3 condenses a record whether
+    or not its phase has moved, and four records moved before this
+    script existed sat verbatim under Archive at 14,000 bytes."""
     bounds = section_bounds(lines, "Backlog")
     if bounds is None:
         raise Refusal("no ## Backlog section")
-    start, end = bounds
+    condensed = 0
+    saved = 0
+    entries = []
+    report = []
+    archive = section_bounds(lines, "Archive")
+    ranges = [("backlog", bounds)] + ([("archive", archive)] if archive else [])
+    # Rebuild from the end so earlier offsets stay valid.
+    for name, (start, end) in sorted(ranges, key=lambda r: -r[1][0]):
+        out, c, s, ents = condense_range(lines, start, end, mark)
+        condensed += c
+        saved += s
+        entries = ents + entries
+        report.insert(0, "%s_lines %d->%d" % (name, end - start, len(out)))
+        lines = lines[:start] + out + lines[end:]
+    report.insert(0, "condensed=%d bytes_saved=%d" % (condensed, saved))
+    return lines, " ".join(report), entries
+
+
+def condense_range(lines, start, end, mark):
     out = []
     condensed = 0
     saved = 0
@@ -219,8 +242,7 @@ def condense_records(lines, mark):
         condensed += 1
         saved += len(ln) - len(note)
         entries.append(entry_line(tid, len(ln), len(note), note))
-    report = "condensed=%d bytes_saved=%d backlog_lines %d->%d" % (condensed, saved, end - start, len(out))
-    return lines[:start] + out + lines[end:], report, entries
+    return out, condensed, saved, entries
 
 
 def parse_decisions(spec):
