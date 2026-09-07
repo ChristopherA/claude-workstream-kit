@@ -58,6 +58,14 @@ Its second paragraph, which must survive because D2 is not named.
 EOF
 } > "$W"
 cp "$W" "$T/original.md"
+# --release resolves against the repository holding the file.
+git -C "$T" init -q -b main
+git -C "$T" config user.email fixture@example.invalid
+git -C "$T" config user.name Fixture
+git -C "$T" config commit.gpgsign false
+git -C "$T" config tag.gpgsign false
+git -C "$T" add -A && git -C "$T" commit -q -m fixture
+git -C "$T" -c tag.forceSignAnnotated=false tag -a v0.1.0 -m release
 
 fp() { grep -E '^#{1,6} ' "$1" | sort; grep -oE '^ *- \[[ x]\] #[A-Za-z]+-[0-9]+' "$1"; }
 fp "$W" > "$T/fp-before.txt"
@@ -115,7 +123,7 @@ check "the tasks are untouched by a --no-tasks run" "grep -qF -- '- [x] #BD-2: a
 fp "$W" > "$T/fp-after2.txt"
 check "headings (as a multiset) and checkboxes are identical after the move" "cmp -s \"\$T/fp-before.txt\" \"\$T/fp-after2.txt\""
 cp "$W" "$T/after2.md"
-OUT=$(python3 "$SCRIPT" "$W" --write --no-tasks --decisions D1,D3 --release v0.9.9 --date 2026-06-06)
+OUT=$(python3 "$SCRIPT" "$W" --write --no-tasks --decisions D1,D3 --release v0.1.0 --date 2026-06-06)
 check "a second Decisions run is a no-op (condensed=0, reordered=no, byte-identical)" \
   "printf '%s' \"\$OUT\" | grep -q 'decisions_condensed=0 .*reordered=no' && cmp -s \"\$W\" \"\$T/after2.md\""
 OUT=$(python3 "$SCRIPT" "$W" --no-tasks --decisions D1-D3 --release v0.1.0)

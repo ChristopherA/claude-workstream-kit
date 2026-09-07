@@ -28,7 +28,11 @@ its Decision citations and commit hashes, a dated marker).
 
 `decisions`: each named Decision condenses to its heading, its first
 paragraph and a line naming the release; the section is restored to
-numeric order.
+numeric order. A Decision already one paragraph long is byte-identical
+after. --release must be a tag or a commit the repository holding the
+file resolves, refused otherwise; the line reads `Shipped in` for a
+tag and `Landed at` for a commit, since a project workstream's
+Decisions land in commits rather than releases.
 
 `learnings`: every Learning the record scores terminal (a disposition
 marker at sentence start with a date in its sentence, or struck
@@ -286,7 +290,25 @@ def strip_blank(ls):
     return ls
 
 
-def condense_decisions(lines, wanted, release, mark):
+def resolve_release(path, value):
+    """('tag' | 'commit', value) for a --release the repository holding
+    path resolves; a Refusal otherwise. A tag that did not exist once
+    passed unchecked into a line reading `Shipped in`, and a project
+    workstream's Decisions land in commits rather than releases, so
+    the line is worded by kind: `Shipped in <tag>`, `Landed at <sha>`."""
+    cwd = os.path.dirname(os.path.abspath(path))
+    rc, out = git(['tag', '-l', '--', value], cwd)
+    if rc != 0:
+        raise Refusal("--release %s cannot be checked: not a git repository" % value)
+    if out.strip() == value:
+        return 'tag', value
+    rc, out = git(['rev-parse', '--verify', '--quiet', value + '^{commit}'], cwd)
+    if rc == 0 and out.strip():
+        return 'commit', value
+    raise Refusal("--release %s is neither a tag nor a commit this repository resolves" % value)
+
+
+def condense_decisions(lines, wanted, release, mark, kind='tag'):
     start, end, preamble, blocks = decision_blocks(lines)
     present = {n for n, _ in blocks}
     missing = sorted(wanted - present)
@@ -308,7 +330,14 @@ def condense_decisions(lines, wanted, release, mark):
                 if l.strip() == "":
                     break
                 para.append(l)
-            tail = "Shipped in %s. %s; full text in git before that commit." % (release, mark)
+            if not any(l.strip() for l in rest[len(para):]):
+                # One paragraph only: already at or under the condensed
+                # form. Adding the release line would GROW it (four
+                # such Decisions gained 114 bytes each on a dry run).
+                new_blocks.append((n, bl))
+                continue
+            verb = "Shipped in" if kind == 'tag' else "Landed at"
+            tail = "%s %s. %s; full text in git before that commit." % (verb, release, mark)
             cond = [head] + para + [tail]
             before_b = sum(len(l) + 1 for l in bl)
             after_b = sum(len(l) + 1 for l in cond)
@@ -344,7 +373,8 @@ def run_condense(path, do_tasks, decisions, release, date, dry):
             report.append(r)
             entries.extend(ents)
         if decisions is not None:
-            lines, r, ents = condense_decisions(lines, parse_decisions(decisions), release, mark)
+            kind, release = resolve_release(path, release)
+            lines, r, ents = condense_decisions(lines, parse_decisions(decisions), release, mark, kind)
             report.append(r)
             entries.extend(ents)
     except Refusal as e:

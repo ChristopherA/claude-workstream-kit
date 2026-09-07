@@ -43,10 +43,13 @@ FIX
 - [ ] #BD-3: an open task wrapped against the convention, with a
 second line
   - [ ] #BD-3a: an indented sub-task
-- [ ] #G-BD: USER CHECKPOINT -- the build gate; three Decisions stand
+- [ ] #G-BD: USER CHECKPOINT -- the build gate; four Decisions stand
 
 ## Decisions
-### D3 (2026-01-03): Third, written first
+### D4 (2026-01-04): Already one paragraph, written first
+One paragraph only: at the condensed form before any run.
+
+### D3 (2026-01-03): Third, written second
 The reasoning paragraph of the third decision, hard-wrapped over
 two lines.
 
@@ -75,6 +78,15 @@ FIX
 FIX
 } > "$W"
 cp "$W" "$T/original.md"
+# --release resolves against the repository holding the file: a tag and a commit.
+git -C "$T" init -q -b main
+git -C "$T" config user.email fixture@example.invalid
+git -C "$T" config user.name Fixture
+git -C "$T" config commit.gpgsign false
+git -C "$T" config tag.gpgsign false
+git -C "$T" -c tag.forceSignAnnotated=false add -A && git -C "$T" commit -q -m fixture
+git -C "$T" -c tag.forceSignAnnotated=false tag -a v0.1.0 -m release
+SHA=$(git -C "$T" rev-parse --short HEAD)
 fp() { grep -E '^#{1,6} ' "$1" | sort; grep -oE '^ *- \[[ x]\] #[A-Za-z]+-[0-9]+' "$1"; }
 fp "$W" > "$T/fp-before.txt"
 
@@ -98,7 +110,7 @@ check "the eight-character hash in another repo is kept verbatim and the seven-d
   "grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q '1bbfbd74' && ! grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q '1234567'"
 check "removed side: the evaluation prose is gone from the file" "! grep -q 'do NOT pre-decide' \"\$W\""
 check "#BD-2, the wrapped #BD-3, the indented #BD-3a and the gate are byte-identical" \
-  "grep -qF -- '- [x] #BD-2: a short done task, DONE 2026-01-01' \"\$W\" && grep -q '^second line\$' \"\$W\" && grep -qF -- '  - [ ] #BD-3a: an indented sub-task' \"\$W\" && grep -qF -- '- [ ] #G-BD: USER CHECKPOINT -- the build gate; three Decisions stand' \"\$W\""
+  "grep -qF -- '- [x] #BD-2: a short done task, DONE 2026-01-01' \"\$W\" && grep -q '^second line\$' \"\$W\" && grep -qF -- '  - [ ] #BD-3a: an indented sub-task' \"\$W\" && grep -qF -- '- [ ] #G-BD: USER CHECKPOINT -- the build gate; four Decisions stand' \"\$W\""
 fp "$W" > "$T/fp-after.txt"
 check "headings and checkbox IDs/states identical before and after" "cmp -s \"\$T/fp-before.txt\" \"\$T/fp-after.txt\""
 cp "$W" "$T/after1.md"
@@ -114,26 +126,36 @@ check "decisions dry run prints the same entry shape: D3 and D1, bytes before->a
   "printf '%s' \"\$OUT\" | grep -qE '^D3 [0-9]+->[0-9]+: ### D3 ' && printf '%s' \"\$OUT\" | grep -qE '^D1 [0-9]+->[0-9]+: ### D1 ' && [ \"\$(printf '%s\\n' \"\$OUT\" | grep -cE '^D[0-9]+ [0-9]+->[0-9]+: ')\" = 2 ]"
 OUT=$(python3 "$SCRIPT" decisions "$W" --write --decisions D1,D3 --release v0.1.0 --date 2026-05-05)
 check "write reports decisions_condensed=2 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q 'decisions_condensed=2' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
-check "Decisions now run D1, D2, D3" "[ \"\$(grep -E '^### D[0-9]+' \"\$W\" | cut -d' ' -f2 | tr '\\n' ' ')\" = 'D1 D2 D3 ' ]"
+check "Decisions now run D1, D2, D3, D4" "[ \"\$(grep -E '^### D[0-9]+' \"\$W\" | cut -d' ' -f2 | tr '\\n' ' ')\" = 'D1 D2 D3 D4 ' ]"
 check "D3 keeps its heading and wrapped reasoning, then names the release" \
   "grep -A3 '^### D3 ' \"\$W\" | grep -q 'hard-wrapped over' && grep -A3 '^### D3 ' \"\$W\" | grep -q 'Shipped in v0.1.0. Condensed 2026-05-05 at extract'"
 check "removed side: D3's and D1's second paragraphs are gone, D2's survives" \
   "! grep -q 'options weighed and rejected' \"\$W\" && ! grep -q '^Its second paragraph\\.\$' \"\$W\" && grep -q 'must survive because D2 is not named' \"\$W\""
-check "the gate line's count (three Decisions) is still true after the move: three headings remain" \
-  "[ \"\$(grep -c '^### D' \"\$W\")\" = 3 ] && grep -q 'three Decisions stand' \"\$W\""
+check "the gate line's count (four Decisions) is still true after the move: four headings remain" \
+  "[ \"\$(grep -c '^### D' \"\$W\")\" = 4 ] && grep -q 'four Decisions stand' \"\$W\""
 check "the tasks are untouched by a decisions run" "grep -qF -- '- [x] #BD-2: a short done task, DONE 2026-01-01' \"\$W\""
 fp "$W" > "$T/fp-after2.txt"
 check "headings (as a multiset) and checkboxes identical after the move" "cmp -s \"\$T/fp-before.txt\" \"\$T/fp-after2.txt\""
 cp "$W" "$T/after2.md"
-OUT=$(python3 "$SCRIPT" decisions "$W" --write --decisions D1,D3 --release v0.9.9 --date 2026-06-06)
+OUT=$(python3 "$SCRIPT" decisions "$W" --write --decisions D1,D3 --release v0.1.0 --date 2026-06-06)
 check "a second decisions run is a no-op" "printf '%s' \"\$OUT\" | grep -q 'decisions_condensed=0 .*reordered=no' && cmp -s \"\$W\" \"\$T/after2.md\""
 OUT=$(python3 "$SCRIPT" decisions "$W" --decisions D1-D3 --release v0.1.0)
 check "a range names D2 as well: dry run reports one more to condense" "printf '%s' \"\$OUT\" | grep -q 'decisions_condensed=1'"
+OUT=$(python3 "$SCRIPT" decisions "$W" --write --decisions D4 --release v0.1.0 --date 2026-06-06)
+check "a Decision already one paragraph long (D4) is byte-identical after: condensed=0, NO CHANGE, no release line added" \
+  "printf '%s' \"\$OUT\" | grep -q 'decisions_condensed=0 ' && printf '%s' \"\$OUT\" | grep -q 'NO CHANGE' && cmp -s \"\$W\" \"\$T/after2.md\" && ! grep -A2 '^### D4 ' \"\$W\" | grep -q 'Shipped in'"
+OUT=$(python3 "$SCRIPT" decisions "$W" --write --decisions D2 --release "$SHA" --date 2026-06-06)
+check "a commit as --release: D2 condenses and its line reads Landed at <sha>, not Shipped in" \
+  "printf '%s' \"\$OUT\" | grep -q 'decisions_condensed=1 ' && grep -A2 '^### D2 ' \"\$W\" | grep -q \"Landed at $SHA. Condensed 2026-06-06 at extract\" && ! grep -A2 '^### D2 ' \"\$W\" | grep -q 'Shipped in'"
+cp "$W" "$T/after3.md"
+rc=0; python3 "$SCRIPT" decisions "$W" --write --decisions D1 --release v9.9.9 --date 2026-06-06 >"$T/o.txt" 2>"$T/e.txt" || rc=$?
+check "a --release that is neither a tag nor a commit: exit 1, stderr names it, file unchanged" \
+  "[ \"\$rc\" -eq 1 ] && grep -q 'v9.9.9' \"\$T/e.txt\" && cmp -s \"\$W\" \"\$T/after3.md\""
 
 echo "== Failure exits"
 rc=0; python3 "$SCRIPT" decisions "$W" --decisions D9 --release v0.1.0 >"$T/o.txt" 2>"$T/e.txt" || rc=$?
 check "a Decision that does not exist: exit 1, stderr names D9, file unchanged" \
-  "[ \"\$rc\" -eq 1 ] && grep -q 'D9' \"\$T/e.txt\" && cmp -s \"\$W\" \"\$T/after2.md\""
+  "[ \"\$rc\" -eq 1 ] && grep -q 'D9' \"\$T/e.txt\" && cmp -s \"\$W\" \"\$T/after3.md\""
 rc=0; python3 "$SCRIPT" decisions "$W" --decisions D1 >/dev/null 2>&1 || rc=$?
 check "decisions without --release: exit 2" '[ "$rc" -eq 2 ]'
 rc=0; python3 "$SCRIPT" records "$T/absent.md" >/dev/null 2>&1 || rc=$?
