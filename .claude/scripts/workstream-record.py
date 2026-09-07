@@ -19,6 +19,8 @@ Usage:
   workstream-record.py git <project-root> [--remote <name|name/branch>] [--tags]
   workstream-record.py fires <project-root> [<type/name>] [--json]
                              [--interval-days <n>]
+  workstream-record.py bare-ids <project-root> [--text]
+  workstream-record.py bare-ids --stdin [--text]
   workstream-record.py self-check
 
 The bare form is kept because the status and extract skills, the record
@@ -103,6 +105,22 @@ still measured: the exposed case is the one nobody reads. Prints one
 text line per workstream for the session-start hook, JSON with --json.
 It says what fires, never who should run the drain.
 
+`bare-ids` is the rule's gloss convention as a check: every task, gate,
+Decision, Learning or Open Question ID mentioned in live prose owes a
+few words saying what it is, in the canonical form `#EX-37 (the phase
+split question)` or `#EX-37 "the phase split question"`, a home allowed
+between (`#EX-30 in project/tier (the neutrality sort)`), at the ID's
+first mention in each paragraph. Over a project root it reads
+ACTIVE.md's body and, for every workstream, the Purpose, the critical
+path, open task blocks, unresolved Open Questions and open or STANDING
+criteria -- the live content the rule's adoption pass names; completed
+notes and Decisions are frozen provenance and are not read. With
+--stdin it reads a draft (a status statement, a message) instead, so a
+skill can check its own text before delivery. Exempt everywhere: the
+line that defines the ID, code spans and fenced blocks, struck spans.
+Lists every bare mention with file, line and context; --text prints one
+summary line per file that has any, nothing when none has.
+
 `self-check` fires every pattern the record uses at built-in
 known-positive and known-negative strings and exits 1 on any miss,
 naming the pattern and the string. The status skill runs it before
@@ -125,6 +143,7 @@ from workstream_state import (  # noqa: E402
     git, join_block, line_at, negated, read_lines, require_root, section_of, sentence_span,
     split_sentences, state_files, strip_frontmatter, workstream_id, SIZE_BYTES,
     CROSS_REF_WS_RE as _WS_RE, TASK_ID_RE,
+    bare_ids, blank_fences, purpose_paragraphs_for_gloss,
 )
 
 PROG = 'workstream-record.py'
@@ -1323,6 +1342,97 @@ def cmd_fires(args):
     return 0
 
 
+# --- bare-ids: the gloss convention as a check ------------------------------
+
+def bare_ids_paragraphs(lines):
+    """The live paragraphs of a workstream.md for the gloss check: the
+    Purpose section's paragraphs and every live block (open tasks, the
+    critical path, unresolved Open Questions, open and STANDING
+    criteria), as (start_line_no, raw_lines)."""
+    out = []
+    for no, text in purpose_paragraphs_for_gloss(lines):
+        out.append((no, text))
+    have = {no for no, _r in out}
+    for start, raw in live_blocks(lines):
+        if start not in have:
+            out.append((start, raw))
+    out.sort(key=lambda b: b[0])
+    return out
+
+
+def bare_ids_for_file(path, rel, whole_body=False):
+    lines = blank_fences(read_lines(path))
+    if whole_body:
+        body = strip_frontmatter(lines)
+        body_lines = [t for _n, t in body]
+        offset = body[0][0] - 1 if body else 0
+        paras = [(start + offset, raw) for start, _k, _t, raw in fold_blocks(body_lines)]
+    else:
+        paras = bare_ids_paragraphs(lines)
+    hits = bare_ids(paras)
+    return {"path": rel, "bare": hits, "count": len(hits)}
+
+
+def bare_ids_project(root):
+    files = []
+    active = os.path.join(root, '.state', 'ACTIVE.md')
+    if os.path.isfile(active):
+        files.append(bare_ids_for_file(active, os.path.relpath(active, root), whole_body=True))
+    for path, rel in find_workstreams(root):
+        files.append(bare_ids_for_file(path, rel))
+    return {"files": files, "total": sum(f["count"] for f in files)}
+
+
+def bare_ids_stdin(text):
+    lines = blank_fences(text.splitlines())
+    paras = [(start, raw) for start, _k, _t, raw in fold_blocks(lines)]
+    hits = bare_ids(paras)
+    return {"files": [{"path": "<stdin>", "bare": hits, "count": len(hits)}], "total": len(hits)}
+
+
+def bare_ids_text(result):
+    lines = []
+    for f in result["files"]:
+        if f["count"]:
+            ids = []
+            for h in f["bare"]:
+                if h["id"] not in ids:
+                    ids.append(h["id"])
+            lines.append("%s: %d bare id mention(s): %s" % (f["path"], f["count"], ", ".join(ids)))
+    return "\n".join(lines)
+
+
+def cmd_bare_ids(args):
+    as_text = False
+    from_stdin = False
+    rest = []
+    for a in args:
+        if a == '--text':
+            as_text = True
+        elif a == '--stdin':
+            from_stdin = True
+        elif a.startswith('--'):
+            usage("unknown option %s" % a)
+        else:
+            rest.append(a)
+    if from_stdin:
+        if rest:
+            usage("bare-ids --stdin takes no project root")
+        result = bare_ids_stdin(sys.stdin.read())
+    else:
+        if len(rest) != 1:
+            usage("bare-ids takes exactly one project root, or --stdin")
+        root = require_root(rest[0], PROG)
+        result = bare_ids_project(root)
+    if as_text:
+        text = bare_ids_text(result)
+        if text:
+            print(text)
+    else:
+        print(json.dumps(result, indent=2))
+    return 0
+
+
 # --- self-check: the instrument fired at what it must catch and must let through
 
 def _holds(text):
@@ -1383,6 +1493,13 @@ SELF_CHECKS = [
      ["cites #BD-1 and", "(#BD-1)"], ["cites #BD-10 and", "cites #BD-1a and"]),
     ("TASK_ID_RE", lambda t: bool(TASK_ID_RE.search(t)),
      ["routed to #OG-188 there", "decided at #G-OG"], ["a plain sentence", "the #hashtag"]),
+    ("bare_ids glossed", lambda t: not bare_ids([(1, [t])]),
+     ["#EX-37 (the phase split question) is open", '#G-OG "the kit change approval gate" stands',
+      "#EX-30 in project/tier (the neutrality sort) waits", "D96 (the release decision) and D96 again",
+      "- [ ] #EX-37: a backlog line naming #EX-3 (the heuristic)", "run `rg '#EX-3'` here",
+      "#XX-N and #G-XX are metavariables"],
+     ["#EX-37 is open", "#G-OG stands", "D96 and D96 again", "the (#EX-3) form glosses nothing",
+      "#EX-37's split question", "- [ ] #EX-37: a backlog line naming #EX-3 bare"]),
 ]
 
 
@@ -1422,6 +1539,7 @@ COMMANDS = {
     'decay': cmd_decay,
     'git': cmd_git,
     'fires': cmd_fires,
+    'bare-ids': cmd_bare_ids,
     'self-check': cmd_self_check,
 }
 
