@@ -92,6 +92,7 @@ payload_files() {
 # hook reads to compare the installed version against the checkout, so the
 # hook needs no layout convention of its own.
 SS_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh'
+BI_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/bare-id-guard.py'
 RETIRED_HOOK_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/capture-nudge.sh'
 # Retired payload paths, space-separated: present in a target, a real run removes
 # each one (refusing a locally modified copy without --force, like any payload).
@@ -101,6 +102,7 @@ HOOK_MERGE_JQ='
   | .env.WORKSTREAM_KIT_DIR = $kd
   | .hooks //= {}
   | (if any((.hooks.SessionStart // [])[]?.hooks[]?; .command == $ss) then . else .hooks.SessionStart = ((.hooks.SessionStart // []) + [{"hooks":[{"type":"command","command":$ss}]}]) end)
+  | (if any((.hooks.Stop // [])[]?.hooks[]?; .command == $bi) then . else .hooks.Stop = ((.hooks.Stop // []) + [{"hooks":[{"type":"command","command":$bi}]}]) end)
   | .hooks |= with_entries(
       if (.key == "PreCompact" or .key == "SessionEnd") and ((.value | type) == "array") then
         .value |= (map(.hooks |= map(select(.command != $cn))) | map(select((.hooks | length) > 0)))
@@ -264,7 +266,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   elif command -v jq >/dev/null 2>&1; then
     merged=$(mktemp)
     cur=$(mktemp)
-    jq --arg ss "$SS_CMD" --arg cn "$RETIRED_HOOK_CMD" --arg kd "$KIT_DIR" "$HOOK_MERGE_JQ" "$tsj" | jq -S . > "$merged"
+    jq --arg ss "$SS_CMD" --arg bi "$BI_CMD" --arg cn "$RETIRED_HOOK_CMD" --arg kd "$KIT_DIR" "$HOOK_MERGE_JQ" "$tsj" | jq -S . > "$merged"
     jq -S . "$tsj" > "$cur"
     if cmp -s "$merged" "$cur"; then
       echo "  = .claude/settings.json  settings merge is a no-op (session-start registered, kit path recorded, nothing retired)"
@@ -417,7 +419,10 @@ for rp in $RETIRED_PAYLOAD; do
   fi
 done
 for x in "$KIT_DIR"/.claude/hooks/* "$KIT_DIR"/.claude/scripts/*; do
-  [ -f "$x" ] && chmod +x "$TARGET/${x#"$KIT_DIR"/}"
+  # Only what the payload actually copied: a file on disk in the checkout
+  # that the index does not track (a hook being written) was never copied,
+  # and a chmod on its absent target would abort the install under set -e.
+  [ -f "$TARGET/${x#"$KIT_DIR"/}" ] && chmod +x "$TARGET/${x#"$KIT_DIR"/}"
 done
 
 # --- CLAUDE.md: write fresh, or append once under markers -------------------
@@ -450,18 +455,19 @@ fi
 # --- settings.json: merge hook registrations and the kit path ---------------
 if [ ! -f "$TARGET/.claude/settings.json" ] && ! command -v jq >/dev/null 2>&1; then
   cp "$KIT_DIR/.claude/settings.json" "$TARGET/.claude/settings.json"
-  echo "  wrote .claude/settings.json (session-start hook registered)"
+  echo "  wrote .claude/settings.json (session-start and bare-id-guard hooks registered)"
   echo "  ACTION REQUIRED: jq absent -- add to .claude/settings.json by hand:"
   echo "    env -> WORKSTREAM_KIT_DIR: $KIT_DIR"
 elif command -v jq >/dev/null 2>&1; then
   [ -f "$TARGET/.claude/settings.json" ] || cp "$KIT_DIR/.claude/settings.json" "$TARGET/.claude/settings.json"
-  jq --arg ss "$SS_CMD" --arg cn "$RETIRED_HOOK_CMD" --arg kd "$KIT_DIR" "$HOOK_MERGE_JQ" \
+  jq --arg ss "$SS_CMD" --arg bi "$BI_CMD" --arg cn "$RETIRED_HOOK_CMD" --arg kd "$KIT_DIR" "$HOOK_MERGE_JQ" \
     "$TARGET/.claude/settings.json" > "$TARGET/.claude/settings.json.tmp"
   mv "$TARGET/.claude/settings.json.tmp" "$TARGET/.claude/settings.json"
-  echo "  merged the session-start hook and the kit path into settings.json (retired registrations removed)"
+  echo "  merged the session-start and bare-id-guard hooks and the kit path into settings.json (retired registrations removed)"
 else
   echo "  ACTION REQUIRED: edit .claude/settings.json by hand:"
   echo "    SessionStart -> command: $SS_CMD"
+  echo "    Stop -> command: $BI_CMD"
   echo "    env -> WORKSTREAM_KIT_DIR: $KIT_DIR"
   echo "    remove any PreCompact or SessionEnd entry running: $RETIRED_HOOK_CMD"
 fi

@@ -30,7 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'scripts'))
 
 try:
-    from workstream_state import bare_ids, fold_blocks  # noqa: E402
+    from workstream_state import bare_ids, blank_fences, fold_blocks  # noqa: E402
 except Exception:  # the payload is incomplete: never hold the session for it
     sys.exit(0)
 
@@ -78,7 +78,7 @@ def main():
     text = turn_text(path)
     if not text.strip():
         return 0
-    lines = text.splitlines()
+    lines = blank_fences(text.splitlines())
     hits = bare_ids([(start, raw) for start, _k, _t, raw in fold_blocks(lines)])
     if not hits:
         return 0
