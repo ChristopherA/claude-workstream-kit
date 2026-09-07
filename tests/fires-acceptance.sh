@@ -48,6 +48,10 @@ mk feature/big active '' '' ''
 mk feature/outside active '' '' ''
 mk feature/severed active '' "- L1 (2026-01-01): The gate line ends here.\n  rather than the build's counts, an insertion having landed mid-sentence. DROPPED 2026-01-02 as an example.\n- L2 (2026-01-01): A wrapped entry whose line breaks mid\n  sentence and continues lowercase, which is ordinary wrapping. APPLIED 2026-01-02 to docs/x.md.\n" ''
 printf -- '\n## Decisions\n- [ ] #LV-9: appended after the Backlog ended\n' >> "$T/.state/workstreams/feature/outside/workstream.md"
+# A Deletion Criteria line that OPENS with a task ID is a criterion, not
+# an open task outside the Backlog (a fresh workstream's criteria fired
+# the symptom within the hour of it shipping).
+mk feature/criterion active '' '' "- [ ] #EX-30 in project/other names this workstream as its home, verified at closure\n- [ ] STANDING: healthy -- HOLDS $TODAY\n"
 head -c 70000 /dev/zero | tr '\0' 'x' >> "$T/.state/workstreams/feature/big/workstream.md"
 
 python3 "$SCRIPT" fires "$T" > "$T/out.txt"
@@ -56,7 +60,7 @@ line() { grep "^feature/$1:" "$T/out.txt"; }
 sym() { jq -r ".workstreams[] | select(.workstream == \"feature/$1\") | [.symptoms[].symptom] | join(\"|\")" "$T/out.json"; }
 
 echo "== Sanity"
-check "ten workstreams, one line each" '[ "$(wc -l < "$T/out.txt" | tr -d " ")" = "10" ]'
+check "eleven workstreams, one line each" '[ "$(wc -l < "$T/out.txt" | tr -d " ")" = "11" ]'
 check "the big fixture is past 65536 bytes" '[ "$(wc -c < "$T/.state/workstreams/feature/big/workstream.md" | tr -d " ")" -gt 65536 ]'
 check "the threshold agrees with the session-start hook (both files carry 65536, and nothing else in the payload does)" \
   '[ "$(grep -rn "65536" "$KIT_DIR/.claude/hooks/session-start.sh" "$KIT_DIR/.claude/scripts" | wc -l | tr -d " ")" = "2" ] && [ "$(jq -r ".threshold_bytes" "$T/out.json")" = "65536" ]'
@@ -72,6 +76,7 @@ check "never: STANDING criteria never re-checked" '[ "$(sym never)" = "STANDING 
 check "stale (PAUSED, still measured): STANDING re-check older than the interval, with the date" \
   '[ "$(sym stale)" = "STANDING re-check older than the interval" ] && line stale | grep -q "oldest HOLDS $OLD"'
 check "outside: open task outside Backlog, with its line and ID" '[ "$(sym outside)" = "open task outside Backlog" ] && line outside | grep -q "line $(grep -n "#LV-9" "$T/.state/workstreams/feature/outside/workstream.md" | cut -d: -f1) (#LV-9)"'
+check "criterion: a Deletion Criteria line opening with a task ID is quiet, not an open task outside Backlog" '[ "$(line criterion)" = "feature/criterion: quiet" ]'
 check "severed: a continuation opening lowercase under a full stop fires with its line; ordinary wrapping (L2) does not" \
   '[ "$(sym severed)" = "severed sentence" ] && line severed | grep -q "line $(grep -n "rather than the build" "$T/.state/workstreams/feature/severed/workstream.md" | cut -d: -f1)$"'
 check "big: size, in KB past 64KB" '[ "$(sym big)" = "size" ] && line big | grep -q "past 64KB"'

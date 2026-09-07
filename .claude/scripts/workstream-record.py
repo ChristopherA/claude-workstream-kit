@@ -351,13 +351,18 @@ def learnings_field(lines, blocks):
 
 def open_outside_backlog_field(lines):
     """Every open checkbox line (task or gate) whose section is not
-    ## Backlog, with its line and ID -- a task the counts cannot see."""
+    ## Backlog, with its line and ID -- a task the counts cannot see.
+    The Deletion Criteria section is exempt: a criterion is a checkbox
+    outside the Backlog by design, and one that OPENS with a task ID
+    (`- [ ] #EX-30 in project/x names ...`) is a criterion about that
+    task, not the task -- a fresh workstream's criteria fired this
+    symptom within the hour of the check shipping."""
     sections = section_of(lines)
     out = []
     for i, line in enumerate(lines):
         if not TOTAL_OPEN_RE.match(line):
             continue
-        if sections[i] == '## Backlog':
+        if sections[i] in ('## Backlog', '## Deletion Criteria'):
             continue
         m = CHECKBOX_ID_RE.match(line)
         out.append({"line": i + 1, "id": m.group(2) if m else None,
