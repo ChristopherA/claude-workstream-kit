@@ -45,8 +45,12 @@ frontmatter and Purpose; open Backlog lines under their headings with
 the critical-path paragraph; the Decisions a surviving task, gate,
 criterion or critical path cites; deferred and undispositioned
 Learnings; unresolved Open Questions; the Deletion Criteria; every
-section the kit does not know, verbatim) and write `Rotated <date>;
-the record before it is at <tag>` first under Purpose. Three checks
+section the kit does not know, verbatim) and write ONE rotation
+paragraph first under Purpose -- `Rotated <date>; the record before
+it is at <tag>`, every earlier rotation's tag listed after it newest
+first, rewritten in place at each rotation -- and, when Learnings
+leave, the numbering note at the head of Learnings saying which L
+range is at which tag and what the next Learning is. Three checks
 the hand rotation of 2026-09-04 passed while losing content: before
 writing, every leaving block's ID and lead phrase is searched for in
 the surviving text and in the live content of every other state file,
@@ -486,7 +490,39 @@ def cmd_learnings(args):
 
 # --- rotate: Move 3b with the removed-side checks -----------------------------
 
-ROTATED_RE = re.compile(r'^Rotated ' + r'[0-9]{4}-[0-9]{2}-[0-9]{2}' + r'; the record before it is at (\S+?)\.?$')
+# A tag name may carry dots (ws/omlx-0.4.x) but never ends in one: a
+# pattern admitting a trailing dot read the sentence's full stop as part
+# of the tag and saw every rotation as a new one.
+TAG = r'ws/[\w-]+(?:\.[\w-]+)*'
+ROTATED_RE = re.compile(r'^Rotated [0-9]{4}-[0-9]{2}-[0-9]{2}; the record before it is at (' + TAG + ')')
+TAG_RE = re.compile(TAG)
+NUMBERING_RE = re.compile(r'^Numbering continues from the rotation tag')
+RANGE_RE = re.compile(r'\bL([0-9]+)(?: to L([0-9]+))?\b(?: are| is)? at (' + TAG + ')')
+
+
+def rotation_paragraph(date, tags):
+    """ONE paragraph naming every rotation tag newest first, rewritten
+    in place at each rotation: a second rotation once prepended its own
+    line above the first, and the reader merged the two by hand."""
+    text = 'Rotated %s; the record before it is at %s' % (date, tags[0])
+    if len(tags) > 1:
+        earlier = tags[1:]
+        listed = earlier[0] if len(earlier) == 1 else ', '.join(earlier[:-1]) + ' and ' + earlier[-1]
+        text += ', and the records before that at %s, newest first' % listed
+    return wrap(text + '.', 70, indent='')
+
+
+def numbering_note(ranges, next_no):
+    """The Learnings numbering note: which L range sits at which tag,
+    and the next number to mint, one sentence so that the citation
+    sweep sees the current tag beside every leaving ID it names."""
+    parts = []
+    for lo, hi, tag in sorted(ranges):
+        parts.append(('L%d at %s' % (lo, tag)) if lo == hi else ('L%d to L%d at %s' % (lo, hi, tag)))
+    listed = parts[0] if len(parts) == 1 else ', '.join(parts[:-1]) + ' and ' + parts[-1]
+    text = ('Numbering continues from the rotation tags: %s; the next Learning is L%d, '
+            'and a citation to any L resolves to exactly one entry across the tags.' % (listed, next_no))
+    return wrap(text, 70, indent='')
 KNOWN_SECTIONS = ('## Purpose', '## Backlog', '## Decisions', '## Learnings',
                   '## Open Questions', '## Deletion Criteria', '## Archive')
 COUNT_NOUNS = {
@@ -569,15 +605,26 @@ def rotate(path, lines, tag, date, keeps):
     rebuilt = {}
     for heading, body in sections:
         if heading == '## Purpose':
-            already = any(ROTATED_RE.match(l) and ROTATED_RE.match(l).group(1) == tag for l in body)
+            # Every rotation paragraph already there (one per earlier
+            # rotation when they were stacked) is folded into one.
+            tags = []
+            drop = set()
+            for bstart, kind, text, raw in fold_blocks(body):
+                if kind == 'para' and ROTATED_RE.match(text):
+                    for t in TAG_RE.findall(text):
+                        if t not in tags:
+                            tags.append(t)
+                    drop.update(range(bstart - 1, bstart - 1 + len(raw)))
+            already = bool(tags) and tags[0] == tag
             new = list(body)
             if not already:
-                lead = ['Rotated %s; the record before it is at %s.' % (date, tag), '']
-                # Insert after any leading blank lines.
                 j = 0
                 while j < len(new) and new[j].strip() == '':
                     j += 1
-                new = new[:j] + lead + new[j:]
+                rest = [l for i, l in enumerate(new) if i >= j and i not in drop]
+                while rest and rest[0].strip() == '':
+                    rest.pop(0)
+                new = new[:j] + rotation_paragraph(date, [tag] + tags) + [''] + rest
             rebuilt[heading] = new
             live_text.extend(new)
         elif heading == '## Backlog':
@@ -640,16 +687,40 @@ def rotate(path, lines, tag, date, keeps):
             new = []
             blocks = fold_blocks(body)
             consumed = 0
+            leaving_nos = []
+            all_nos = []
+            ranges = []
+            note = None
             for bstart, kind, text, raw in blocks:
                 idx = bstart - 1
                 gap = body[consumed:idx]
                 consumed = idx + len(raw)
+                if kind == 'item' and LEARNING_RE.match(raw[0]):
+                    all_nos.append(int(LEARNING_RE.match(raw[0]).group(1)))
+                if kind == 'para' and NUMBERING_RE.match(text):
+                    note = (gap, raw)
+                    for lo, hi, t in RANGE_RE.findall(text):
+                        ranges.append((int(lo), int(hi or lo), t))
+                    continue
                 if kind == 'item' and LEARNING_RE.match(raw[0]) and disposition(text) == 'terminal' and not keep_by_phrase(text):
                     m = LEARNING_RE.match(raw[0])
                     leaving.append(('learning', 'L' + m.group(1), lead_phrase(text), raw[0]))
+                    leaving_nos.append(int(m.group(1)))
                 else:
                     new.extend(gap)
                     new.extend(raw)
+            if leaving_nos:
+                # The numbering note is carried forward with this tag's
+                # range, at the head of the section; a note that was
+                # there is rewritten rather than left naming one tag.
+                ranges = [r for r in ranges if r[2] != tag]
+                ranges.append((min(leaving_nos), max(leaving_nos), tag))
+                head = numbering_note(ranges, max(all_nos) + 1)
+                while new and new[0].strip() == '':
+                    new.pop(0)
+                new = head + [''] + new
+            elif note is not None:
+                new = note[0] + note[1] + new
             rebuilt[heading] = strip_blank(new) + ['']
         elif heading == '## Archive':
             for bstart, kind, text, raw in fold_blocks(body):

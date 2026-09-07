@@ -180,6 +180,8 @@ check "every open line's ID is present in the new file" \
   'for id in "#OG-3" "#G-OG"; do grep -q "^- \[ \] $id:" "$W" || exit 1; done'
 check "the file shrank" '[ "$(wc -c < "$W")" -lt "$(wc -c < "$T/original.md")" ]'
 check "the tag still resolves every dropped ID (git show at the tag holds D1)" 'git show ws/kit-2026-02-02:"$W" | grep -q "^### D1 "'
+check "the Learnings numbering note heads the section: L1 to L2 at the tag, the next Learning L4 (L3 stays)" \
+  '[ "$(awk "/^## Learnings/{getline; print; exit}" "$W")" = "Numbering continues from the rotation tags: L1 to L2 at" ] && grep -q "^ws/kit-2026-02-02; the next Learning is L4, and a citation to any L" "$W"'
 
 echo "== A second run changes nothing"
 cp "$W" "$T/after1.md"
@@ -187,6 +189,20 @@ git add -A && git commit -q -m "rotated"
 OUT=$(python3 "$SCRIPT" rotate "$W" --tag ws/kit-2026-02-02 --write --date 2026-03-03 --keep "intake-channel note")
 check "second run: dropped nothing, NO CHANGE, byte-identical, no second Rotated line" \
   'printf "%s" "$OUT" | grep -q "^rotate: dropped nothing" && printf "%s" "$OUT" | grep -q "NO CHANGE" && cmp -s "$W" "$T/after1.md" && [ "$(grep -c "^Rotated " "$W")" = 1 ]'
+
+echo "== A second rotation folds the rotation paragraph and carries the numbering note"
+# L4 goes under Learnings, after L3 (an append would land under the trailing Analysis section).
+sed -i.bak 's|^- L3 (2026-01-01): Tracked work. QUEUED 2026-01-02 for #OG-3\.$|&\
+- L4 (2026-03-01): A fourth terminal insight. APPLIED 2026-03-02 to docs/y.md.|' "$W" && rm -f "$W.bak"
+git add -A && git commit -q -m "L4" && git tag -a ws/kit-2026-03-03 -m "rotation 2"
+# The carried criterion's "2 of 2 Learnings" is a true stale claim again (2 Learnings -> 1), so the flag is passed as in the first rotation.
+OUT=$(python3 "$SCRIPT" rotate "$W" --tag ws/kit-2026-03-03 --write --date 2026-03-03 --keep "intake-channel note" --allow-stale-claims)
+check "second rotation: dropped learning=1 and WRITTEN" 'printf "%s" "$OUT" | grep -q "^rotate: dropped learning=1 " && printf "%s" "$OUT" | grep -q WRITTEN'
+check "ONE rotation paragraph, first under Purpose, naming both tags newest first" \
+  '[ "$(grep -c "^Rotated " "$W")" = 1 ] && [ "$(awk "/^## Purpose/{getline; print; exit}" "$W")" = "Rotated 2026-03-03; the record before it is at ws/kit-2026-03-03, and" ] && grep -q "^the records before that at ws/kit-2026-02-02, newest first\.$" "$W"'
+check "the numbering note carries both ranges and the next number: L1 to L2 at the first tag, L4 at the second, next L5" \
+  '[ "$(grep -c "^Numbering continues" "$W")" = 1 ] && sed -n "/^## Learnings/,/^- L3/p" "$W" | tr "\n" " " | grep -q "rotation tags: L1 to L2 at ws/kit-2026-02-02 and L4 at ws/kit-2026-03-03; the next Learning is L5, and a citation"'
+git add -A && git commit -q -m "rotated twice"
 
 echo "== A non-conforming file (wrapped open line) is refused"
 printf -- '- [ ] #OG-9: a new task wrapped against\nthe convention\n' >> "$W"
