@@ -60,10 +60,18 @@ check_or_held() {
 # What each session SAID is kept: two findings on 2026-09-05 (a close skill
 # archiving with status: active, a rule gap a session could not edit)
 # surfaced only because a capture read the log past the PASS lines. Each
-# session's output is teed to a file and its closing paragraph printed
-# under OBSERVATIONS after the verdict, where a reader cannot miss it.
+# session's output is teed to a file and its closing paragraph -- the
+# last one with a full sentence in it -- printed under OBSERVATIONS after
+# the verdict, where a reader cannot miss it.
 SAID=$(mktemp -d "${TMPDIR:-/tmp}/va3-said.XXXXXX")
-closing_paragraph() { awk 'BEGIN{RS=""} {p=$0} END{print p}' "$1"; }
+# The last paragraph holding at least one full sentence (a terminator and
+# six words or more): the last blank-delimited block can be one token --
+# Session C's was the bare tag name -- so a paragraph that carries what
+# the session SAID is wanted, and when none qualifies the last eight
+# lines stand in.
+closing_paragraph() {
+  awk 'BEGIN{RS=""} /[.!?]/ && NF >= 6 {p=$0} END{if (p != "") print p; else exit 1}' "$1" || tail -n 8 "$1"
+}
 
 echo "== Setup: fresh project at $PROJ"
 cd "$PROJ"
