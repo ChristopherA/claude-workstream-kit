@@ -10,7 +10,8 @@ check that fails. It reads the turn's assistant text from the
 transcript, runs the same detector the record script's `bare-ids`
 sub-command runs over state files, and when bare mentions remain
 returns a block decision naming them, so the turn ends only once they
-are glossed. It fires once per turn: when Claude Code reports the hook
+are glossed. Only the FINAL message is judged: earlier messages in the
+turn have been shown and cannot be re-sent. It fires once per turn: when Claude Code reports the hook
 already blocked this turn (`stop_hook_active`), it lets the stop
 through, so a message that cannot be fixed cannot loop.
 
@@ -35,11 +36,13 @@ except Exception:  # the payload is incomplete: never hold the session for it
     sys.exit(0)
 
 
-def turn_text(transcript_path):
-    """The assistant text of the turn that is ending: every text block
-    of the assistant records after the last human message, in order.
-    A `user` record whose content is only tool results is the harness
-    talking, not the user, and does not end the walk."""
+def final_message_text(transcript_path):
+    """The text of the FINAL assistant message only: the trailing run of
+    assistant records that carry text and no tool use, read from the end
+    of the transcript. Earlier messages in the same turn have already
+    been shown and cannot be re-sent, so judging them only hands back a
+    turn whose closing message was clean -- the first live run did
+    exactly that, naming ids from a recap several tool calls earlier."""
     try:
         with open(transcript_path, 'r', encoding='utf-8', errors='replace') as f:
             records = [json.loads(l) for l in f if l.strip()]
@@ -47,19 +50,15 @@ def turn_text(transcript_path):
         return ''
     texts = []
     for rec in reversed(records):
-        kind = rec.get('type')
-        msg = rec.get('message') or {}
-        content = msg.get('content')
-        if kind == 'user':
-            if isinstance(content, str):
-                break
-            if isinstance(content, list) and any(b.get('type') != 'tool_result' for b in content if isinstance(b, dict)):
-                break
-            continue
-        if kind != 'assistant' or not isinstance(content, list):
-            continue
+        if rec.get('type') != 'assistant':
+            break
+        content = (rec.get('message') or {}).get('content')
+        if not isinstance(content, list):
+            break
+        if any(isinstance(b, dict) and b.get('type') != 'text' for b in content):
+            break
         for b in content:
-            if isinstance(b, dict) and b.get('type') == 'text' and b.get('text'):
+            if isinstance(b, dict) and b.get('text'):
                 texts.append(b['text'])
     texts.reverse()
     return '\n\n'.join(texts)
@@ -75,7 +74,7 @@ def main():
     path = payload.get('transcript_path')
     if not path or not os.path.isfile(path):
         return 0
-    text = turn_text(path)
+    text = final_message_text(path)
     if not text.strip():
         return 0
     lines = blank_fences(text.splitlines())
