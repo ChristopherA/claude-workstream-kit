@@ -38,6 +38,7 @@ FIX
   cat <<'FIX'
 - [x] #BD-2: a short done task, DONE 2026-01-01
 FIX
+  printf -- '- [x] #BD-5: The installer closes an upgrade with first-install wording -- `Done. Commit the new files, then run /workstream-create.` -- on a stamped target. DONE 2026-02-02 at commit 0ab12cd: %s %s.\n' "$LONG" "$LONG"
   printf -- '- [x] #BD-4: An inventory task whose markers ran in order. VERIFIED 2026-08-21 against the tree. HAZARD FOUND 2026-08-21 in the second file. DONE 2026-08-22 at commit fedcb98. CORRECTED 2026-08-22 (the hazard). The other project fixed its side at commit 9ab0123 of 2026-07-02, mentioned last: %s.\n' "$LONG"
   cat <<'FIX'
 - [ ] #BD-3: an open task wrapped against the convention, with a
@@ -92,14 +93,16 @@ fp "$W" > "$T/fp-before.txt"
 
 echo "== records: dry run, write, idempotence"
 OUT=$(python3 "$SCRIPT" records "$W" --date 2026-05-05)
-check "dry run reports condensed=3 (two in the Backlog, one under Archive), both sections' line counts, and leaves the file byte-identical" \
-  "printf '%s' \"\$OUT\" | grep -q '^condensed=3 .*backlog_lines [0-9]*->[0-9]* archive_lines [0-9]*->[0-9]*' && ! printf '%s' \"\$OUT\" | grep -q WRITTEN && cmp -s \"\$W\" \"\$T/original.md\""
+check "dry run reports condensed=4 (three in the Backlog, one under Archive), both sections' line counts, and leaves the file byte-identical" \
+  "printf '%s' \"\$OUT\" | grep -q '^condensed=4 .*backlog_lines [0-9]*->[0-9]* archive_lines [0-9]*->[0-9]*' && ! printf '%s' \"\$OUT\" | grep -q WRITTEN && cmp -s \"\$W\" \"\$T/original.md\""
 check "dry run prints one entry line per condensed record in the report shape: ID, bytes before->after, the condensed line" \
-  "printf '%s' \"\$OUT\" | grep -qE '^#BD-1 [0-9]+->[0-9]+: - \\[x\\] #BD-1: Decide the widget shape\\.' && [ \"\$(printf '%s\\n' \"\$OUT\" | grep -cE '^#[A-Z]+-[0-9]+ [0-9]+->[0-9]+: ')\" = 3 ]"
+  "printf '%s' \"\$OUT\" | grep -qE '^#BD-1 [0-9]+->[0-9]+: - \\[x\\] #BD-1: Decide the widget shape\\.' && [ \"\$(printf '%s\\n' \"\$OUT\" | grep -cE '^#[A-Z]+-[0-9]+ [0-9]+->[0-9]+: ')\" = 4 ]"
 check "the entry line's byte figures are the fixture line's length and the note's" \
   "[ \"\$(printf '%s\\n' \"\$OUT\" | sed -n 's/^#BD-1 \\([0-9]*\\)->.*/\\1/p')\" = \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | tr -d '\\n' | wc -c | tr -d ' ')\" ]"
 OUT=$(python3 "$SCRIPT" records "$W" --write --date 2026-05-05)
-check "write reports condensed=3 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q '^condensed=3 ' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
+check "write reports condensed=4 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q '^condensed=4 ' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
+check "#BD-5 keeps its whole first sentence past the full stop inside the backtick span" \
+  "grep '^- \\[x\\] #BD-5' \"\$W\" | grep -q 'then run /workstream-create\.. -- on a stamped target\. DONE 2026-02-02; commits 0ab12cd\. Condensed 2026-05-05 at extract'"
 check "#IV-1 under Archive condenses to the note form with its commit; #IV-2 and the Archive heading are byte-identical" \
   "[ \"\$(grep '^- \\[x\\] #IV-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #IV-1' \"\$W\" | grep -q 'DONE 2026-01-04; commits 5ee0aaf. Condensed 2026-05-05 at extract' && grep -qF -- '- [x] #IV-2: a short archived record, DONE 2026-01-04' \"\$W\" && grep -qF '### Inventory (IV) -- moved 2026-01-05' \"\$W\""
 check "#BD-1 fits the completion-note form, keeps status, the date of the status word's OWN sentence (not the later release date), Decision, commit and the dated marker" \

@@ -232,7 +232,13 @@ def condense_range(lines, start, end, mark):
             out.append(ln)
             continue
         prefix, tid, _sep, body = m.groups()
-        head = re.split(r"(?<=[.!?])\s+(?=[A-Z`(#])", body, maxsplit=1)[0]
+        # The first sentence is found on a copy with code spans blanked
+        # inside their backticks: a description quoting a sentence
+        # (`Done. Commit the new files ...`) was cut at the quoted full
+        # stop, leaving a head that ended `-- \`Done.`
+        spans = re.sub(r"`[^`]*`", lambda mm: "`" + " " * (len(mm.group(0)) - 2) + "`", body)
+        split = re.search(r"(?<=[.!?])\s+(?=[A-Z`(#])", spans)
+        head = body[:split.start()] if split else body
         if len(head) > 220:
             head = head[:217].rsplit(" ", 1)[0] + "..."
         dates = DATE_RE.findall(body)
