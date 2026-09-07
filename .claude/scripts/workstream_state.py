@@ -89,6 +89,128 @@ ID_RE = re.compile(
 )
 TASK_ID_RE = re.compile(r'#(?:[A-Z]+-[0-9]+[a-z]?|G-[A-Z]+[0-9]*)(?![\w-])')
 
+# Every ID a gloss is owed for: tasks and gates (a gate has no digit, so
+# ID_RE alone misses #G-OG), Decisions, Learnings, Open Questions. The
+# rule's metavariables (#XX-N, #G-XX) carry no digit and no real phase
+# code and are excluded by the pattern, not by a list.
+GLOSSABLE_ID_RE = re.compile(
+    r'#(?:[A-Z]{1,4}-[0-9]+[a-z]?|G-(?!XX\b)[A-Z]{1,4}[0-9]*)(?![\w-])'
+    r'|\bD[0-9]+\b|\bL[0-9]+\b|\bOQ-[0-9]+\b'
+)
+# What may sit between an ID and its gloss: a closing code span, a
+# possessive, a home (`in type/name`, `in ws/tag`, `at ws/tag`).
+GLOSS_BRIDGE_RE = re.compile(
+    r"`?(?:'s)?(?: (?:in|at) (?:(?:explore|feature|fix|project|maintain)/[a-z0-9.-]+|ws/[a-z0-9.-]+)`?(?:'s)?)?\s*"
+)
+# The gloss itself: a parenthetical or a double-quoted phrase that
+# carries at least one letter, so `(#EX-3)` -- an ID glossing an ID --
+# does not count.
+GLOSS_RE = re.compile(r'(?:\([^()\n]*[A-Za-z][^()\n]*\)|["“][^"”\n]*[A-Za-z][^"”\n]*["”])')
+CODE_SPAN_RE = re.compile(r'`[^`\n]*`')
+FENCE_RE = re.compile(r'^\s*(?:```|~~~)')
+
+
+def blank_code(text):
+    """Code spans replaced by spaces of the same length, so offsets hold
+    and an ID quoted as code (`#EX-3:` in a command, a backlog line
+    quoted whole) is not read as a mention."""
+    return CODE_SPAN_RE.sub(lambda m: ' ' * (m.end() - m.start()), text)
+
+
+def blank_fences(lines):
+    """The same lines with every fenced block (``` or ~~~) replaced by
+    empty strings, fence lines included, so line numbers hold and a
+    backlog line quoted inside a fence is not read as a mention. Fence
+    state has to be tracked across paragraphs, since fold_blocks joins
+    a fence line to the paragraph before it."""
+    out = []
+    fenced = False
+    for raw in lines:
+        if FENCE_RE.match(raw):
+            fenced = not fenced
+            out.append('')
+            continue
+        out.append('' if fenced else raw)
+    return out
+
+
+def purpose_paragraphs_for_gloss(lines):
+    """(start_line_no, raw_lines) for each paragraph of the Purpose
+    section, the one prose section the rule's adoption pass names beside
+    the live blocks."""
+    section = extract_section(lines, r'^## Purpose\b')
+    if not section:
+        return []
+    start_no = section[0][0]
+    raw = [t for _n, t in section]
+    return [(s + start_no - 1, r) for s, kind, _t, r in fold_blocks(raw) if kind != 'heading']
+
+
+def bare_ids(paragraphs):
+    """Bare ID mentions in prose. `paragraphs` is an iterable of
+    (start_line_no, lines): each paragraph is folded to one text and
+    checked on its own, so a gloss wrapped across two lines still
+    counts, and within it an ID owes a gloss at its FIRST mention only
+    -- a later mention in the same paragraph inherits. A mention is
+    glossed when the canonical form follows it directly: `#EX-37 (the
+    phase split question)` or `#EX-37 "the phase split question"`, with
+    a home allowed in between (`#EX-30 in project/tier (the neutrality
+    sort)`). Exempt: the ID a paragraph's first line DEFINES (a checkbox
+    line opening with it, a `### D<n>` heading, a `- L<n>` or `- OQ-<n>`
+    item), text inside a code span, and struck spans; fenced blocks are
+    blanked by the caller (blank_fences), since fence state crosses
+    paragraphs. Returns a list of {"line", "id", "context"} with
+    1-indexed line numbers."""
+    out = []
+    for start_no, lines in paragraphs:
+        if not lines:
+            continue
+        head = lines[0]
+        defined = None
+        m = CHECKBOX_ID_RE.match(head)
+        if m:
+            defined = m.group(2)
+        else:
+            m = DECISION_HEADING_RE.match(head)
+            if m:
+                defined = 'D' + m.group(1)
+            m = LEARNING_RE.match(head)
+            if m:
+                defined = 'L' + m.group(1)
+            m = OQ_RE.match(head)
+            if m:
+                defined = 'OQ-' + m.group(1)
+        # Fold to one text, keeping a table of where each line starts.
+        starts = []
+        parts = []
+        pos = 0
+        for raw in lines:
+            piece = raw.strip()
+            starts.append(pos)
+            parts.append(piece)
+            pos += len(piece) + 1
+        text = ' '.join(parts)
+        clean = blank_code(text)
+        clean = STRIKE_RE.sub(lambda mm: ' ' * (mm.end() - mm.start()), clean)
+        seen = set()
+        for m in GLOSSABLE_ID_RE.finditer(clean):
+            ident = m.group(0)
+            if ident in seen:
+                continue
+            seen.add(ident)
+            if ident == defined:
+                continue
+            bridge = GLOSS_BRIDGE_RE.match(clean, m.end())
+            after = bridge.end() if bridge else m.end()
+            if GLOSS_RE.match(clean, after):
+                continue
+            line_idx = max(k for k, st in enumerate(starts) if st <= m.start())
+            a = max(0, m.start() - 40)
+            b = min(len(text), m.end() + 60)
+            out.append({"line": start_no + line_idx, "id": ident, "context": text[a:b].strip()})
+    return out
+
+
 # Disposition markers, as the rule publishes them (Learnings convention).
 # TERMINAL: the insight has left the file. DEFERRED: it is tracked work
 # that has not landed. Anything else is undispositioned.
@@ -106,6 +228,7 @@ SENTENCE_END_RE = re.compile(r'(?<=[.!?])\s+')
 # reads. The hook is sh with no python dependency, so the constant lives
 # in both files; the fires suite asserts the two agree.
 SIZE_BYTES = 65536
+
 
 
 # --- blocks: the paragraph-aware read ------------------------------------
