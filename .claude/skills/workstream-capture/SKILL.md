@@ -27,7 +27,7 @@ Run the workstreams-rule **capture sweep** -- detection, cascade and synthesis a
 ## Move 2 -- Close the boundary
 
 - An artifact the sweep PRODUCES outside `.state/` -- a script, a doc, a fixture -- gets its own commit in the repo proper before the state commit, and the state that cites it names the path -- a tool left in the scratchpad is invisible to the next session.
-- Update `ACTIVE.md` -- `task`, `Now`, `Next`, `Blockers` -- so the next session resumes in one read. Name every reference that crosses a workstream or project boundary with a few words saying what it is (workstreams-rule, Task IDs), in ACTIVE.md and in what you say to the user alike.
+- Update `ACTIVE.md` -- `task`, `Now`, `Next`, `Blockers` -- so the next session resumes in one read. Gloss every ID in the canonical form, `#EX-37 (the phase split question)`, with its home when it crosses a workstream or project boundary (workstreams-rule, Task IDs), in ACTIVE.md and in what you say to the user alike; `python3 .claude/scripts/workstream-record.py bare-ids <root> --text` lists what is still bare, and the file is committed when its line is absent from that output.
 - Check off any Backlog items completed this session, each with its one-line evidence (a commit, a passing command, a count).
 - Mark any Learning that RESOLVED this session -- its integration target shipped, its handoff sent, its question settled -- with its disposition now, in the same commit -- in a never-closing workstream this is the moment the marker is owed, and the drain that would otherwise write it is periodic.
 - Commit the state files per the repository's own commit conventions, scoped to `.state/`; do not sweep unrelated working changes into the commit.
