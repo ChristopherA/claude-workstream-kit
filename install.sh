@@ -390,6 +390,16 @@ fi
 
 echo "Installing claude-workstream-kit $VERSION ($SRC_DESC) into $TARGET"
 
+# The target's stamp BEFORE this run rewrites it, so the closing line can
+# say whether this was an upgrade: an upgrade once closed with the
+# first-install line on a project that already had eight workstreams.
+prev_ver=""; prev_src=""
+if [ -f "$TARGET/.claude/workstream-kit.version" ]; then
+  prev_ver=$(head -n1 "$TARGET/.claude/workstream-kit.version")
+  [ -f "$TARGET/.claude/workstream-kit.source" ] &&
+    prev_src=$(sed -n 's/^source: //p' "$TARGET/.claude/workstream-kit.source" | head -n1)
+fi
+
 # --- .claude/ payload (skills, agents, hooks, rule) -------------------------
 mkdir -p "$TARGET/.claude"
 for d in rules skills agents hooks scripts; do
@@ -529,4 +539,8 @@ if [ -s "$post_ign" ]; then
 fi
 rm -f "$post_ign"
 
-echo "Done. Commit the new files, then start a Claude Code session and run /workstream-create."
+if [ -n "$prev_ver" ]; then
+  echo "Upgraded from $prev_ver${prev_src:+ ($prev_src)} to $VERSION ($SRC_SHA). Review the diff to .claude/ and commit the kit-owned changes (the /workstream-upgrade skill's next step)."
+else
+  echo "Done. Commit the new files, then start a Claude Code session and run /workstream-create."
+fi

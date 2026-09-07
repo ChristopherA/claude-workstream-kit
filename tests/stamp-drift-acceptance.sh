@@ -22,7 +22,19 @@ PROJ="$WORK/proj"
 mkdir -p "$PROJ"
 
 # Baseline: a real install populates the current payload and current stamps.
-"$KIT_DIR/install.sh" "$PROJ" >/dev/null 2>&1
+"$KIT_DIR/install.sh" "$PROJ" >"$WORK/first" 2>&1
+
+echo "== S0: the closing line says first install or upgrade, by the target's prior stamp"
+check "S0 first install closes with the first-install line" "grep -qF 'Done. Commit the new files' \"$WORK/first\""
+check "S0 first install does not claim an upgrade" "! grep -q '^Upgraded from' \"$WORK/first\""
+printf '0.4.0\n' > "$PROJ/.claude/workstream-kit.version"
+printf 'version: 0.4.0\nsource: abc1234\nref: v0.4.0\n' > "$PROJ/.claude/workstream-kit.source"
+"$KIT_DIR/install.sh" "$PROJ" >"$WORK/second" 2>&1
+check "S0 re-install over a stamped target closes with Upgraded from <prior version> (<prior source>) to <VERSION>" \
+  "grep -q \"^Upgraded from 0.4.0 (abc1234) to $VERSION (\" \"$WORK/second\""
+check "S0 the upgrade line names the upgrade skill's next step, not /workstream-create" \
+  "grep -q '^Upgraded from.*commit the kit-owned changes' \"$WORK/second\" && ! grep -qF 'Done. Commit the new files' \"$WORK/second\""
+check "S0 the stamp is current again after the re-install" "[ \"\$(head -n1 \"$PROJ/.claude/workstream-kit.version\")\" = \"$VERSION\" ]"
 
 # Run the dry run without tripping set -e on its intended non-zero exit.
 run_dry() {
