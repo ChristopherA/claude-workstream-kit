@@ -770,13 +770,28 @@ def sweep_removed(root, path, new_lines, leaving, tag, old_lines=None):
     return hits
 
 
+NOT_A_COUNT_RE = re.compile(
+    r'\b[0-9]{4}-[0-9]{2}-[0-9]{2}\b'          # a date: 2026-09-04 read as a claim of 4
+    r'|ws/[\w.-]+'                             # a rotation or archive tag, dated
+    r'|\b(?:L|D|OQ-)[0-9]+\b'                  # an ID: (L67 to L70) is a span, not a count
+    r'|#[A-Z]+-[0-9]+[a-z]?'                   # a task ID
+)
+NOUN_WINDOW = 45  # characters either side of the number, a few words
+
+
 def stale_claims(old_lines, new_lines):
     """Numbers in surviving criteria, gate lines and critical-path
     sentences that equal a section's OLD count and not its NEW one, in a
-    sentence naming that section."""
+    sentence naming that section WITHIN A FEW WORDS of the number.
+    Dates, tags and IDs are blanked first: the first live rotation read
+    `learnings 4 claimed, now 0` twice, once from the `-04` of a tag's
+    date in a sentence counting criteria and once from the span `(L67
+    to L70)`, and refused until --allow-stale-claims after both had
+    been checked by hand."""
     old = section_counts(old_lines)
     new = section_counts(new_lines)
     claims = []
+    seen = set()
     blocks = fold_blocks(new_lines)
     cur = None
     for s, k, t, r in blocks:
@@ -790,12 +805,17 @@ def stale_claims(old_lines, new_lines):
             continue
         text, starts = join_block(r, s)
         for sent in split_sentences(text):
+            scan = NOT_A_COUNT_RE.sub(lambda m: ' ' * len(m.group(0)), sent)
             for key, rx in COUNT_NOUNS.items():
-                if not rx.search(sent):
+                if not rx.search(scan):
                     continue
-                for num in re.findall(r'\b([0-9]+)\b', sent):
-                    v = int(num)
-                    if v == old[key] and v != new[key] and v > 0:
+                for nm in re.finditer(r'\b([0-9]+)\b', scan):
+                    v = int(nm.group(1))
+                    near = scan[max(0, nm.start() - NOUN_WINDOW):nm.end() + NOUN_WINDOW]
+                    if not rx.search(near):
+                        continue
+                    if v == old[key] and v != new[key] and v > 0 and (s, key, v) not in seen:
+                        seen.add((s, key, v))  # "2 of 2" is one claim, not two
                         claims.append({"section": key, "claimed": v, "now": new[key],
                                        "line": s, "sentence": sent[:160]})
     return claims

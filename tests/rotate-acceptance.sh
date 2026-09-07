@@ -102,6 +102,7 @@ Cited by the critical path.
 - [ ] kit maintenance has moved to a dedicated home
 - [ ] STANDING: every Learning reached a terminal disposition, 2 of 2 Learnings terminal at the last re-check -- HOLDS 2026-01-01
 - [ ] STANDING: both inboxes empty -- HOLDS 2026-01-01
+- [ ] STANDING: no orphaned Learnings; the span (L1 to L3) is at ws/kit-2026-02-02, re-checked 2026-01-03; the queue's 2 inboxes are swept at every session, each of which also re-reads the Learnings -- HOLDS 2026-01-03
 
 ## Analysis -- reusable protocol
 A section the kit does not know, carried verbatim.
@@ -154,11 +155,13 @@ echo "== The L7 case: a carried criterion's count the rotation makes false"
 rc=0; python3 "$SCRIPT" rotate "$W" --tag ws/kit-2026-02-02 --write --date 2026-02-02 --keep "intake-channel note" >"$T/o.txt" 2>"$T/e.txt" || rc=$?
 check "refused (exit 1): STALE CLAIM names learnings_terminal 2 claimed, now 0, with the criterion sentence" \
   '[ "$rc" -eq 1 ] && grep -q "STALE CLAIM.*learnings_terminal 2 claimed, now 0.*2 of 2 Learnings terminal" "$T/o.txt" && grep -q "allow-stale-claims" "$T/e.txt" && cmp -s "$W" "$T/original.md"'
+check "no false claim from a date's -03 or -02, the span (L1 to L3), the tag, or a 2 far from the noun Learnings (learnings 3->1 and terminal 2->0 in the same run): exactly one STALE CLAIM line" \
+  '[ "$(grep -c "^STALE CLAIM" "$T/o.txt")" = 1 ] && ! grep -q "STALE CLAIM.*no orphaned Learnings" "$T/o.txt"'
 
 echo "== Dry run with --allow-stale-claims reports and writes nothing"
 OUT=$(python3 "$SCRIPT" rotate "$W" --tag ws/kit-2026-02-02 --date 2026-02-02 --keep "intake-channel note" --allow-stale-claims)
 check "dry run reports the drops and the carried counts, file unchanged" \
-  'printf "%s" "$OUT" | grep -q "^rotate: dropped decision=2, learning=2, open question=1, task=3 open=2 gates=1 standing=2" && ! printf "%s" "$OUT" | grep -q WRITTEN && cmp -s "$W" "$T/original.md"'
+  'printf "%s" "$OUT" | grep -q "^rotate: dropped decision=2, learning=2, open question=1, task=3 open=2 gates=1 standing=3" && ! printf "%s" "$OUT" | grep -q WRITTEN && cmp -s "$W" "$T/original.md"'
 
 echo "== Write"
 python3 "$RECORD" "$T" | jq '.workstreams[] | select(.path | endswith("kit/workstream.md"))' > "$T/rec-before.json"
@@ -171,8 +174,8 @@ check "removed side: the done tasks, the finished phase heading, D1, D2, L1, L2 
 check "kept: the open task, the gate, the critical path, the kept note, D3, D47, D80, L3, OQ-2, the criteria, the Analysis section" \
   'grep -q "^- \[ \] #OG-3:" "$W" && grep -q "^- \[ \] #G-OG:" "$W" && grep -q "^\*\*Critical path" "$W" && grep -q "^\*\*The intake-channel note" "$W" && grep -q "^### D3 " "$W" && grep -q "^### D47 " "$W" && grep -q "^### D80 " "$W" && grep -q "^- L3 " "$W" && grep -q "^- OQ-2:" "$W" && grep -q "STANDING: both inboxes" "$W" && grep -q "^## Analysis" "$W" && grep -q "carried verbatim" "$W"'
 python3 "$RECORD" "$T" | jq '.workstreams[] | select(.path | endswith("kit/workstream.md"))' > "$T/rec-after.json"
-check "the record's open count, gate count and STANDING count are identical before and after (2, 1, 2)" \
-  '[ "$(jq -r "\"\(.open_total) \(.open_gates | length) \(.deletion_criteria.standing)\"" "$T/rec-before.json")" = "2 1 2" ] && [ "$(jq -r "\"\(.open_total) \(.open_gates | length) \(.deletion_criteria.standing)\"" "$T/rec-after.json")" = "2 1 2" ]'
+check "the record's open count, gate count and STANDING count are identical before and after (2, 1, 3)" \
+  '[ "$(jq -r "\"\(.open_total) \(.open_gates | length) \(.deletion_criteria.standing)\"" "$T/rec-before.json")" = "2 1 3" ] && [ "$(jq -r "\"\(.open_total) \(.open_gates | length) \(.deletion_criteria.standing)\"" "$T/rec-after.json")" = "2 1 3" ]'
 check "every open line's ID is present in the new file" \
   'for id in "#OG-3" "#G-OG"; do grep -q "^- \[ \] $id:" "$W" || exit 1; done'
 check "the file shrank" '[ "$(wc -c < "$W")" -lt "$(wc -c < "$T/original.md")" ]'
