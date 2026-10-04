@@ -91,8 +91,17 @@ payload_files() {
 # installer ran from, rewritten on every install -- which the session-start
 # hook reads to compare the installed version against the checkout, so the
 # hook needs no layout convention of its own.
-SS_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh'
-BI_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/bare-id-guard.py'
+#
+# Both hooks are registered THROUGH THEIR INTERPRETER, so the mode bit is not
+# load-bearing: registered by path, a checkout whose executables lost their
+# mode (a permission-dropping copy or sync) failed both hooks with exit 126,
+# and the session-start hook is the one that would have reported the stale
+# checkout behind it. A registration in the older path form is rewritten in
+# place rather than left beside the new one, which would run the hook twice.
+SS_CMD='sh "$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh'
+BI_CMD='python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/bare-id-guard.py'
+OLD_SS_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh'
+OLD_BI_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/bare-id-guard.py'
 RETIRED_HOOK_CMD='"$CLAUDE_PROJECT_DIR"/.claude/hooks/capture-nudge.sh'
 # Retired payload paths, space-separated: present in a target, a real run removes
 # each one (refusing a locally modified copy without --force, like any payload).
@@ -101,6 +110,13 @@ HOOK_MERGE_JQ='
   .env //= {}
   | .env.WORKSTREAM_KIT_DIR = $kd
   | .hooks //= {}
+  | .hooks |= with_entries(
+      if (.value | type) == "array" then
+        .value |= map(if (.hooks | type) == "array" then
+          .hooks |= map(if .command == $oss then .command = $ss
+                        elif .command == $obi then .command = $bi else . end)
+          else . end)
+      else . end)
   | (if any((.hooks.SessionStart // [])[]?.hooks[]?; .command == $ss) then . else .hooks.SessionStart = ((.hooks.SessionStart // []) + [{"hooks":[{"type":"command","command":$ss}]}]) end)
   | (if any((.hooks.Stop // [])[]?.hooks[]?; .command == $bi) then . else .hooks.Stop = ((.hooks.Stop // []) + [{"hooks":[{"type":"command","command":$bi}]}]) end)
   | .hooks |= with_entries(
@@ -266,7 +282,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   elif command -v jq >/dev/null 2>&1; then
     merged=$(mktemp)
     cur=$(mktemp)
-    jq --arg ss "$SS_CMD" --arg bi "$BI_CMD" --arg cn "$RETIRED_HOOK_CMD" --arg kd "$KIT_DIR" "$HOOK_MERGE_JQ" "$tsj" | jq -S . > "$merged"
+    jq --arg ss "$SS_CMD" --arg bi "$BI_CMD" --arg oss "$OLD_SS_CMD" --arg obi "$OLD_BI_CMD" --arg cn "$RETIRED_HOOK_CMD" --arg kd "$KIT_DIR" "$HOOK_MERGE_JQ" "$tsj" | jq -S . > "$merged"
     jq -S . "$tsj" > "$cur"
     if cmp -s "$merged" "$cur"; then
       echo "  = .claude/settings.json  settings merge is a no-op (session-start registered, kit path recorded, nothing retired)"
@@ -460,7 +476,7 @@ if [ ! -f "$TARGET/.claude/settings.json" ] && ! command -v jq >/dev/null 2>&1; 
   echo "    env -> WORKSTREAM_KIT_DIR: $KIT_DIR"
 elif command -v jq >/dev/null 2>&1; then
   [ -f "$TARGET/.claude/settings.json" ] || cp "$KIT_DIR/.claude/settings.json" "$TARGET/.claude/settings.json"
-  jq --arg ss "$SS_CMD" --arg bi "$BI_CMD" --arg cn "$RETIRED_HOOK_CMD" --arg kd "$KIT_DIR" "$HOOK_MERGE_JQ" \
+  jq --arg ss "$SS_CMD" --arg bi "$BI_CMD" --arg oss "$OLD_SS_CMD" --arg obi "$OLD_BI_CMD" --arg cn "$RETIRED_HOOK_CMD" --arg kd "$KIT_DIR" "$HOOK_MERGE_JQ" \
     "$TARGET/.claude/settings.json" > "$TARGET/.claude/settings.json.tmp"
   mv "$TARGET/.claude/settings.json.tmp" "$TARGET/.claude/settings.json"
   echo "  merged the session-start and bare-id-guard hooks and the kit path into settings.json (retired registrations removed)"

@@ -57,6 +57,22 @@ check "SessionEnd, left with no groups, is dropped" \
   "! jq -e '.hooks.SessionEnd' \"\$A/.claude/settings.json\" >/dev/null"
 check "the session-start registration stays" \
   "jq -e '.hooks.SessionStart | any(.[] | .hooks[]?; .command | test(\"session-start.sh\"))' \"\$A/.claude/settings.json\" >/dev/null"
+SS_WANT='sh "$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh'
+BI_WANT='python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/bare-id-guard.py'
+check "the path-form SessionStart registration is rewritten in place to run through sh, once" \
+  "jq -e --arg w \"\$SS_WANT\" '[.hooks.SessionStart[].hooks[] | select(.command | test(\"session-start.sh\")) | .command] == [\$w]' \"\$A/.claude/settings.json\" >/dev/null"
+check "the Stop hook is registered through python3, once" \
+  "jq -e --arg w \"\$BI_WANT\" '[.hooks.Stop[].hooks[] | select(.command | test(\"bare-id-guard\")) | .command] == [\$w]' \"\$A/.claude/settings.json\" >/dev/null"
+# The mode bit is not load-bearing: with both hooks stripped of it, the
+# registered commands still run (exit 0) where the path form fails 126.
+chmod -x "$A/.claude/hooks/session-start.sh" "$A/.claude/hooks/bare-id-guard.py"
+check "fixture: both installed hooks have lost their mode bit, and the path form fails with 126" \
+  "[ ! -x \"\$A/.claude/hooks/session-start.sh\" ] && { CLAUDE_PROJECT_DIR=\"\$A\" \"\$A/.claude/hooks/session-start.sh\" >/dev/null 2>&1; [ \$? -eq 126 ]; }"
+check "the registered SessionStart command still exits 0" \
+  "CLAUDE_PROJECT_DIR=\"\$A\" sh -c \"\$(jq -r '.hooks.SessionStart[0].hooks[0].command' \"\$A/.claude/settings.json\")\" >/dev/null 2>&1"
+check "the registered Stop command still exits 0" \
+  "echo '{}' | CLAUDE_PROJECT_DIR=\"\$A\" sh -c \"\$(jq -r '.hooks.Stop[0].hooks[0].command' \"\$A/.claude/settings.json\")\" >/dev/null 2>&1"
+chmod +x "$A/.claude/hooks/session-start.sh" "$A/.claude/hooks/bare-id-guard.py"
 check "the merge records the kit checkout's path as the WORKSTREAM_KIT_DIR env entry" \
   "[ \"\$(jq -r '.env.WORKSTREAM_KIT_DIR' \"\$A/.claude/settings.json\")\" = \"\$KIT_DIR\" ]"
 set +e; DRY2=$(sh "$KIT_DIR/install.sh" --dry-run "$A" 2>&1); DRC2=$?; set -e

@@ -270,6 +270,22 @@ if [ "$HCOUNT" -gt 0 ]; then
   echo "Handoffs pending in .state/handoffs/: $HCOUNT (oldest: ${OLDEST_D}d). Triage with /handoff before new task work if aging."
 fi
 
+# A tracked executable that is not executable on disk: the mode bit lost
+# to a permission-dropping copy or sync, content untouched. Anything run
+# by path fails with exit 126 -- before 0.11.2 that included both kit
+# hooks, so this one never ran to say so and a checkout 31 commits behind
+# went unreported. Registered through `sh`, the hook runs regardless and
+# names what lost the bit. Silent outside a git repository.
+MODE_LOST=$(git -C "$PROJECT_DIR" ls-files -s 2>/dev/null \
+  | awk '$1 == "100755" { sub(/^[^\t]*\t/, ""); print }' \
+  | while IFS= read -r p; do
+      if [ -e "$PROJECT_DIR/$p" ] && [ ! -x "$PROJECT_DIR/$p" ]; then printf '%s\n' "$p"; fi
+    done || true)
+if [ -n "$MODE_LOST" ]; then
+  MODE_N=$(printf '%s\n' "$MODE_LOST" | grep -c .)
+  echo "MODE: $MODE_N tracked executable(s) are not executable on disk (first: $(printf '%s\n' "$MODE_LOST" | head -1)). Anything run by path fails with exit 126; restore with \`git checkout -- <path>\` or chmod +x, then check \`git status -sb\` for a checkout left behind."
+fi
+
 # Installed kit version against the kit checkout's VERSION. The checkout
 # is located by WORKSTREAM_KIT_DIR alone, which install.sh records in the
 # consumer's settings.json env as the path it ran from -- so the hook

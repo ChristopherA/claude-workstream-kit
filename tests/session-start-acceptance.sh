@@ -191,6 +191,19 @@ check "a real task added to the Backlog moves the count to 6" \
   "CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'open tasks: 6, open gates: 2'"
 command mv "$T/alpha.bak" "$A"
 
+echo "== A tracked executable that lost its mode bit is named"
+# A permission-dropping copy leaves content untouched and mode 644; with
+# the hooks registered through their interpreter the hook still runs, and
+# says what lost the bit. Fired both ways: absent before the chmod.
+printf '#!/bin/sh\necho tool\n' > "$T/tool.sh"; chmod +x "$T/tool.sh"
+git add tool.sh && git commit -q -m "a tracked executable"
+check "fixture: tool.sh is tracked as 100755" '[ "$(git ls-files -s tool.sh | cut -c1-6)" = "100755" ]'
+check "no MODE line while the bit is set" "! CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q '^MODE:'"
+chmod -x "$T/tool.sh"
+check "MODE names the count and the file once the bit is lost" \
+  "CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q '^MODE: 1 tracked executable(s) are not executable on disk (first: tool.sh)'"
+chmod +x "$T/tool.sh"
+
 echo "== Dates derive from git, from the last checkbox or Decision change"
 check "no false STALENESS from a 2020 updated: field" \
   "! grep -q '^STALENESS: no checkbox or Decision changed' \"\$T/out.txt\""
