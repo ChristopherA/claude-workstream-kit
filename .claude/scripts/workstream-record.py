@@ -79,8 +79,13 @@ paragraph. Timestamps, never dates, so a task minted the same day but
 hours after the paragraph is reported. A paragraph naming no task ID
 (gates aside) is `shape: queue`: it states order, a task minted after
 it is what it predicts, and only the count (`minted_since`) is
-reported, with no task list to review. A workstream.md with
-uncommitted changes is unmeasurable, not current.
+reported, with `minted_after` null rather than an empty list to review.
+A workstream.md with uncommitted changes is unmeasurable, not current:
+`unmeasurable` names why and `minted_since` and `minted_after` are null,
+never a 0 or [] that reads as a measured answer. `open_tasks` counts
+every open task line outside Deletion Criteria, as the hook does, and
+a line whose ID the task grammar cannot parse is listed in
+`unparsable_ids` rather than dropped.
 
 `git` is the status skill's three git reads -- last-commit date per
 state file, commits ahead of the upstream or the named remote branch,
@@ -1079,19 +1084,33 @@ def decay(root):
         lines = read_lines(path)
         blocks = fold_blocks(lines)
         cp_text, cp_line, cp_raw = critical_path_field(blocks)
+        # minted_since and minted_after stay null until the compare has
+        # actually run: a 0 beside an `unmeasurable` flag is a legal
+        # answer to the question asked, and was read as one -- a dirty
+        # tree's `minted_since: 0` stood as proof a fix had worked.
         entry = {"path": rel, "critical_path": None, "unmeasurable": None,
-                 "shape": None, "minted_since": 0, "minted_after": [], "open_tasks": 0}
+                 "shape": None, "minted_since": None, "minted_after": None,
+                 "open_tasks": 0, "unparsable_ids": []}
         # The open count is a fact about the file, reported whether or
         # not a paragraph exists to compare against: a file with seven
-        # open tasks and no paragraph once read as open_tasks 0.
+        # open tasks and no paragraph once read as open_tasks 0. It counts
+        # every open task LINE, the way the hook does; a line whose ID the
+        # grammar cannot parse is counted and named in unparsable_ids,
+        # never dropped, since it cannot be dated by its ID.
         open_ids = []
-        for line in lines:
+        sections = section_of(lines)
+        for i, line in enumerate(lines):
             if not TOTAL_OPEN_RE.match(line) or GATE_LINE_RE.match(line):
                 continue
+            if sections[i] == '## Deletion Criteria':
+                continue
+            entry["open_tasks"] += 1
             m = CHECKBOX_ID_RE.match(line)
             if m:
                 open_ids.append(m.group(2))
-        entry["open_tasks"] = len(open_ids)
+            else:
+                hm = CHECKBOX_HASH_RE.match(line)
+                entry["unparsable_ids"].append({"line": i + 1, "token": hm.group(1) if hm else None})
         if cp_line is None:
             entry["critical_path"] = "not found"
             result.append(entry)
@@ -1119,6 +1138,8 @@ def decay(root):
         named = [m.group(0) for m in TASK_ID_RE.finditer(blank_strikes(cp_text))
                  if not m.group(0).startswith('#G-')]
         entry["shape"] = "named" if named else "queue"
+        entry["minted_since"] = 0
+        entry["minted_after"] = [] if named else None
         for oid in open_ids:
             minted = mint_time(root, rel, oid)
             if minted is not None and minted > newest:
@@ -1143,8 +1164,8 @@ def cmd_decay(args):
 def git_reads(root, remote=None, tags=False):
     rc, top = git(['rev-parse', '--show-toplevel'], root)
     if rc != 0:
-        return {"error": "not a git repository", "files": [], "ahead": None,
-                "uncommitted": [], "tags": None}
+        return {"error": "not a git repository", "files": None, "ahead": None,
+                "uncommitted": None, "tags": None}
     files = []
     for path, rel in find_workstreams(root):
         rc, out = git(['log', '-1', '--format=%ci', '--', rel], root)

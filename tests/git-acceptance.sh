@@ -103,6 +103,8 @@ check "git with no root: exit 2" '[ "$rc" -eq 2 ]'
 mkdir -p "$T/norepo/.state"
 check "a root that is not a repository reports the error rather than failing" \
   '[ "$(python3 "$SCRIPT" git "$T/norepo" | jq -r ".error")" = "not a git repository" ]'
+check "beside the error, uncommitted and files are null, not lists that read as a clean tree" \
+  '[ "$(python3 "$SCRIPT" git "$T/norepo" | jq -c "[.uncommitted, .files]")" = "[null,null]" ]'
 
 echo
 if [ "$RESULT" -eq 0 ]; then echo "GIT ACCEPTANCE: ALL CHECKS PASS"; else echo "GIT ACCEPTANCE: FAILURES ABOVE"; fi

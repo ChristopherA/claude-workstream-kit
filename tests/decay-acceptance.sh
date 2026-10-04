@@ -135,9 +135,19 @@ printf -- '- [ ] #OG-3: an uncommitted task\n' >> "$W"
 python3 "$SCRIPT" decay "$T" > "$T/out2.json"
 check "unmeasurable names the file and minted_after is empty" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"kit/workstream.md\")) | .unmeasurable" "$T/out2.json")" = "uncommitted changes in $W" ] && [ "$(jq -r ".workstreams[] | select(.path | endswith(\"kit/workstream.md\")) | .minted_after | length" "$T/out2.json")" = "0" ]'
+# `null | length` is 0 in jq, so the check above passes on a 0 and on a
+# null alike; these read the raw value. A field that could not be measured
+# is null, never the 0 or [] that a measured answer could also be.
+k2() { jq -c ".workstreams[] | select(.path | endswith(\"kit/workstream.md\")) | $1" "$T/out2.json"; }
+check "unmeasurable: minted_since is null, not a measured-looking 0" '[ "$(k2 ".minted_since")" = "null" ]'
+check "unmeasurable: minted_after is null, not an empty list" '[ "$(k2 ".minted_after")" = "null" ]'
+check "unmeasurable: the open count is still the file's (four tasks)" '[ "$(k2 ".open_tasks")" = "4" ]'
+check "queue: minted_after is null, since a queue lists no task" '[ "$(qq ".minted_after")" = "null" ]'
+check "no paragraph: minted_since is null, since there is nothing to compare against" \
+  '[ "$(jq -c ".workstreams[] | select(.path | endswith(\"plain/workstream.md\")) | .minted_since" "$T/out.json")" = "null" ]'
 git checkout -q -- "$W"
-check "after reverting, the measure is back (#OG-2 reported again)" \
-  '[ "$(python3 "$SCRIPT" decay "$T" | jq -r ".workstreams[] | select(.path | endswith(\"kit/workstream.md\")) | .minted_after | length")" = "2" ]'
+check "after reverting, the measure is back (#OG-2 reported again, minted_since 2)" \
+  '[ "$(python3 "$SCRIPT" decay "$T" | jq -r ".workstreams[] | select(.path | endswith(\"kit/workstream.md\")) | \"\(.minted_after | length) \(.minted_since)\"")" = "2 2" ]'
 
 echo "== Exit codes"
 rc=0; python3 "$SCRIPT" decay >/dev/null 2>&1 || rc=$?

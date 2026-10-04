@@ -507,6 +507,8 @@ check "digits: #EX-3 and the plain checkbox are not reported as unparsable" \
   '! dq ".unparsable_ids[].token" | grep -qE "EX-3|plain"'
 check "digits: fires names the unparsable ID" \
   'python3 "$SCRIPT" fires "$T/digits" | grep -q "unparsable task ID.*#P8-V"'
+check "digits: decay counts every open task line (W3-1, W3-6, EX-3, P8-V) and names the unparsable one" \
+  '[ "$(python3 "$SCRIPT" decay "$T/digits" | jq -r ".workstreams[0] | \"\(.open_tasks) \(.unparsable_ids | map(.token) | join(\",\"))\"")" = "4 #P8-V" ]'
 check "digits: bare-ids flags an unglossed #W3-1 mention" \
   'mkdir -p "$T/digits-b/.state/workstreams/project/b" && printf -- "---\nname: b\n---\n## Purpose\nRoutes to #W3-1 next.\n\n## Backlog\n" > "$T/digits-b/.state/workstreams/project/b/workstream.md" && python3 "$SCRIPT" bare-ids "$T/digits-b" | grep -q "#W3-1"'
 
