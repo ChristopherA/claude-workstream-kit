@@ -28,7 +28,17 @@ GATE_LINE_RE = re.compile(r'^ *- \[ \] #G-')
 DONE_LINE_RE = re.compile(r'^ *- \[[xX]\] #')
 DONE_GATE_RE = re.compile(r'^ *- \[[xX]\] #G-')
 CHECKBOX_RE = re.compile(r'^ *- \[[ xX]\] ')
-CHECKBOX_ID_RE = re.compile(r'^ *- \[([ xX])\] (#[A-Za-z]+-[0-9]+[a-z]?|#G-[A-Za-z0-9]+)')
+# The task-ID grammar, in one place. A phase code starts with a letter
+# and may carry digits (`#W3-1`, `#P2-6d`, the gate `#G-W3a`), matching
+# what PHASE_HEADING_RE accepts for the heading `### Name (W3)`: a code
+# the heading parser accepts and the task parser refuses is a task that
+# every ID-reading tool silently drops while the hook still counts it.
+TASK_ID_FORM = r'[A-Z][A-Z0-9]*-[0-9]+[a-z]?'
+GATE_ID_FORM = r'G-[A-Z][A-Z0-9]*[a-z]?'
+CHECKBOX_ID_RE = re.compile(r'^ *- \[([ xX])\] (#[A-Za-z][A-Za-z0-9]*-[0-9]+[a-z]?|#G-[A-Za-z0-9]+)')
+# A checkbox line that OPENS with an ID-shaped token CHECKBOX_ID_RE still
+# cannot parse (`#P8-V`): reported by `record` rather than dropped.
+CHECKBOX_HASH_RE = re.compile(r'^ *- \[[ xX]\] (#[A-Za-z][A-Za-z0-9]*-[\w-]*)')
 DELETION_OPEN_RE = re.compile(r'^ *- \[ \]')
 DELETION_DONE_RE = re.compile(r'^ *- \[[xX]\]')
 LEARNING_RE = re.compile(r'^- (?:~~)?L([0-9]+)')
@@ -43,7 +53,7 @@ PHASE_HEADING_RE = re.compile(
 TOP_HEADING_RE = re.compile(r'^##\s')
 ANY_HEADING_RE = re.compile(r'^#{1,6}\s')
 LIST_ITEM_RE = re.compile(r'^ *(?:[-*+]|[0-9]+\.) ')
-TASK_CODE_RE = re.compile(r'#(?:G-)?([A-Z]+)-?')
+TASK_CODE_RE = re.compile(r'#(?:G-)?([A-Z][A-Z0-9]*)-?')
 
 DATE = r'[0-9]{4}-[0-9]{2}-[0-9]{2}'
 DATE_RE = re.compile(r'\b' + DATE + r'\b')
@@ -85,16 +95,16 @@ CROSS_REF_TAG_RE = re.compile(r'(?<![\w./-])ws/[a-z0-9-]+(?:\.[a-z0-9-]+)*')
 # Every ID form the rule mints. A task ID must carry a digit: `#XX-N`
 # and `#G-XX` are the rule's own metavariables, not references.
 ID_RE = re.compile(
-    r'#[A-Z]+-[0-9]+[a-z]?|\bD[0-9]+\b|\bL[0-9]+\b|\bOQ-[0-9]+\b'
+    r'#' + TASK_ID_FORM + r'|\bD[0-9]+\b|\bL[0-9]+\b|\bOQ-[0-9]+\b'
 )
-TASK_ID_RE = re.compile(r'#(?:[A-Z]+-[0-9]+[a-z]?|G-[A-Z]+[0-9]*)(?![\w-])')
+TASK_ID_RE = re.compile(r'#(?:' + TASK_ID_FORM + '|' + GATE_ID_FORM + r')(?![\w-])')
 
 # Every ID a gloss is owed for: tasks and gates (a gate has no digit, so
 # ID_RE alone misses #G-OG), Decisions, Learnings, Open Questions. The
 # rule's metavariables (#XX-N, #G-XX) carry no digit and no real phase
 # code and are excluded by the pattern, not by a list.
 GLOSSABLE_ID_RE = re.compile(
-    r'#(?:[A-Z]{1,4}-[0-9]+[a-z]?|G-(?!XX\b)[A-Z]{1,4}[0-9]*)(?![\w-])'
+    r'#(?:[A-Z][A-Z0-9]{0,3}-[0-9]+[a-z]?|G-(?!XX\b)[A-Z]{1,4}[0-9]*[a-z]?)(?![\w-])'
     r'|\bD[0-9]+\b|\bL[0-9]+\b|\bOQ-[0-9]+\b'
 )
 # What may sit between an ID and its gloss: a closing code span, a

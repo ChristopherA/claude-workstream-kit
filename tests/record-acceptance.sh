@@ -460,6 +460,56 @@ printf -- '## Backlog\n- [x] #C-1: done task\n  DONE 2026-01-01, commit abc1234\
 check "a completion note under a done line counts as done bytes (22+34), the open line as open (22)" \
   '[ "$(python3 "$SCRIPT" "$T/comp" | jq -r ".workstreams[0].composition.checkbox_bytes | \"\\(.done) \\(.open)\"")" = "56 22" ]'
 
+echo "== Digit-bearing phase codes parse; an ID-shaped token still unparsable is reported, not dropped"
+# A heading `(W3)` the heading parser accepts, with tasks `#W3-1` and the
+# gate `#G-W3a`: on 0.11.1 the task parsers refused them, so record named
+# a code `W` with no heading, reported false mismatches, and decay counted
+# fewer open tasks than the hook. `#G-SK2` keeps its old reading (phase SK,
+# second gate), and `#P8-V` has no task number, so it cannot parse at all
+# and must be NAMED. `#EX-3` is the must-parse control; a plain checkbox
+# with no ID is the must-not-report control.
+mkdir -p "$T/digits/.state/workstreams/project/d"
+DW="$T/digits/.state/workstreams/project/d/workstream.md"
+cat > "$DW" <<'FIX'
+---
+name: d
+type: project
+status: active
+---
+## Backlog
+### Fleet upgrade (W3)
+- [ ] #W3-1: first task
+- [ ] #W3-6: sixth task
+- [ ] #G-W3a: USER CHECKPOINT -- the W3 gate
+### Pass (EX)
+- [ ] #EX-3: the control task
+### Split (SK)
+- [ ] #G-SK2: second SK gate
+### Eight (P8)
+- [ ] #P8-V: a verification task with no number
+- [ ] a plain checkbox with no ID
+
+## Deletion Criteria
+- [ ] Every task above is done
+FIX
+dq() { python3 "$SCRIPT" "$T/digits" | jq -r ".workstreams[0]$1"; }
+hook_open=$(grep -cE '^ *- \[ \] #' "$DW")
+check "the fixture's hook-form count is 6 (five tasks and gates plus #P8-V)" '[ "$hook_open" = "6" ]'
+check "digits: no code is reported without a heading (W3 and SK are declared)" '[ "$(dq ".codes_without_heading | length")" = "0" ]'
+check "digits: no code/heading mismatch for #W3-1, #W3-6, #G-W3a or #G-SK2" '[ "$(dq ".code_heading_mismatches | length")" = "0" ]'
+check "digits: open_total equals the hook-form count" '[ "$(dq ".open_total")" = "$hook_open" ]'
+check "digits: the per-heading sum equals open_total" '[ "$(dq " | [.phases[] | .open_tasks + .open_gates] | add")" = "$hook_open" ]'
+check "digits: the W3 heading holds two tasks and one gate" \
+  '[ "$(dq ".phases[] | select(.code == \"W3\") | \"\(.open_tasks) \(.open_gates)\"")" = "2 1" ]'
+check "digits: #P8-V is reported as unparsable, with its line" \
+  '[ "$(dq ".unparsable_ids | map(.token) | join(\",\")")" = "#P8-V" ] && [ "$(dq ".unparsable_ids[0].line")" = "$(grep -n "#P8-V" "$DW" | cut -d: -f1)" ]'
+check "digits: #EX-3 and the plain checkbox are not reported as unparsable" \
+  '! dq ".unparsable_ids[].token" | grep -qE "EX-3|plain"'
+check "digits: fires names the unparsable ID" \
+  'python3 "$SCRIPT" fires "$T/digits" | grep -q "unparsable task ID.*#P8-V"'
+check "digits: bare-ids flags an unglossed #W3-1 mention" \
+  'mkdir -p "$T/digits-b/.state/workstreams/project/b" && printf -- "---\nname: b\n---\n## Purpose\nRoutes to #W3-1 next.\n\n## Backlog\n" > "$T/digits-b/.state/workstreams/project/b/workstream.md" && python3 "$SCRIPT" bare-ids "$T/digits-b" | grep -q "#W3-1"'
+
 echo "== Missing .state exits 2 (not merely non-zero)"
 mkdir -p "$T/nostate-root"
 check "the nostate fixture genuinely has no .state directory" '[ ! -d "$T/nostate-root/.state" ]'

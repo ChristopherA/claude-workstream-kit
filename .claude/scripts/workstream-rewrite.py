@@ -105,7 +105,7 @@ from workstream_state import (  # noqa: E402
     GATE_LINE_RE, LEARNING_RE, PHASE_HEADING_RE, TERMINAL_RE, TOTAL_OPEN_RE, STRIKE_RE,
     blank_strikes, disposition, extract_section, find_workstreams, fingerprint, fold_blocks,
     git, join_block, line_at, marker_counts, read_lines, section_bounds, sentence_span,
-    split_sentences, strip_frontmatter, wrap,
+    split_sentences, strip_frontmatter, wrap, TASK_ID_FORM, GATE_ID_FORM,
 )
 
 PROG = 'workstream-rewrite.py'
@@ -179,7 +179,7 @@ def finish(path, text, new, dry, report, extra_lines=()):
 
 # --- records and decisions: the two shipped moves ------------------------
 
-DONE_RE = re.compile(r"^( *- \[x\] )(#[A-Z]+-[0-9]+[a-z]?|#G-[A-Z]+)(: ?)(.*)$")
+DONE_RE = re.compile(r"^( *- \[x\] )(#" + TASK_ID_FORM + "|#" + GATE_ID_FORM + r")(: ?)(.*)$")
 DATE_RE = re.compile(r"\b(20[0-9]{2}-[0-9]{2}-[0-9]{2})\b")
 SHA_RE = re.compile(r"\b(?=[0-9]*[a-f])[0-9a-f]{7,40}\b")  # a hash the note names verbatim, any repo; never a bare number
 STATUS_RE = re.compile(r"\b(DONE|DECIDED|RETIRED|SUPERSEDED|CLOSED|SHIPPED|ABSORBED|RESOLVED|APPROVED|UNBLOCKED|MERGED)\b")
@@ -773,7 +773,7 @@ def lead_phrase(text):
     m = re.match(r'^\*\*(.+?)\.?\*\*', text.strip())
     if m:
         return m.group(1).strip()
-    body = re.sub(r'^(?:- )?(?:\[[ xX]\] )?#?[A-Z]+-?[0-9]*[a-z]?\s*(?:\([^)]*\))?:?\s*', '', text.strip())
+    body = re.sub(r'^(?:- )?(?:\[[ xX]\] )?#?[A-Z][A-Z0-9]*-?[0-9]*[a-z]?\s*(?:\([^)]*\))?:?\s*', '', text.strip())
     body = re.sub(r'^\*\*|^~~', '', body)
     words = body.split()
     return ' '.join(words[:5])
@@ -1077,7 +1077,8 @@ NOT_A_COUNT_RE = re.compile(
     r'\b[0-9]{4}-[0-9]{2}-[0-9]{2}\b'          # a date: 2026-09-04 read as a claim of 4
     r'|ws/[\w.-]+'                             # a rotation or archive tag, dated
     r'|\b(?:L|D|OQ-)[0-9]+\b'                  # an ID: (L67 to L70) is a span, not a count
-    r'|#[A-Z]+-[0-9]+[a-z]?'                   # a task ID
+    r'|#' + TASK_ID_FORM +                     # a task ID, `#W3-1` included
+    r'|#' + GATE_ID_FORM                       # a gate, `#G-W3a` included
 )
 NOUN_WINDOW = 45  # characters either side of the number, a few words
 

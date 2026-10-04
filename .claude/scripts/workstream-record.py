@@ -143,7 +143,8 @@ from workstream_state import (  # noqa: E402
     git, join_block, line_at, negated, read_lines, require_root, section_of, sentence_span,
     split_sentences, state_files, strip_frontmatter, workstream_id, SIZE_BYTES,
     CROSS_REF_WS_RE as _WS_RE, TASK_ID_RE,
-    bare_ids, blank_fences, purpose_paragraphs_for_gloss,
+    bare_ids, blank_fences, purpose_paragraphs_for_gloss, TASK_ID_FORM, GATE_ID_FORM,
+    CHECKBOX_HASH_RE,
 )
 
 PROG = 'workstream-record.py'
@@ -244,6 +245,7 @@ def phase_records(lines):
     mismatches = []
     declared_codes = set()
     task_codes = set()
+    pending = []
     for line_no, text in backlog:
         m = PHASE_HEADING_RE.match(text)
         if m:
@@ -266,8 +268,15 @@ def phase_records(lines):
         is_gate = bool(GATE_LINE_RE.match(text))
         cm = TASK_CODE_RE.search(text)
         code = cm.group(1) if cm else None
-        if code:
-            task_codes.add(code)
+        # A gate's code is ambiguous where a task's is not: `#G-W3a` is
+        # phase W3, while `#G-SK2` is the second gate of phase SK. Both
+        # readings are carried and the one a heading declares wins.
+        cands = [code] if code else []
+        if code and is_gate:
+            letters = re.match(r'[A-Z]+', code).group(0)
+            if letters != code:
+                cands.append(letters)
+        pending.append((line_no, cands, current))
         if current is None:
             outside += 1
             continue
@@ -275,9 +284,16 @@ def phase_records(lines):
             current["open_gates"] += 1
         else:
             current["open_tasks"] += 1
-        if code and code not in current["codes"]:
+    for line_no, cands, heading in pending:
+        if not cands:
+            continue
+        local = [c for c in cands if heading is not None and c in heading["codes"]]
+        known = [c for c in cands if c in declared_codes]
+        code = (local or known or cands[-1:])[0]
+        task_codes.add(code)
+        if heading is not None and not local:
             mismatches.append({"line": line_no, "code": code,
-                               "heading": current["name"], "heading_code": current["code"]})
+                               "heading": heading["name"], "heading_code": heading["code"]})
     records = [{"name": p["name"], "code": p["code"],
                 "open_tasks": p["open_tasks"], "open_gates": p["open_gates"],
                 "done_tasks": p["done_tasks"], "done_gates": p["done_gates"]}
@@ -395,6 +411,23 @@ def open_outside_backlog_field(lines):
     return out
 
 
+def unparsable_ids_field(lines):
+    """Every Backlog checkbox line that opens with an ID-shaped token the
+    task-ID grammar cannot parse (`#P8-V`). The hook counts such a line
+    as an open task and every ID-reading call site drops it, so the two
+    disagree over the same file with nothing saying why; reporting the
+    line is what lets a consumer whose IDs are out of convention learn it
+    from the tool rather than from a wrong count."""
+    out = []
+    for line_no, text in extract_section(lines, r'^##\s+Backlog\s*$'):
+        if CHECKBOX_ID_RE.match(text):
+            continue
+        m = CHECKBOX_HASH_RE.match(text)
+        if m:
+            out.append({"line": line_no, "token": m.group(1)})
+    return out
+
+
 def build_workstream_record(path, rel_path):
     size_bytes = os.path.getsize(path)
     with open(path, 'r', encoding='utf-8', errors='replace') as f:
@@ -500,6 +533,7 @@ def build_workstream_record(path, rel_path):
         "open_total": total_open,
         "tasks_outside_phases": tasks_outside_phases,
         "open_outside_backlog": open_outside_backlog,
+        "unparsable_ids": unparsable_ids_field(lines),
         "codes_without_heading": codes_without_heading,
         "code_heading_mismatches": code_mismatches,
         "first_open_task": first_open_task,
@@ -589,7 +623,7 @@ def needle_regex(needle):
     """An ID-shaped needle matches on word boundaries only, so `#BD-1`
     does not hit `#BD-10` or `#BD-1a`; a prose needle matches across any
     whitespace, which is what a 70-column wrap turns a space into."""
-    if re.fullmatch(r'#[A-Za-z]+-[0-9]+[a-z]?|#G-[A-Za-z0-9]+|D[0-9]+|L[0-9]+|OQ-[0-9]+', needle):
+    if re.fullmatch(r'#[A-Za-z][A-Za-z0-9]*-[0-9]+[a-z]?|#G-[A-Za-z0-9]+|D[0-9]+|L[0-9]+|OQ-[0-9]+', needle):
         return re.compile(r'(?<![\w-])' + re.escape(needle) + r'(?![\w-])')
     return re.compile(r'\s+'.join(re.escape(w) for w in needle.split()))
 
@@ -668,7 +702,7 @@ def cmd_cites(args):
 # --- refs: do cited IDs resolve where they say they live -------------------
 
 REF_RE = re.compile(
-    r'#[A-Z]+-[0-9]+[a-z]?(?![\w-])|#G-[A-Z]+[0-9]*(?![\w-])|'
+    r'#' + TASK_ID_FORM + r'(?![\w-])|#' + GATE_ID_FORM + r'(?![\w-])|'
     r'(?<![\w/-])D[0-9]+\b|(?<![\w/-])L[0-9]+\b|(?<![\w/-])OQ-[0-9]+\b'
 )
 PLACEHOLDER_GATE = '#G-XX'
@@ -878,7 +912,7 @@ URL_RE = re.compile(r'^[a-z]+://|^[\w.-]+@[\w.-]+:')
 # A word pair like and/or, read/write or D1/D2: neither side a path
 # segment (no dot, dash, underscore or digit) or both sides IDs.
 WORD_PAIR_RE = re.compile(r'^[A-Za-z]+(?:/[A-Za-z]+)+$|^[0-9./]+$')
-ID_PAIR_RE = re.compile(r'^(?:#?[A-Z]+-?[0-9]+[a-z]?|D[0-9]+|L[0-9]+)(?:/(?:#?[A-Z]+-?[0-9]+[a-z]?|D[0-9]+|L[0-9]+))+$')
+ID_PAIR_RE = re.compile(r'^(?:#?[A-Z][A-Z0-9]*-?[0-9]+[a-z]?|D[0-9]+|L[0-9]+)(?:/(?:#?[A-Z][A-Z0-9]*-?[0-9]+[a-z]?|D[0-9]+|L[0-9]+))+$')
 
 
 def path_tokens(text):
@@ -1271,6 +1305,10 @@ def fires(root, only=None, interval_days=30):
             symptoms.append({"symptom": "open task outside Backlog",
                              "detail": ", ".join("line %d (%s)" % (e["line"], e["id"] or "no ID")
                                                  for e in rec["open_outside_backlog"])})
+        if rec["unparsable_ids"]:
+            symptoms.append({"symptom": "unparsable task ID",
+                             "detail": ", ".join("line %d (%s)" % (e["line"], e["token"])
+                                                 for e in rec["unparsable_ids"])})
         if rec["size_bytes"] > SIZE_BYTES:
             symptoms.append({"symptom": "size", "detail": "%dKB past %dKB" % (rec["size_bytes"] // 1024, SIZE_BYTES // 1024)})
         d = os.path.dirname(path)
@@ -1489,12 +1527,14 @@ SELF_CHECKS = [
     ("HOLDS_RE", lambda t: bool(HOLDS_RE.search(t)),
      ["-- HOLDS 2026-01-01, HOLDS 2026-02-02"], ["HOLDS today", "the criterion holds for now"]),
     ("CHECKBOX_ID_RE", lambda t: bool(CHECKBOX_ID_RE.match(t)),
-     ["- [x] #OL-3 (DONE 2026-01-01, the no-colon form)", "- [ ] #G-BD: USER CHECKPOINT"],
+     ["- [x] #OL-3 (DONE 2026-01-01, the no-colon form)", "- [ ] #G-BD: USER CHECKPOINT",
+      "- [ ] #W3-1: a digit-bearing phase code", "- [ ] #P2-6d: a deferred one"],
      ["- [x] a plain criterion", "- L1 (2026-01-01): a Learning"]),
     ("needle_regex word boundaries", lambda t: bool(needle_regex('#BD-1').search(t)),
      ["cites #BD-1 and", "(#BD-1)"], ["cites #BD-10 and", "cites #BD-1a and"]),
     ("TASK_ID_RE", lambda t: bool(TASK_ID_RE.search(t)),
-     ["routed to #OG-188 there", "decided at #G-OG"], ["a plain sentence", "the #hashtag"]),
+     ["routed to #OG-188 there", "decided at #G-OG", "routed to #W3-1", "decided at #G-W3a"],
+     ["a plain sentence", "the #hashtag", "the #P8-V line"]),
     ("bare_ids glossed", lambda t: not bare_ids([(1, [t])]),
      ["#EX-37 (the phase split question) is open", '#G-OG "the kit change approval gate" stands',
       "#EX-30 in project/tier (the neutrality sort) waits", "D96 (the release decision) and D96 again",
