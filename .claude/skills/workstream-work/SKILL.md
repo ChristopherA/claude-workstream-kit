@@ -56,7 +56,7 @@ Summarize in chat what reaching the condition will **achieve against the backlog
 
 Then ask the user how to proceed, with AskUserQuestion — but only when the unit is a task, cluster or phase to be worked without the user; a gate unit proceeds interactively on the outcome summary alone. Skip the question too when the user has said a goal is armed this session, which the session cannot see for itself. The options:
 
-- **Copy to clipboard** (recommended): on selection, place the full `/goal <condition>` on the clipboard (`pbcopy` on macOS) **and** print that same text in the chat in a fenced code block. Where no clipboard tool exists, the fenced block is the delivery.
+- **Copy to clipboard** (recommended): on selection, place the CONDITION ALONE on the clipboard (`pbcopy` on macOS) **and** print that same text in the chat in a fenced code block, then tell the user to type `/goal`, a space, and paste. Never prefix it with `/goal`: pasted whole, a long paste is collapsed into a paste block and reaches the model as ordinary text, arming nothing; typed after `/goal`, it arms a condition that begins with a second `/goal`. Where no clipboard tool exists, the fenced block is the delivery.
 - **Process interactively**: work toward the condition now, in this session, without arming a `/goal` hook.
 - **Refine the goal together**: adjust scope, checks, or the turn bound before committing to it.
 

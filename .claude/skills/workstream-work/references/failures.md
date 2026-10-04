@@ -48,7 +48,7 @@ That summary has to be **visible before the choice**: finish every tool call for
 
 Then ask the user how to proceed, with AskUserQuestion — but only when the unit is a task, cluster or phase to be worked without the user; a gate unit proceeds interactively on the outcome summary alone, since the gate bounds the session already.
 
-Never touch the clipboard until the user selects **Copy to clipboard** — it is a shared resource that may hold unrelated content, so neither the outcome summary nor the question itself may write it. On selection, the clipboard and the fenced block carry the exact same text — a mistyped or mis-pasted condition is unenforceable.
+Never touch the clipboard until the user selects **Copy to clipboard** — it is a shared resource that may hold unrelated content, so neither the outcome summary nor the question itself may write it. On selection, the clipboard and the fenced block carry the exact same text, the condition alone without a `/goal` prefix, and the user types `/goal` and a space before pasting — a mistyped or mis-pasted condition is unenforceable, and both ways of pasting a prefixed one fail: pasted as a prompt, the CLI collapses a long paste into a paste block that reaches the model as text and arms no hook; typed after `/goal`, the stored condition begins with a second `/goal`.
 
 ## Delegate; claim with evidence
 
