@@ -210,6 +210,49 @@ rc=0; python3 "$SCRIPT" rotate "$W" --tag ws/kit-2026-02-02 --write --date 2026-
 check "exit 1 naming the continuation line, nothing written" '[ "$rc" -eq 1 ] && grep -q "non-conforming" "$T/e.txt" && grep -q "^the convention" "$W"'
 git checkout -q -- "$W"
 
+echo "== An ordinal is not a count: a numbered criterion does not block its own rotation"
+# `Criterion 2 HOLDS: no Learning is orphaned.` is the form the template
+# mints; on 0.11.1 its 2 was read as a Learnings count, the rotation was
+# refused, and there was nothing to amend. The genuinely stale count in
+# the same file must still refuse, so the check is fired both ways.
+mkdir -p "$T/ord" && cd "$T/ord"
+git init -q -b main && git config user.email fixture@example.invalid && git config user.name Fixture
+git config commit.gpgsign false && git config tag.gpgsign false && git config tag.forceSignAnnotated false
+mkdir -p .state/workstreams/maintain/o
+OW=.state/workstreams/maintain/o/workstream.md
+cat > "$OW" <<'FIX'
+---
+name: o
+type: maintain
+status: active
+---
+## Purpose
+A fixture whose Learnings all leave at rotation.
+
+## Backlog
+### Build (OB)
+- [ ] #OB-1: an open task
+
+## Learnings
+- L1 (2026-01-01): First insight. APPLIED 2026-01-02 to docs/a.md.
+- L2 (2026-01-01): Second insight. APPLIED 2026-01-02 to docs/b.md.
+
+## Deletion Criteria
+- [ ] STANDING: Criterion 2 HOLDS: no Learning is orphaned.
+- [ ] Criterion 3 holds while no Learning is left undispositioned in Phase 2.
+FIX
+git add -A && git commit -q -m fixture && git tag -a ws/o-2026-02-02 -m rotation
+check "the rotation drops both Learnings (so a 2 read as their count WOULD be stale)" \
+  'python3 "$SCRIPT" rotate "$OW" --tag ws/o-2026-02-02 --date 2026-02-02 --allow-stale-claims | grep -q "learning=2"'
+rc=0; python3 "$SCRIPT" rotate "$OW" --tag ws/o-2026-02-02 --date 2026-02-02 >"$T/ord-o.txt" 2>"$T/ord-e.txt" || rc=$?
+check "ordinals only: no STALE CLAIM and exit 0" '[ "$rc" -eq 0 ] && ! grep -q "STALE CLAIM" "$T/ord-o.txt"'
+printf -- '- [ ] 2 Learnings remain to apply.\n' >> "$OW"
+git add -A && git commit -q -m "a real count" && git tag -f -a ws/o-2026-02-02 -m rotation >/dev/null
+rc=0; python3 "$SCRIPT" rotate "$OW" --tag ws/o-2026-02-02 --date 2026-02-02 >"$T/ord-o.txt" 2>"$T/ord-e.txt" || rc=$?
+check "a genuine count in the same file still refuses (exit 1), and only that sentence is named" \
+  '[ "$rc" -eq 1 ] && grep -q "STALE CLAIM.*2 Learnings remain" "$T/ord-o.txt" && ! grep -q "STALE CLAIM.*Criterion" "$T/ord-o.txt"'
+cd "$T"
+
 echo "== Usage"
 rc=0; python3 "$SCRIPT" rotate "$W" >/dev/null 2>&1 || rc=$?
 check "rotate without --tag: exit 2" '[ "$rc" -eq 2 ]'

@@ -1081,6 +1081,18 @@ NOT_A_COUNT_RE = re.compile(
     r'|#' + GATE_ID_FORM                       # a gate, `#G-W3a` included
 )
 NOUN_WINDOW = 45  # characters either side of the number, a few words
+# What may be READ as a count is a bare integer in the same CLAUSE as the
+# counted noun, not merely near it: `Criterion 2 HOLDS: no Learning is
+# orphaned.` was read as a Learnings count of 2 and refused the rotation,
+# with nothing to amend. A number that LABELS something (`Criterion 2`,
+# `Phase 3`) is an ordinal and is blanked before any count is read, and a
+# clause ends at a semicolon, an em dash or ` -- `. A colon is not a
+# break: `Learnings: 2 remain` is a count in the house style.
+CLAUSE_BREAK_RE = re.compile(r'[;\u2014]| -- ')
+ORDINAL_LABEL_RE = re.compile(
+    r'\b(?:criteri(?:on|a)|item|step|phase|section|move|class|part|round|pass|'
+    r'line|field|question|option|stage|tier|level|version|rule|case|gate|note|point)'
+    r'\s+[0-9]+\b', re.I)
 
 
 def stale_claims(old_lines, new_lines):
@@ -1091,7 +1103,8 @@ def stale_claims(old_lines, new_lines):
     `learnings 4 claimed, now 0` twice, once from the `-04` of a tag's
     date in a sentence counting criteria and once from the span `(L67
     to L70)`, and refused until --allow-stale-claims after both had
-    been checked by hand."""
+    been checked by hand. The noun must share the number's CLAUSE, and
+    an ordinal label is never a count (CLAUSE_BREAK_RE, ORDINAL_LABEL_RE)."""
     old = section_counts(old_lines)
     new = section_counts(new_lines)
     claims = []
@@ -1110,12 +1123,16 @@ def stale_claims(old_lines, new_lines):
         text, starts = join_block(r, s)
         for sent in split_sentences(text):
             scan = NOT_A_COUNT_RE.sub(lambda m: ' ' * len(m.group(0)), sent)
+            scan = ORDINAL_LABEL_RE.sub(lambda m: ' ' * len(m.group(0)), scan)
+            breaks = [m.start() for m in CLAUSE_BREAK_RE.finditer(scan)]
             for key, rx in COUNT_NOUNS.items():
                 if not rx.search(scan):
                     continue
                 for nm in re.finditer(r'\b([0-9]+)\b', scan):
                     v = int(nm.group(1))
-                    near = scan[max(0, nm.start() - NOUN_WINDOW):nm.end() + NOUN_WINDOW]
+                    lo = max([b + 1 for b in breaks if b < nm.start()] + [0])
+                    hi = min([b for b in breaks if b >= nm.end()] + [len(scan)])
+                    near = scan[max(lo, nm.start() - NOUN_WINDOW):min(hi, nm.end() + NOUN_WINDOW)]
                     if not rx.search(near):
                         continue
                     if v == old[key] and v != new[key] and v > 0 and (s, key, v) not in seen:
