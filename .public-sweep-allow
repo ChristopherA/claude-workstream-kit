@@ -69,7 +69,8 @@
 ^tests/rotate-acceptance\.sh:[0-9]+:.*#(G-OG|(OG|DP|OT)-[0-9]+)\b
 ^tests/rotate-acceptance\.sh:[0-9]+:.*\.state/workstreams/(maintain/kit|feature/other)\b
 ^tests/self-check-acceptance\.sh:[0-9]+:.*#(G-BD|BD-[0-9]+[a-z]?)\b
-^tests/(cites|refs|paths|decay|git|fires|learnings|rewrite|rotate|record)-acceptance\.sh:[0-9]+:.*(\$T/)?([a-z]+/)?\.state/workstreams/(feature|project|maintain)/[a-z]+\b
+^tests/damage-acceptance\.sh:[0-9]+:.*#(G-BD|BD-[0-9]+[a-z]?)\b
+^tests/(cites|refs|paths|decay|git|fires|learnings|rewrite|rotate|record|damage)-acceptance\.sh:[0-9]+:.*(\$T/)?([a-z]+/)?\.state/workstreams/(feature|project|maintain)/[a-z]+\b
 ^tests/cites-acceptance\.sh:[0-9]+:.*#G-OG\b
 ^tests/decay-acceptance\.sh:[0-9]+:.*commit_at .*\bOG-[0-9]\b
 

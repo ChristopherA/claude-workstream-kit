@@ -213,15 +213,22 @@ def bare_ids(paragraphs):
 
 # Disposition markers, as the rule publishes them (Learnings convention).
 # TERMINAL: the insight has left the file. DEFERRED: it is tracked work
-# that has not landed. Anything else is undispositioned.
+# that has not landed. Anything else is undispositioned. EXTENDED is not
+# a disposition: every use found across the consumers' files appends to
+# a Learning that is still open (`EXTENDED <date>: a further case`), and
+# scoring it terminal let a condensation cut an open entry to its first
+# sentence. It is matched as an ADDENDUM instead, so a rewrite can see
+# an extension written after the last disposition.
 TERMINAL_MARKERS = (
     'APPLIED', 'ROUTED', 'DROPPED', 'EXTRACTED', 'SENT', 'HANDED OFF',
-    'RESOLVED', 'FULFILLED', 'VERIFIED', 'EXTENDED', 'SUPERSEDED',
+    'RESOLVED', 'FULFILLED', 'VERIFIED', 'SUPERSEDED',
     'DISPOSITIONED', 'DISPOSITION', 'DONE', 'SPENT',
 )
 DEFERRED_MARKERS = ('QUEUED', 'DEFERRED', 'PENDING')
+ADDENDUM_MARKERS = ('EXTENDED',)
 TERMINAL_RE = re.compile(r'\b(?:' + '|'.join(re.escape(m) for m in TERMINAL_MARKERS) + r')\b')
 DEFERRED_RE = re.compile(r'\b(?:' + '|'.join(re.escape(m) for m in DEFERRED_MARKERS) + r')\b')
+ADDENDUM_RE = re.compile(r'\b(?:' + '|'.join(re.escape(m) for m in ADDENDUM_MARKERS) + r')\b')
 SENTENCE_END_RE = re.compile(r'(?<=[.!?])\s+')
 
 # The size line the session-start hook prints, and the threshold `fires`
@@ -406,12 +413,17 @@ def marker_counts(text, marker_re):
     142 undispositioned where 0.10.3 scored 89, one drained workstream
     re-scoring as 7 of 7. The emphasis characters are stripped from the
     head before the test, so a bold marker mid-sentence is still a
-    mention. Asterisk emphasis only: an underscore is a word character
-    to the marker regex's boundary, so `__DONE__` never matches at all."""
+    mention. Whitespace and emphasis are stripped together, as one run:
+    a sentence that ENDS in emphasis (`*Integration target: f.md.*`)
+    followed by a wrapped bold marker puts two emphasis runs and a line
+    break between the marker and the full stop, and stripping each in
+    turn stopped short of it, scoring ten of thirty genuine
+    dispositions in one consumer's file as mentions. Asterisk emphasis
+    only: an underscore is a word character to the marker regex's
+    boundary, so `__DONE__` never matches at all."""
     out = []
     for m in marker_re.finditer(text):
-        head = text[:m.start()].rstrip()
-        head = head.rstrip('*_').rstrip()
+        head = re.sub(r'[\s*_]+$', '', text[:m.start()])
         at_start = (head == '' or head.endswith(('.', '!', '?', '--', ':')))
         if not at_start:
             continue

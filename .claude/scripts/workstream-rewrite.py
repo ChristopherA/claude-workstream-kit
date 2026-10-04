@@ -6,7 +6,12 @@ prescribes. All dry-run by default and write only under --write; each
 carries a dated marker or a fixed point so a second run is a no-op;
 each asserts the structure fingerprint (heading multiset, checkbox ID
 and state sequence) identical before writing and exits 1 otherwise;
-each leaves the full text in git at the commit before the run. None
+each leaves the full text in git at the commit before the run. The
+fingerprint cannot see prose lost INSIDE a block, and it passed a run
+that cut nineteen records' descriptions; `records` and `learnings`
+therefore check each condensed entry for what it must keep and refuse
+otherwise, and `workstream-record.py fires` run AFTER a rewrite is what
+surfaces a severed sentence either check missed. None
 infers a judgment the caller names: which Decisions shipped is
 --decisions, which blocks a rotation keeps is --keep. The measures
 live in workstream-record.py. Standard library only.
@@ -21,10 +26,19 @@ Usage:
                                   [--allow-stale-claims]
 
 `records`: every `- [x]` record in the live Backlog, and under
-## Archive when that section exists, longer than the rule's
-completion-note form condenses to that form (the ID, the description's
-first sentence, the last status word and the date in its own sentence,
-its Decision citations and commit hashes, a dated marker).
+## Archive when that section exists, whose BLOCK -- the task line and
+its continuations -- runs past 400 bytes has its completion NOTE
+condensed to the rule's form (the last dated status word and the date
+in its own sentence, its Decision citations and commit hashes, a dated
+marker), read from the note alone. The description is never cut: a
+note below the task line, or a leading `*(<note>)*`, is replaced in
+place with the description lines byte-identical; a one-line record
+with no delimiter keeps its description's first sentence whole. A
+Decision is cited only as its own token (not `pre-D26`, not
+`D4/D8/D9`, not `D4 in <home>`) and only when this file defines it; one
+it does not is named on the entry's report line. A multi-line record
+in no recognised shape is left as it is and reported `SKIPPED <ID>:
+<reason>`, never guessed at.
 
 `decisions`: each named Decision condenses to its heading, its first
 paragraph and a line naming the release; the section is restored to
@@ -36,9 +50,12 @@ Decisions land in commits rather than releases.
 
 `learnings`: every Learning the record scores terminal (a disposition
 marker at sentence start with a date in its sentence, or struck
-through whole) condenses to its first sentence and its disposition
-sentence, re-wrapped; a deferred or undispositioned entry is
-byte-identical after, and so is a terminal one already that short.
+through whole) condenses to its statement -- the first sentence, with
+a leading provenance sentence kept beside it -- every sentence naming
+its integration target, and the sentence of its LATEST terminal
+marker, re-wrapped; a deferred or undispositioned
+entry is byte-identical after, and so is a terminal one already that
+short or one with an EXTENDED written after its last terminal marker.
 
 `rotate`: the extract skill's Move 3b -- keep only what is live (the
 frontmatter and Purpose; open Backlog lines under their headings with
@@ -84,7 +101,7 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from workstream_state import (  # noqa: E402
-    ANY_HEADING_RE, CHECKBOX_ID_RE, DECISION_HEADING_RE, DELETION_OPEN_RE, DONE_LINE_RE,
+    ANY_HEADING_RE, CHECKBOX_ID_RE, CHECKBOX_RE, LIST_ITEM_RE, ADDENDUM_RE, DECISION_HEADING_RE, DELETION_OPEN_RE, DONE_LINE_RE,
     GATE_LINE_RE, LEARNING_RE, PHASE_HEADING_RE, TERMINAL_RE, TOTAL_OPEN_RE, STRIKE_RE,
     blank_strikes, disposition, extract_section, find_workstreams, fingerprint, fold_blocks,
     git, join_block, line_at, marker_counts, read_lines, section_bounds, sentence_span,
@@ -164,7 +181,6 @@ def finish(path, text, new, dry, report, extra_lines=()):
 
 DONE_RE = re.compile(r"^( *- \[x\] )(#[A-Z]+-[0-9]+[a-z]?|#G-[A-Z]+)(: ?)(.*)$")
 DATE_RE = re.compile(r"\b(20[0-9]{2}-[0-9]{2}-[0-9]{2})\b")
-DEC_RE = re.compile(r"\bD[0-9]+\b")
 SHA_RE = re.compile(r"\b(?=[0-9]*[a-f])[0-9a-f]{7,40}\b")  # a hash the note names verbatim, any repo; never a bare number
 STATUS_RE = re.compile(r"\b(DONE|DECIDED|RETIRED|SUPERSEDED|CLOSED|SHIPPED|ABSORBED|RESOLVED|APPROVED|UNBLOCKED|MERGED)\b")
 
@@ -175,23 +191,76 @@ def entry_line(ident, before, after, line):
 
 
 def status_and_date(body, dates):
-    """The record's LAST status word and the date in that word's own
-    sentence (the record script's marker rule): after the word first,
-    else anywhere in the sentence, else n.d. Never the block's last
-    date, which can belong to another sentence -- a record that ran
-    VERIFIED, DONE, CORRECTED condensed to the date of another
-    project's commit mentioned last. With no status word the block's
-    last date stands, since nothing else ties a date to the status."""
+    """The record's LAST DATED status word and the date in that word's
+    own sentence (the record script's marker rule): after the word
+    first, else anywhere in the sentence. Never the block's last date,
+    which can belong to another sentence -- a record that ran VERIFIED,
+    DONE, CORRECTED condensed to the date of another project's commit
+    mentioned last. A later status word whose sentence carries no date
+    (`DONE 2026-09-22 at e0c1afb ... SUPERSEDED the same day by D12`)
+    does not displace the dated one; with no dated status word at all
+    the last one stands as n.d. With no status word, a note that OPENS
+    with a date (`2026-01-02 at abc1234: ...`) is dated by it, and
+    otherwise the block's last date stands, since nothing else ties a
+    date to the status."""
     marks = list(STATUS_RE.finditer(body))
     if not marks:
+        lead = re.match(r"[\s*(]*(?:[Dd]one\s+)?(20[0-9]{2}-[0-9]{2}-[0-9]{2})\b", body)
+        if lead:
+            return "DONE", lead.group(1)
         return "DONE", (dates[-1] if dates else "n.d.")
-    m = marks[-1]
-    s, e = sentence_span(body, m.start())
-    after = DATE_RE.search(body, m.end(), e)
-    if after:
-        return m.group(1), after.group(1)
-    within = DATE_RE.search(body, s, e)
-    return m.group(1), (within.group(1) if within else "n.d.")
+    for m in reversed(marks):
+        s, e = sentence_span(body, m.start())
+        after = DATE_RE.search(body, m.end(), e)
+        if after:
+            return m.group(1), after.group(1)
+        within = DATE_RE.search(body, s, e)
+        if within:
+            return m.group(1), within.group(1)
+    return marks[-1].group(1), "n.d."
+
+
+# A Decision a record cites: the ID standing as its own token, never
+# part of a longer one (`pre-D26`, `D4/D8/D9`) and never one that names
+# another workstream as its home (`D4 in project/x`, `D4 at ws/x`). A
+# consumer's run cited `reasoning in D4, D8, D9` off `beta D4/D8/D9`,
+# another workstream's Decisions, which resolved to real but different
+# Decisions in the same file and so read as settled.
+DEC_CITE_RE = re.compile(
+    r"(?<![\w/-])D([0-9]+)(?![\w/-])"
+    r"(?! (?:in|at) (?:(?:explore|feature|fix|project|maintain)/|ws/))")
+
+
+def decisions_cited(note, present):
+    """The Decision IDs a note cites that this file defines, numeric
+    order; and the ones it names that this file does not, which are
+    reported rather than cited, since a citation to nothing is the
+    pointer the rule calls a defect."""
+    named = sorted(set(int(x) for x in DEC_CITE_RE.findall(note)))
+    return (["D%d" % n for n in named if n in present],
+            ["D%d" % n for n in named if n not in present])
+
+
+def condensed_note(note, present, mark):
+    """The completion-note form for one note's text: the status word
+    and date of its own sentence, its Decision citations and commit
+    hashes, the dated marker. Everything is read from the NOTE alone --
+    never from the description beside it, whose asides and dates are
+    not the record's evidence."""
+    dates = DATE_RE.findall(note)
+    decs, absent = decisions_cited(note, present)
+    shas = list(dict.fromkeys(SHA_RE.findall(note)))
+    mark_word, date = status_and_date(note, dates)
+    ev = []
+    if decs:
+        ev.append("reasoning in " + ", ".join(decs))
+    if shas:
+        ev.append("commits " + ", ".join(shas[:8]) + (" ..." if len(shas) > 8 else ""))
+    text = "%s %s; %s. %s; full record in git before that commit." % (
+        mark_word, date,
+        "; ".join(ev) if ev else "evidence in the record at the commit preceding this condensation",
+        mark)
+    return text, absent
 
 
 def condense_records(lines, mark):
@@ -206,59 +275,166 @@ def condense_records(lines, mark):
     saved = 0
     entries = []
     report = []
+    skipped = 0
+    _s, _e, _pre, dblocks = decision_blocks(lines) if section_bounds(lines, "Decisions") else (0, 0, [], [])
+    present = {n for n, _ in dblocks}
     archive = section_bounds(lines, "Archive")
     ranges = [("backlog", bounds)] + ([("archive", archive)] if archive else [])
     # Rebuild from the end so earlier offsets stay valid.
     for name, (start, end) in sorted(ranges, key=lambda r: -r[1][0]):
-        out, c, s, ents = condense_range(lines, start, end, mark)
+        out, c, s, ents, k = condense_range(lines, start, end, mark, present)
         condensed += c
         saved += s
+        skipped += k
         entries = ents + entries
         report.insert(0, "%s_lines %d->%d" % (name, end - start, len(out)))
         lines = lines[:start] + out + lines[end:]
     report.insert(0, "condensed=%d bytes_saved=%d" % (condensed, saved))
+    report.append("skipped=%d" % skipped)
     return lines, " ".join(report), entries
 
 
-def condense_range(lines, start, end, mark):
+RECORD_MIN = 400  # bytes of the whole BLOCK, never of its first line
+DATE_PAT = r"20[0-9]{2}-[0-9]{2}-[0-9]{2}\b"
+# Where a completion note begins: a status word or a date, after an
+# opening `*(`, `**` or `*` -- `DONE 2026-01-02 at abc1234: ...`,
+# `*Done 2026-08-07 (D4): ...*`.
+NOTE_START_RE = re.compile(r"^(?:\*\(|\*\*|\*)?(?:" + STATUS_RE.pattern + r"|Done\b|" + DATE_PAT + ")")
+
+
+def first_sentence(body):
+    """The description's first sentence, found on a copy with code spans
+    blanked inside their backticks: a description quoting a sentence
+    (`Done. Commit the new files ...`) was cut at the quoted full stop,
+    leaving a head that ended `-- \\`Done.`. Never cut mid-sentence: a
+    head cut at a byte budget with `...` lost the description it was
+    meant to keep."""
+    spans = re.sub(r"`[^`]*`", lambda mm: "`" + " " * (len(mm.group(0)) - 2) + "`", body)
+    split = re.search(r"(?<=[.!?])\s+(?=[A-Z`(#])", spans)
+    return body[:split.start()] if split else body
+
+
+def condense_record(raw, mark, present):
+    """(new_raw, changed_line, absent_decisions) for one completed
+    record's block, or (None, None, reason) when the block is left as it
+    is. A record is a BLOCK -- the task line plus its continuations --
+    and only its NOTE is condensed; the description is never touched.
+    Three shapes:
+
+      leading note   `- [x] #ID: *(<note>)* <description>`, the note
+                     free to wrap until its `)*` and the description to
+                     run on after it: the note condenses onto the task
+                     line, its `)*` re-emitted, and whatever followed
+                     the `)*` stays as it was.
+      note below     the description (one line, as the rule keeps it,
+                     or wrapped) with the completion note on the
+                     indented lines beneath it, its first line opening
+                     with a status word or a date (`  DONE 2026-01-02
+                     at abc1234: ...`, `*Done 2026-08-07 (D4): ...*`):
+                     the description lines stay byte-identical and the
+                     note lines become one, keeping an enclosing `*`.
+      one line       note and description on one line with no
+                     delimiter between them: the description's first
+                     sentence is kept whole and the rest condenses.
+
+    A multi-line block in none of these shapes cannot be split into a
+    description and a note without guessing, and is skipped with a
+    reason the report prints. A one-line record carrying neither a
+    status word nor a date has no note to condense and is skipped the
+    same way."""
+    m = DONE_RE.match(raw[0])
+    prefix, tid, sep, body = m.groups()
+    cont = raw[1:]
+    if body.startswith("*("):
+        segs = [body[2:]] + cont
+        close = next(((k, sg.find(")*")) for k, sg in enumerate(segs) if ")*" in sg), None)
+        if close is None:
+            return None, None, "a leading note that never closes"
+        k, at = close
+        note = " ".join([sg.strip() for sg in segs[:k]] + [segs[k][:at].strip()]).strip()
+        rest = segs[k][at + 2:]
+        if k > 0:
+            rest = rest.lstrip()
+            rest = (" " + rest) if rest else ""
+        note_text, absent = condensed_note(note, present, mark)
+        first = "%s%s%s*(%s)*%s" % (prefix, tid, sep, note_text, rest)
+        new = [first] + cont[k:]
+        if rest.strip() not in first or cont[k:] != new[1:]:
+            raise Refusal("%s: the description would not survive the condensation" % tid)
+        return new, first, absent
+    if cont:
+        k = next((k for k, c in enumerate(cont) if c[:1].isspace() and NOTE_START_RE.match(c.strip())), None)
+        if k is None:
+            return None, None, "continuation lines that are neither a note nor recognisably the description"
+        desc, note_lines = raw[:k + 1], cont[k:]
+        note = " ".join(c.strip() for c in note_lines)
+        italic = note.startswith("*") and not note.startswith(("*(", "**")) and note.endswith("*")
+        if italic:
+            note = note[1:-1]
+        indent = note_lines[0][:len(note_lines[0]) - len(note_lines[0].lstrip())]
+        note_text, absent = condensed_note(note, present, mark)
+        line = indent + ("*%s*" % note_text if italic else note_text)
+        return desc + [line], line, absent
+    if not (STATUS_RE.search(body) or DATE_RE.search(body)):
+        return None, None, "a one-line record with no status word or date to condense"
+    head = first_sentence(body)
+    note_text, absent = condensed_note(body, present, mark)
+    line = "%s%s: %s %s" % (prefix, tid, head, note_text)
+    if head not in line:
+        raise Refusal("%s: the description's first sentence would not survive the condensation" % tid)
+    return [line], line, absent
+
+
+def condense_range(lines, start, end, mark, present=frozenset()):
+    """Fold the range into blocks and condense each completed record
+    whose BLOCK runs past RECORD_MIN bytes. A per-line loop once fired
+    only on first lines over 400 characters: a record whose note and
+    description shared that line lost its description's opening clause
+    with its continuations left orphaned mid-sentence, and a long
+    record with a short first line was passed over entirely."""
+    region = lines[start:end]
     out = []
     condensed = 0
     saved = 0
+    skipped = 0
     entries = []
-    for i in range(start, end):
-        ln = lines[i]
-        m = DONE_RE.match(ln)
-        if not m or len(ln) <= 400 or GUARD_RE.search(ln):
-            out.append(ln)
+    consumed = 0
+    for bstart, kind, text, raw in fold_blocks(region):
+        idx = bstart - 1
+        out.extend(region[consumed:idx])
+        consumed = idx + len(raw)
+        size = len('\n'.join(raw))
+        if (kind != 'item' or not DONE_RE.match(raw[0]) or size <= RECORD_MIN
+                or GUARD_RE.search(text)):
+            out.extend(raw)
             continue
-        prefix, tid, _sep, body = m.groups()
-        # The first sentence is found on a copy with code spans blanked
-        # inside their backticks: a description quoting a sentence
-        # (`Done. Commit the new files ...`) was cut at the quoted full
-        # stop, leaving a head that ended `-- \`Done.`
-        spans = re.sub(r"`[^`]*`", lambda mm: "`" + " " * (len(mm.group(0)) - 2) + "`", body)
-        split = re.search(r"(?<=[.!?])\s+(?=[A-Z`(#])", spans)
-        head = body[:split.start()] if split else body
-        if len(head) > 220:
-            head = head[:217].rsplit(" ", 1)[0] + "..."
-        dates = DATE_RE.findall(body)
-        decs = sorted(set(DEC_RE.findall(body)), key=lambda d: int(d[1:]))
-        shas = list(dict.fromkeys(SHA_RE.findall(body)))
-        mark_word, date = status_and_date(body, dates)
-        ev = []
-        if decs:
-            ev.append("reasoning in " + ", ".join(decs))
-        if shas:
-            ev.append("commits " + ", ".join(shas[:8]) + (" ..." if len(shas) > 8 else ""))
-        note = "%s%s: %s %s %s; %s. %s; full record in git before that commit." % (
-            prefix, tid, head, mark_word, date,
-            "; ".join(ev) if ev else "evidence in the record at the commit preceding this condensation",
-            mark)
-        out.append(note)
+        tid = DONE_RE.match(raw[0]).group(2)
+        nxt = region[consumed] if consumed < len(region) else ''
+        if len(raw) == 1 and nxt[:1].isspace() and LIST_ITEM_RE.match(nxt) and not CHECKBOX_RE.match(nxt):
+            # A note written as an indented bullet folds as its own item,
+            # which would leave the task line looking like a one-line
+            # record and condense its description.
+            new, changed, why = None, None, "a completion note written as an indented list item"
+        else:
+            new, changed, why = condense_record(raw, mark, present)
+        if new is None:
+            entries.append("SKIPPED %s: %s" % (tid, why))
+            skipped += 1
+            out.extend(raw)
+            continue
+        after = len('\n'.join(new))
+        if after >= size:
+            out.extend(raw)  # already at or under the condensed form
+            continue
+        out.extend(new)
         condensed += 1
-        saved += len(ln) - len(note)
-        entries.append(entry_line(tid, len(ln), len(note), note))
-    return out, condensed, saved, entries
+        saved += size - after
+        entry = entry_line(tid, size, after, changed)
+        if why:
+            entry += " [not cited, no such Decision here: %s]" % ", ".join(why)
+        entries.append(entry)
+    out.extend(region[consumed:])
+    return out, condensed, saved, entries, skipped
 
 
 def parse_decisions(spec):
@@ -417,9 +593,27 @@ def cmd_decisions(args):
 LEARNING_PREFIX_RE = re.compile(r'^- (L[0-9]+ \([^)]*\):)\s*(.*)$', re.S)
 
 
+# A leading sentence that says where the entry came from rather than
+# what it found: `Carried from tag ws/<name>.` Taken as the statement,
+# it condensed an entry to its provenance and dropped the insight.
+TARGET_RE = re.compile(r'integration target', re.I)
+PROVENANCE_RE = re.compile(
+    r'^(?:Carried|Moved|Lifted|Copied|Received|Imported|Ported|Brought)\b.*\b(?:from|at|in)\b', re.I)
+
+
 def condense_learning(text):
     """The condensed joined text of one Learning block, or None when the
-    entry is not terminal, is struck, or is already that short."""
+    entry is not terminal, is struck, or is already that short. The
+    statement is the first sentence, or the first two when the first is
+    provenance; the disposition is the sentence of the LATEST terminal
+    marker -- an entry that ran EXTENDED, then APPLIED, once condensed
+    to the EXTENDED sentence and dropped the APPLIED one. An EXTENDED
+    written after that marker is new matter the disposition does not
+    carry, and the entry is left whole. Every sentence naming an
+    integration target is kept too, in its place: a real entry's
+    disposition read `APPLIED 2026-09-22.` alone, and the target
+    sentence -- which in another entry was also the insight itself --
+    was the only record of where it went."""
     if disposition(text) != 'terminal':
         return None
     m = LEARNING_PREFIX_RE.match(text)
@@ -433,13 +627,42 @@ def condense_learning(text):
     marks = marker_counts(blanked, TERMINAL_RE)
     if not marks:
         return None
-    s, e = sentence_span(body, marks[0].start())
+    last = marks[-1]
+    if any(a.start() > last.start() for a in marker_counts(blanked, ADDENDUM_RE)):
+        return None
+    s, e = sentence_span(body, last.start())
     disp = body[s:e].strip()
-    first = sentences[0]
-    condensed = first if disp == first else first + ' ' + disp
-    if condensed == body:
+    keep = set(range(2 if PROVENANCE_RE.match(sentences[0]) else 1))
+    keep.update(i for i, x in enumerate(sentences) if TARGET_RE.search(x))
+    keep = {i for i in keep if sentences[i] != disp and not ADDENDUM_RE.match(sentences[i])}
+    condensed = ' '.join([sentences[i] for i in sorted(keep)] + [disp])
+    if condensed == body or len(condensed) >= len(body):
         return None
     return '- ' + prefix + ' ' + condensed
+
+
+def learning_loss(before, after):
+    """What a condensed Learning lost that it must keep, or None: its
+    statement (the first sentence that is not provenance, whole), every
+    sentence naming its integration target and the whole sentence of its latest terminal marker.
+    The structure fingerprint sees headings and checkboxes only, so a
+    condensation that kept the wrong sentences passed it."""
+    m = LEARNING_PREFIX_RE.match(before)
+    body = m.group(2).strip() if m else before
+    sentences = split_sentences(body)
+    stmt = next((x for x in sentences if not PROVENANCE_RE.match(x)), None)
+    if stmt and not ADDENDUM_RE.match(stmt):
+        if stmt not in after:
+            return "its statement (%s ...)" % ' '.join(stmt.split()[:6])
+    for x in sentences:
+        if TARGET_RE.search(x) and not ADDENDUM_RE.match(x) and x not in after:
+            return "its integration target (%s ...)" % ' '.join(x.split()[:6])
+    marks = marker_counts(blank_strikes(body), TERMINAL_RE)
+    if marks:
+        s, e = sentence_span(body, marks[-1].start())
+        if body[s:e].strip() not in after:
+            return "its disposition (%s)" % body[s:e].strip()[:60]
+    return None
 
 
 def condense_learnings(lines):
@@ -461,6 +684,9 @@ def condense_learnings(lines):
         if kind == 'item' and LEARNING_RE.match(raw[0]):
             new = condense_learning(text)
             if new is not None:
+                lost = learning_loss(text, new)
+                if lost:
+                    raise Refusal("L%s: the condensation would lose %s" % (LEARNING_RE.match(raw[0]).group(1), lost))
                 wrapped = wrap(new, 70, indent='  ')
                 before_b = sum(len(l) + 1 for l in raw)
                 after_b = sum(len(l) + 1 for l in wrapped)
