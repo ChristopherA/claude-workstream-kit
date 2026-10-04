@@ -74,6 +74,8 @@ the surviving text and in the live content of every other state file,
 and any hit refuses the run unless the hit's sentence names the tag
 (the report's line numbers index the files on disk, never the rotated
 output, and each names the block's first line beside the citing line);
+in another file a bare-ID match is a hit only when its home is this
+workstream, and the home-less ones are listed without refusing;
 after the rewrite, every count a surviving criterion, gate line or
 critical-path sentence states about a section that was true before
 and is false after is reported with both figures and refuses the run
@@ -106,6 +108,7 @@ from workstream_state import (  # noqa: E402
     blank_strikes, disposition, extract_section, find_workstreams, fingerprint, fold_blocks,
     git, join_block, line_at, marker_counts, read_lines, section_bounds, sentence_span,
     split_sentences, strip_frontmatter, wrap, TASK_ID_FORM, GATE_ID_FORM,
+    CROSS_REF_WS_RE, workstream_id,
 )
 
 PROG = 'workstream-rewrite.py'
@@ -998,6 +1001,12 @@ def rotate(path, lines, tag, date, keeps):
     return out, leaving, report
 
 
+# The home written directly after an ID: `D2 in maintain/kit`,
+# `#MG-2 at ws/kit-2026-01-01`, a closing code span allowed between.
+ID_HOME_RE = re.compile(
+    r"`?(?:'s)?\s+(?:in|at|of)\s+`?((?:explore|feature|fix|project|maintain|docs)/[a-z0-9.-]*[a-z0-9]|ws/[\w.-]*\w)")
+
+
 def sweep_removed(root, path, new_lines, leaving, tag, old_lines=None):
     """Hits in the surviving text and in the live content of every other
     state file for each leaving block's ID and lead phrase. A hit whose
@@ -1007,8 +1016,20 @@ def sweep_removed(root, path, new_lines, leaving, tag, old_lines=None):
     paragraph alone shifts everything after it) sent an operator's
     `sed -n` to the wrong line for every hit of the first rotation.
     A block the rotation wrote has no source line and is cited as
-    written."""
+    written.
+
+    IDs are per-workstream, so in ANOTHER file a bare-ID match is a
+    reference to this workstream only when its home says so: the home
+    written right after the ID (`D2 in maintain/kit`), else the one home
+    its sentence names. ACTIVE.md's home-less mentions belong to the
+    workstream it points at. Every other home-less match is returned in
+    `bare`, reported and never refusing: the first rotation of a
+    workstream with low-numbered IDs was refused on some forty of other
+    workstreams' own D1s and L2s, four of them real."""
     hits = []
+    bare = []
+    wid = workstream_id(path)
+    active_ws = None
     targets = [(os.path.relpath(path, root), new_lines, 'surviving text')]
     source_start = {}
     if old_lines is not None:
@@ -1020,8 +1041,16 @@ def sweep_removed(root, path, new_lines, leaving, tag, old_lines=None):
         targets.append((rel, read_lines(p), 'live content'))
     active = os.path.join(root, '.state', 'ACTIVE.md')
     if os.path.isfile(active):
-        body = strip_frontmatter(read_lines(active))
-        targets.append((os.path.relpath(active, root), [t for _n, t in body], 'live content'))
+        alines = read_lines(active)
+        for l in alines[:10]:
+            if l.startswith('workstream:'):
+                active_ws = l.split(':', 1)[1].strip().strip('"')
+                break
+        # The frontmatter is blanked, not dropped, so a hit's line number
+        # is ACTIVE.md's own on disk.
+        kept = {n for n, _t in strip_frontmatter(alines)}
+        targets.append((os.path.relpath(active, root),
+                        [t if n in kept else '' for n, t in enumerate(alines, start=1)], 'live content'))
 
     # The record's live blocks for the other files; the whole text for
     # the surviving file, which is live by construction.
@@ -1042,24 +1071,25 @@ def sweep_removed(root, path, new_lines, leaving, tag, old_lines=None):
                 out.append((s, r))
             elif cur == '## Deletion Criteria' and DELETION_OPEN_RE.match(r[0]):
                 out.append((s, r))
-            elif cur is None:
-                out.append((s, r))  # ACTIVE.md's body
         return out
 
     needles = []
     for kind, ident, phrase, first in leaving:
         if ident:
-            needles.append((kind, ident, re.compile(r'(?<![\w/-])' + re.escape(ident) + r'(?![\w-])'), first))
+            needles.append((kind, ident, re.compile(r'(?<![\w/-])' + re.escape(ident) + r'(?![\w-])'), first, True))
         if phrase and len(phrase.split()) >= 2:
-            needles.append((kind, phrase, re.compile(re.escape(phrase).replace(r'\ ', r'\s+'), re.I), first))
+            needles.append((kind, phrase, re.compile(re.escape(phrase).replace(r'\ ', r'\s+'), re.I), first, False))
     for rel, lines, scope in targets:
         whole = scope == 'surviving text'
-        for start, raw in live_blocks_of(lines, whole):
+        is_active = rel == os.path.relpath(active, root)
+        # ACTIVE.md is live as a whole: its body opens with `## Now`, so
+        # the per-section filter kept none of it and it was never read.
+        for start, raw in live_blocks_of(lines, whole or is_active):
             if whole and source_start:
                 start = source_start.get(tuple(raw), start)
             text, starts = join_block(raw, start)
             blanked = blank_strikes(text)
-            for kind, needle, rx, first in needles:
+            for kind, needle, rx, first, is_id in needles:
                 for m in rx.finditer(blanked):
                     if whole and raw[0] == first:
                         continue  # the block's own definition is not a reference
@@ -1067,10 +1097,23 @@ def sweep_removed(root, path, new_lines, leaving, tag, old_lines=None):
                     sentence = blanked[s:e]
                     if tag in sentence or re.search(r'\b(?:rotation|archive) tag\b|\bat (?:its|the) tag\b', sentence):
                         continue
+                    if is_id and not whole:
+                        home = ID_HOME_RE.match(blanked, m.end())
+                        if home:
+                            homes = [home.group(1)]
+                        else:
+                            homes = sorted(set(CROSS_REF_WS_RE.findall(sentence)))
+                        if homes:
+                            if homes != [wid]:
+                                continue  # another workstream's own ID, or a tag
+                        elif not (is_active and active_ws == wid):
+                            bare.append({"file": rel, "line": line_at(starts, m.start()),
+                                         "needle": needle, "sentence": sentence[:160]})
+                            continue
                     hits.append({"file": rel, "line": line_at(starts, m.start()), "block": start,
                                  "scope": scope, "leaving": kind, "needle": needle,
                                  "sentence": sentence[:160]})
-    return hits
+    return hits, bare
 
 
 NOT_A_COUNT_RE = re.compile(
@@ -1177,7 +1220,13 @@ def cmd_rotate(args):
     except Refusal as e:
         sys.stderr.write("%s: %s in %s\n" % (PROG, e, path))
         return 1
-    hits = sweep_removed(root, path, new_lines, leaving, tag, old_lines)
+    hits, bare = sweep_removed(root, path, new_lines, leaving, tag, old_lines)
+    if bare:
+        sys.stderr.write("%s: %d home-less mention(s) of a leaving ID in other files, not counted "
+                         "(IDs are per-workstream; give a citation its home if it means this one)\n"
+                         % (PROG, len(bare)))
+        for b in bare:
+            sys.stderr.write("  %s:%s bare %r: %s\n" % (b["file"], b["line"], b["needle"], b["sentence"]))
     if hits:
         sys.stderr.write("%s: %d reference(s) to a leaving block; refusing to write "
                          "(line numbers index the files on disk; block = the block's first line)\n"

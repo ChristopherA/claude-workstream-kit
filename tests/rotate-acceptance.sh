@@ -253,6 +253,78 @@ check "a genuine count in the same file still refuses (exit 1), and only that se
   '[ "$rc" -eq 1 ] && grep -q "STALE CLAIM.*2 Learnings remain" "$T/ord-o.txt" && ! grep -q "STALE CLAIM.*Criterion" "$T/ord-o.txt"'
 cd "$T"
 
+echo "== Another workstream's own IDs under the same numbers do not refuse the rotation"
+# IDs are per-workstream. On 0.11.1 a match on the bare ID in any other
+# state file refused the run, so a workstream whose D1 was leaving was
+# refused on every other workstream's own D1. A hit counts only when its
+# home is this workstream: written after the ID, the one home its sentence
+# names, or -- in ACTIVE.md -- the workstream ACTIVE.md points at.
+mkdir -p "$T/home" && cd "$T/home"
+git init -q -b main && git config user.email fixture@example.invalid && git config user.name Fixture
+git config commit.gpgsign false && git config tag.gpgsign false && git config tag.forceSignAnnotated false
+mkdir -p .state/workstreams/maintain/k .state/workstreams/project/p
+KW=.state/workstreams/maintain/k/workstream.md
+PW=.state/workstreams/project/p/workstream.md
+cat > "$KW" <<'FIX'
+---
+name: k
+type: maintain
+status: active
+---
+## Purpose
+The workstream being rotated.
+
+## Backlog
+### Build (KB)
+- [ ] #KB-1: an open task citing nothing
+
+## Decisions
+### D1 (2026-01-01): The leaving decision
+Spent, and cited by nothing here.
+FIX
+cat > "$PW" <<'FIX'
+---
+name: p
+type: project
+status: active
+---
+## Purpose
+A neighbour with its own D1.
+
+## Backlog
+### Pass (PP)
+- [ ] #PP-1: builds on D1 (our own first decision), cited bare.
+- [ ] #PP-2: builds on D1 in project/p (the same decision, homed).
+- [ ] #PP-3: compares D1 with the approach of feature/elsewhere.
+
+## Decisions
+### D1 (2026-01-01): The neighbour's own decision
+Unrelated to maintain/k.
+FIX
+printf -- '---\nworkstream: project/p\ntask: none\n---\n## Now\nWorking under D1 (the neighbour decision).\n' > .state/ACTIVE.md
+git add -A && git commit -q -m fixture && git tag -a ws/k-2026-02-02 -m rotation
+rc=0; python3 "$SCRIPT" rotate "$KW" --tag ws/k-2026-02-02 --date 2026-02-02 >"$T/home-o.txt" 2>"$T/home-e.txt" || rc=$?
+check "D1 is cited by nothing in its own file, so the rotation drops it" '[ "$(grep -c "D1" "$KW")" = 1 ]'
+check "the neighbour's own D1s (bare, homed there, beside another home) and ACTIVE.md's (pointing at project/p) do not refuse: exit 0" \
+  '[ "$rc" -eq 0 ] && ! grep -q "reference(s) to a leaving block" "$T/home-e.txt"'
+check "the bare mentions are reported as home-less, not counted (#PP-1's line and ACTIVE.md)" \
+  'grep -q "home-less mention" "$T/home-e.txt" && grep -q "project/p/workstream.md:[0-9]* bare .D1.*our own first decision" "$T/home-e.txt" && grep -q "ACTIVE.md:[0-9]* bare .D1." "$T/home-e.txt"'
+# Vary one input each way: a citation homed in maintain/k refuses, and so
+# does a home-less one in ACTIVE.md once it points at maintain/k.
+printf -- '- [ ] #PP-4: reuses D1 in maintain/k (the spent one).\n' > "$T/pp4"
+awk -v add="$(cat "$T/pp4")" '/^## Decisions$/ { print add; print "" } { print }' "$PW" > "$T/pw.tmp" && command mv "$T/pw.tmp" "$PW"
+git add -A && git commit -q -m homed && git tag -f -a ws/k-2026-02-02 -m rotation >/dev/null
+rc=0; python3 "$SCRIPT" rotate "$KW" --tag ws/k-2026-02-02 --date 2026-02-02 >"$T/home-o.txt" 2>"$T/home-e.txt" || rc=$?
+check "D1 in maintain/k refuses (exit 1), naming that line only" \
+  '[ "$rc" -eq 1 ] && grep -q "1 reference(s) to a leaving block" "$T/home-e.txt" && grep -q "D1 in maintain/k" "$T/home-e.txt"'
+git checkout -q HEAD~1 -- "$PW"
+sed -i.bak 's|^workstream: project/p$|workstream: maintain/k|' .state/ACTIVE.md && rm -f .state/ACTIVE.md.bak
+git add -A && git commit -q -m pointer && git tag -f -a ws/k-2026-02-02 -m rotation >/dev/null
+rc=0; python3 "$SCRIPT" rotate "$KW" --tag ws/k-2026-02-02 --date 2026-02-02 >"$T/home-o.txt" 2>"$T/home-e.txt" || rc=$?
+check "ACTIVE.md pointing at maintain/k: its home-less D1 refuses (exit 1), cited at its line on disk (6)" \
+  '[ "$rc" -eq 1 ] && grep -q "ACTIVE.md:6 (block 6, live content) cites leaving decision" "$T/home-e.txt"'
+cd "$T"
+
 echo "== Usage"
 rc=0; python3 "$SCRIPT" rotate "$W" >/dev/null 2>&1 || rc=$?
 check "rotate without --tag: exit 2" '[ "$rc" -eq 2 ]'
