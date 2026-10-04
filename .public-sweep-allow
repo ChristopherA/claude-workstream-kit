@@ -22,6 +22,8 @@
 # The state-file format rule, which shows a task pointer, a backlog and a gate.
 ^\.claude/rules/workstreams-rule\.md:[0-9]+:.*#(DR-[0-9]|G-DR)\b
 ^\.claude/rules/workstreams-rule\.md:[0-9]+:.*#MG-2\b
+# The rotate script's home-matching comment quotes the rule's own example.
+^\.claude/scripts/workstream-rewrite\.py:[0-9]+:.*#MG-2\b
 
 # The workstream template ships the Completion phase as literal tasks.
 ^\.claude/skills/workstream-create/templates/workstream\.md:[0-9]+:.*#CL-[123]\b
@@ -66,7 +68,7 @@
 ^tests/fires-acceptance\.sh:[0-9]+:.*\$T/\.state/workstreams/
 ^tests/learnings-acceptance\.sh:[0-9]+:.*#(BD|BT)-[0-9]+[a-z]?\b
 ^tests/rewrite-acceptance\.sh:[0-9]+:.*#(G-BD|BD-[0-9]+[a-z]?)\b
-^tests/rotate-acceptance\.sh:[0-9]+:.*#(G-OG|(OG|DP|OT)-[0-9]+)\b
+^tests/rotate-acceptance\.sh:[0-9]+:.*#(G-OG|(OG|DP|OT|OB)-[0-9]+)\b
 ^tests/rotate-acceptance\.sh:[0-9]+:.*\.state/workstreams/(maintain/kit|feature/other)\b
 ^tests/self-check-acceptance\.sh:[0-9]+:.*#(G-BD|BD-[0-9]+[a-z]?)\b
 ^tests/damage-acceptance\.sh:[0-9]+:.*#(G-BD|BD-[0-9]+[a-z]?)\b
