@@ -443,7 +443,12 @@ def build_workstream_record(path, rel_path):
     purpose = purpose_fields(lines)
 
     phases, tasks_outside_phases, code_mismatches, codes_without_heading = phase_records(lines)
-    total_open = sum(1 for line in lines if TOTAL_OPEN_RE.match(line))
+    # Deletion Criteria are excluded: a criterion that OPENS with a task
+    # ID is a criterion about that task, and counting it here too read
+    # one high beside the criteria count -- the hook does the same.
+    sections = section_of(lines)
+    total_open = sum(1 for i, line in enumerate(lines)
+                     if TOTAL_OPEN_RE.match(line) and sections[i] != '## Deletion Criteria')
     # An open task line OUTSIDE ## Backlog -- appended after the section
     # ended, under Decisions or below -- is counted by the hook's roster
     # (which anchors on the line) and by nothing position-keyed: the

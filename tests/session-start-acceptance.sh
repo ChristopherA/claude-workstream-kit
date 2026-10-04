@@ -168,6 +168,29 @@ check "bare-anchor count (7) does not appear" \
   "! grep -q 'open tasks: 7' \"\$T/out.txt\""
 check "gates counted" "grep -q 'open gates: 2' \"\$T/out.txt\""
 
+echo "== A criterion that OPENS with a task ID is a criterion, not a task"
+# The template mints criteria that name tasks; on 0.11.1 such a line was
+# counted twice, as an open task and as an unmet criterion. Fired both
+# ways: a criterion added must not move the task count, and a real task
+# added must.
+A="$T/.state/workstreams/project/alpha/workstream.md"
+command cp "$A" "$T/alpha.bak"
+printf -- '- [ ] #BD-1 in project/alpha (the first task) is checked off\n' >> "$A"
+check "the planted criterion sits under Deletion Criteria" \
+  "awk '/^## Deletion Criteria/ {f=1} f && /^- \\[ \\] #BD-1 in project/' \"\$A\" | grep -q ."
+OUT_C=$(CLAUDE_PROJECT_DIR="$T" sh "$HOOK")
+check "criterion opening with an ID: open tasks stays 5 and unmet criteria becomes 3" \
+  "printf '%s\n' \"\$OUT_C\" | grep -q 'open tasks: 5, open gates: 2, unmet criteria: 3'"
+check "the roster row agrees (5 open)" \
+  "printf '%s\n' \"\$OUT_C\" | grep -E 'project/alpha +project' | grep -q ' 5 open'"
+printf -- '- [ ] #G-BZ in project/alpha (a gate) is decided\n' >> "$A"
+check "a criterion opening with a gate ID does not move the gate count" \
+  "CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'open tasks: 5, open gates: 2, unmet criteria: 4'"
+ins_backlog "$A" "- [ ] #BD-7: a real task added"
+check "a real task added to the Backlog moves the count to 6" \
+  "CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'open tasks: 6, open gates: 2'"
+command mv "$T/alpha.bak" "$A"
+
 echo "== Dates derive from git, from the last checkbox or Decision change"
 check "no false STALENESS from a 2020 updated: field" \
   "! grep -q '^STALENESS: no checkbox or Decision changed' \"\$T/out.txt\""

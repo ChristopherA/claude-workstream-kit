@@ -56,9 +56,13 @@ substantive_epoch() {
 # A bare `^- \[ \]` also matches Deletion
 # Criteria, which are standing conditions rather than backlog items, so it
 # overstates remaining work by however many criteria a workstream carries --
-# for every workstream, permanently.
-count_open()  { grep -cE '^ *- \[ \] #'   "$1" 2>/dev/null || true; }
-count_gates() { grep -cE '^ *- \[ \] #G-' "$1" 2>/dev/null || true; }
+# for every workstream, permanently. The Deletion Criteria section is skipped
+# for the same reason the criteria count brackets itself: a criterion whose
+# text OPENS with a task ID (`- [ ] #EX-30 in project/x ...`) is a criterion
+# about that task, and counting it here too read one high beside the criteria
+# count. An open task appended anywhere else is still counted.
+count_open()  { awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} !f && /^ *- \[ \] #/ {n++} END {print n+0}' "$1" 2>/dev/null || true; }
+count_gates() { awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} !f && /^ *- \[ \] #G-/ {n++} END {print n+0}' "$1" 2>/dev/null || true; }
 
 # Criteria are counted in their own section and reported SEPARATELY rather than
 # folded into the task count: a satisfied-but-unticked criterion is a signal

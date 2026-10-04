@@ -512,6 +512,12 @@ check "digits: decay counts every open task line (W3-1, W3-6, EX-3, P8-V) and na
 check "digits: bare-ids flags an unglossed #W3-1 mention" \
   'mkdir -p "$T/digits-b/.state/workstreams/project/b" && printf -- "---\nname: b\n---\n## Purpose\nRoutes to #W3-1 next.\n\n## Backlog\n" > "$T/digits-b/.state/workstreams/project/b/workstream.md" && python3 "$SCRIPT" bare-ids "$T/digits-b" | grep -q "#W3-1"'
 
+echo "== record's open_total skips a criterion that opens with a task ID, as the hook does"
+printf -- '- [ ] #W3-1 in project/d (the first task) is checked off\n' >> "$DW"
+check "the criterion is planted under Deletion Criteria" '[ "$(tail -1 "$DW" | cut -c1-12)" = "- [ ] #W3-1 " ]'
+check "open_total stays 6 with the criterion added" '[ "$(dq ".open_total")" = "6" ]'
+check "and still equals the per-heading sum" '[ "$(dq " | [.phases[] | .open_tasks + .open_gates] | add")" = "6" ]'
+
 echo "== Missing .state exits 2 (not merely non-zero)"
 mkdir -p "$T/nostate-root"
 check "the nostate fixture genuinely has no .state directory" '[ ! -d "$T/nostate-root/.state" ]'
