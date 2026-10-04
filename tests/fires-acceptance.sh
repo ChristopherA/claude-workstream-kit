@@ -100,6 +100,59 @@ check "fires with no root: exit 2" '[ "$rc" -eq 2 ]'
 rc=0; python3 "$SCRIPT" fires "$T" --interval-days x >/dev/null 2>&1 || rc=$?
 check "--interval-days with no number: exit 2" '[ "$rc" -eq 2 ]'
 
+echo "== Severances behind house-style markup fire; clean wrapping does not"
+# On 0.11.1 the detector needed the previous line to end in a bare full
+# stop and the continuation to open with a bare lowercase letter, so a
+# gate line ending `**` hid a severed instruction for two weeks. Built
+# from the SHAPE, since both reported instances were repaired in place.
+# Severed continuations carry the word SEVERED, clean ones the word CLEAN.
+M="$T/markup"
+mkdir -p "$M/.state/workstreams/feature/m"
+cat > "$M/.state/workstreams/feature/m/workstream.md" <<'FIX'
+---
+name: m
+type: feature
+status: active
+---
+## Purpose
+A fixture.
+
+## Backlog
+- [ ] #MK-1: an open task
+
+## Learnings
+- L1 (2026-01-01): **The gate opens on the user's word.**
+  the build waits on it, SEVERED behind a closing bold. DROPPED 2026-01-02.
+- L2 (2026-01-01): The note says so (see the record.)
+  then carries on, SEVERED behind a closing parenthesis. DROPPED 2026-01-02.
+- L3 (2026-01-01): The sender wrote "it holds."
+  and the rest follows, SEVERED behind a closing quote. DROPPED 2026-01-02.
+- L4 (2026-01-01): The count was right.
+  **now** the rest, SEVERED before an opening bold. DROPPED 2026-01-02.
+- L5 (2026-01-01): The record was read.
+  [see the tag] for the rest, SEVERED before an opening bracket. DROPPED 2026-01-02.
+- L6 (2026-01-01): **A sentence ends at the wrap.**
+  The next one opens with a capital, CLEAN. DROPPED 2026-01-02.
+- L7 (2026-01-01): A sentence whose line breaks mid
+  clause and continues lowercase, CLEAN ordinary wrapping. DROPPED 2026-01-02.
+- L8 (2026-01-01): The sweep ran over every file.
+  `rg` returns nothing when the path is wrong, a CLEAN sentence opening with a command. DROPPED 2026-01-02.
+- L9 (2026-01-01): Two options were weighed.
+  (a) the first, a CLEAN enumeration. DROPPED 2026-01-02.
+- L10 (2026-01-01): A third was added later.
+  **(c), added at D3:** a CLEAN bold-wrapped enumeration. DROPPED 2026-01-02.
+- L11 (2026-01-01): The task finished.
+  (done 2026-01-02, a CLEAN parenthetical completion note) DROPPED 2026-01-02.
+- L12 (2026-01-01): The first reading stood.
+  ~~the old reading~~ is CLEAN struck text. DROPPED 2026-01-02.
+FIX
+MW="$M/.state/workstreams/feature/m/workstream.md"
+expect=$(grep -n 'SEVERED' "$MW" | cut -d: -f1 | sed 's/^/line /' | paste -sd, - | sed 's/,/, /g')
+check "the fixture holds five severed continuations and seven clean ones" \
+  '[ "$(grep -c SEVERED "$MW")" = 5 ] && [ "$(grep -c CLEAN "$MW")" = 7 ]'
+check "markup: exactly the five severed lines fire, none of the clean ones" \
+  '[ "$(python3 "$SCRIPT" fires "$M" --json | jq -r ".workstreams[0].symptoms[] | select(.symptom == \"severed sentence\") | .detail")" = "$expect" ]'
+
 echo
 if [ "$RESULT" -eq 0 ]; then echo "FIRES ACCEPTANCE: ALL CHECKS PASS"; else echo "FIRES ACCEPTANCE: FAILURES ABOVE"; fi
 exit "$RESULT"

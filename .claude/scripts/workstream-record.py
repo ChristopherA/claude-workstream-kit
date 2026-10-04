@@ -100,8 +100,9 @@ workstream, each symptom named: undispositioned Learnings, a completed
 phase, an open task line outside ## Backlog (appended after the
 section ended, which the roster counts and no phase count sees), a
 sentence severed inside a wrapped block (a continuation opening
-lowercase under a line ending in a full stop -- an insertion landed
-mid-sentence, and every count still passes), size past the hook's
+lowercase, after any opening emphasis or square bracket, under a line
+ending a sentence, after any closing markup such as `.**` or `.)` --
+an insertion landed mid-sentence, and every count still passes), size past the hook's
 threshold, a notes.md beside the file, a file in the directory the kit
 does not know, a STANDING criterion never re-checked or last
 re-checked longer ago than the interval (30 days unless
@@ -1277,14 +1278,26 @@ def cmd_git(args):
 KNOWN_FILES = ('workstream.md', 'notes.md')
 
 
+# The previous line ends a sentence: a stop, then any closing markup --
+# `.)`, `.**`, `."`, `)*` -- since appends accrete emphasis and the most
+# appended line in a workstream is its gate. The continuation opens
+# lowercase after any opening emphasis or square bracket (`**now**`,
+# `[see]`). Not looked through, each measured as a false positive on
+# real state: a leading code span (a sentence can begin with a lowercase
+# command), a parenthesis (`(done 2026-08-08, ...)` notes), a struck
+# span (retired text), and an enumeration however it is wrapped
+# (`**(d), added at D20:**`).
+SEVERED_END_RE = re.compile(r'[.!?][\'")*_\]~]*$')
+SEVERED_OPEN_RE = re.compile(r'^(?:\*\*|\*|_|\[)*')
 SEVERED_LOWER_RE = re.compile(r'^[a-z]')
-SEVERED_ENUM_RE = re.compile(r'^[a-z]+\)')
+SEVERED_ENUM_RE = re.compile(r'^\(?[a-z]+\)')
 
 
 def severed_sentences(lines):
     """Lines where a wrapped block's sentence was cut by an insertion:
-    a continuation (two-space indent) opening with a lowercase word
-    under a line that ends in a full stop. Ordinary wrapping never
+    a continuation (two-space indent) opening with a lowercase word,
+    after any opening emphasis or bracket, under a line that ends a
+    sentence, after any closing markup. Ordinary wrapping never
     ends a line at a period mid-paragraph, so the shape is almost
     always a severed sentence; a lowercase proper noun is the false
     positive to expect. Code fences are skipped. From a consumer whose
@@ -1300,9 +1313,12 @@ def severed_sentences(lines):
             continue
         body = cur.strip()
         prev = lines[i - 1].rstrip()
-        if not body or not prev.endswith('.'):
+        if not body or not SEVERED_END_RE.search(prev):
             continue
-        if SEVERED_LOWER_RE.match(body) and not SEVERED_ENUM_RE.match(body):
+        opened = body[SEVERED_OPEN_RE.match(body).end():]
+        if SEVERED_ENUM_RE.match(opened):
+            continue
+        if SEVERED_LOWER_RE.match(opened):
             out.append(i + 1)
     return out
 
