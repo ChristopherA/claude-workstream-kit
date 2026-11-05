@@ -49,11 +49,19 @@ git init -q -b main
 git config user.email tests@example.invalid
 git config user.name 'kit tests'
 git config commit.gpgsign false
+# Fixed dates make the hashes the same on every run, so no check flakes
+# on a short hash that happens to be all digits, which no hex word
+# pattern takes for a hash.
+GIT_AUTHOR_DATE='2026-01-01T00:00:00Z'; GIT_COMMITTER_DATE='2026-01-01T00:00:00Z'
+export GIT_AUTHOR_DATE GIT_COMMITTER_DATE
 echo one > a.txt; git add a.txt; git commit -qm one
 FULL=$(git rev-parse HEAD)
 SHORT=$(git rev-parse --short=7 HEAD)
 echo two > a.txt; git commit -qam two
 PROV=$(git rev-parse --short=7 HEAD)
+for h in "$SHORT" "$PROV"; do
+  case $h in *[a-f]*) ;; *) echo "FAIL: fixture hash $h carries no letter; change a commit message"; exit 1 ;; esac
+done
 
 P='This sentence pads the record so its block runs past the four hundred byte trigger the condenser fires at, and a little further besides, so that no record here is passed over for being short. A second padding sentence makes sure of it, since the trigger counts the whole block in bytes.'
 
@@ -180,7 +188,7 @@ check "#BD-8 keeps its issue, its only handle, rather than the 'evidence in the 
 check "#BD-8 does not list the provenance commit named later in its prose" \
   "block '#BD-8' | grep -q 'Condensed 2026-05-05' && ! block '#BD-8' | grep -q \"commits.*$PROV\""
 check "the report names the commit #BD-8 did not list" \
-  "grep -E '^#BD-8 ' \"$T/out.txt\" | grep -q \"$PROV\""
+  "grep -E '^#BD-8 ' \"$T/out.txt\" | grep -qF \"named in prose after the lead: $PROV]\""
 
 echo "== records: foreign Decisions"
 check "#BD-2 cites its one local Decision, D3" "block '#BD-2' | grep -q 'reasoning in D3'"
@@ -224,13 +232,13 @@ echo "== records: --keep and idempotence"
 cp "$T/original.md" "$W"
 rc=0; python3 "$SCRIPT" records "$W" --keep '#BD-16' --date 2026-05-05 >"$T/keep.txt" 2>&1 || rc=$?
 check "--keep #BD-16 runs and reports the record kept" "[ \"\$rc\" -eq 0 ] && grep -q '^KEPT #BD-16' \"$T/keep.txt\""
-python3 "$SCRIPT" records "$W" --keep '#BD-16' --write --date 2026-05-05 >/dev/null 2>&1 || true
-check "#BD-16 is byte-identical under --keep" \
-  "grep -qF 'an ordinary note the operator chooses to keep whole' \"$W\""
+rc=0; python3 "$SCRIPT" records "$W" --keep '#BD-16' --write --date 2026-05-05 >"$T/keep-write.txt" 2>&1 || rc=$?
+check "#BD-16 is byte-identical under a --keep run that wrote" \
+  "[ \"\$rc\" -eq 0 ] && grep -q '^WRITTEN' \"$T/keep-write.txt\" && grep -qF 'an ordinary note the operator chooses to keep whole' \"$W\""
 cp "$W" "$T/after-records.md"
-python3 "$SCRIPT" records "$W" --keep '#BD-16' --write --date 2026-06-06 >"$T/out2.txt" 2>&1 || true
-check "a second records run is a no-op: NO CHANGE, byte-identical" \
-  "grep -q 'NO CHANGE' \"$T/out2.txt\" && cmp -s \"$W\" \"$T/after-records.md\""
+rc=0; python3 "$SCRIPT" records "$W" --keep '#BD-16' --write --date 2026-06-06 >"$T/out2.txt" 2>&1 || rc=$?
+check "a second records run is a no-op: exit 0, NO CHANGE, byte-identical" \
+  "[ \"\$rc\" -eq 0 ] && grep -qx 'NO CHANGE' \"$T/out2.txt\" && cmp -s \"$W\" \"$T/after-records.md\""
 
 echo "== learnings"
 cp "$T/original.md" "$W"
