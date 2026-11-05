@@ -98,6 +98,7 @@ never derives one, and a note naming none says so.
 import datetime
 import os
 import re
+import subprocess
 import sys
 
 sys.dont_write_bytecode = True
@@ -305,35 +306,235 @@ def status_and_date(body, dates):
 
 
 # A Decision a record cites: the ID standing as its own token, never
-# part of a longer one (`pre-D26`, `D4/D8/D9`) and never one that names
-# another workstream as its home (`D4 in project/x`, `D4 at ws/x`). A
-# consumer's run cited `reasoning in D4, D8, D9` off `beta D4/D8/D9`,
-# another workstream's Decisions, which resolved to real but different
-# Decisions in the same file and so read as settled.
-DEC_CITE_RE = re.compile(
-    r"(?<![\w/-])D([0-9]+)(?![\w/-])"
-    r"(?! (?:in|at) (?:(?:explore|feature|fix|project|maintain)/|ws/))")
+# part of a longer one (`pre-D26`, `D4/D8/D9`), and never one whose home
+# is another workstream. IDs written as a RUN -- `D2 and D4 in
+# feature/alpha`, `beta's D4, D8`, a gloss allowed after each -- share
+# the home written after the run's last ID or before its first: a
+# lookahead on each ID alone read `D2` in `D2 and D4 in feature/alpha`
+# as this file's, and a condensed record cited three local Decisions it
+# never named. A home is a workstream path, a tag, or the name of
+# another workstream in the project; this workstream's own is local.
+DEC_TOKEN_RE = re.compile(r"(?<![\w/-])D([0-9]+)(?![\w/-])")
+DEC_GLUE_RE = re.compile(r"^\s*(?:\([^()]*\))?\s*(?:,\s*(?:and\s+|or\s+)?|and\s+|or\s+|&\s*)$")
+HOME_PATH = r"(?:(?:explore|feature|fix|project|maintain|docs)/[a-z0-9.-]*[a-z0-9]|ws/[\w.-]*\w)"
 
 
-def decisions_cited(note, present):
-    """The Decision IDs a note cites that this file defines, numeric
-    order; and the ones it names that this file does not, which are
+class Context(object):
+    """What reading a note needs from outside it: the Decisions this
+    file defines, this workstream's own home and name, the project's
+    other workstream names, and the commit resolver."""
+
+    def __init__(self, present=frozenset(), own=None, others=(), resolve=None):
+        self.present = set(present)
+        self.own = own
+        self.own_name = own.split('/', 1)[1] if own and '/' in own else own
+        self.others = sorted(set(others) - {self.own_name}, key=len, reverse=True)
+        self.resolve = resolve
+        names = "|".join(re.escape(n) for n in self.others)
+        home = HOME_PATH + (("|(?:the\\s+)?(?:%s)(?:\\s+workstream)?" % names) if names else "")
+        # No `^`: the pattern is matched at an offset, where `^` never holds.
+        self.after_re = re.compile(r"\s*(?:\([^()]*\))?`?(?:'s)?\s+(?:in|at|of|from)\s+`?(" + home + r")(?![\w/-])")
+        self.before_re = re.compile(r"(?<![\w/-])(" + home + r")`?(?:'s)?\s*(?:\(\s*)?$")
+
+
+def home_is_foreign(home, ctx):
+    h = re.sub(r"^the\s+|\s+workstream$", "", home.strip())
+    return h not in (ctx.own, ctx.own_name)
+
+
+def decisions_cited(note, ctx):
+    """(local, absent, foreign): the Decision IDs a note cites that this
+    file defines, numeric order; those it names that this file does not,
     reported rather than cited, since a citation to nothing is the
-    pointer the rule calls a defect."""
-    named = sorted(set(int(x) for x in DEC_CITE_RE.findall(note)))
-    return (["D%d" % n for n in named if n in present],
-            ["D%d" % n for n in named if n not in present])
+    pointer the rule calls a defect; and those whose home is another
+    workstream, reported and never credited here."""
+    toks = list(DEC_TOKEN_RE.finditer(note))
+    runs = []
+    for m in toks:
+        if runs and DEC_GLUE_RE.match(note[runs[-1][-1].end():m.start()]):
+            runs[-1].append(m)
+        else:
+            runs.append([m])
+    local, foreign = set(), set()
+    for run in runs:
+        nums = [int(m.group(1)) for m in run]
+        after = ctx.after_re.match(note, run[-1].end())
+        before = ctx.before_re.search(note[:run[0].start()])
+        home = (after.group(1) if after else None) or (before.group(1) if before else None)
+        if home and home_is_foreign(home, ctx):
+            foreign.update(nums)
+        else:
+            local.update(nums)
+    local -= foreign
+    return (["D%d" % n for n in sorted(local) if n in ctx.present],
+            ["D%d" % n for n in sorted(local) if n not in ctx.present],
+            ["D%d" % n for n in sorted(foreign)])
 
 
-def condensed_note(note, present, mark):
-    """The completion-note form for one note's text: the status word
-    and date of its own sentence, its Decision citations and commit
-    hashes, the dated marker. Everything is read from the NOTE alone --
-    never from the description beside it, whose asides and dates are
-    not the record's evidence."""
+# Where a clause of a note ends, for keeping one verbatim: a `;`, a
+# `: `, ` -- ` or a sentence end, at parenthesis depth 0 and outside a
+# code span.
+def segments(text):
+    """[(start, end)] of the note's clauses."""
+    out = []
+    depth = 0
+    code = False
+    start = 0
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        cut = 0
+        if c == '`':
+            code = not code
+        elif not code:
+            if c == '(':
+                depth += 1
+            elif c == ')' and depth:
+                depth -= 1
+            elif depth == 0:
+                if c == ';' or (c == ':' and i + 1 < n and text[i + 1] == ' '):
+                    cut = 1
+                elif c in '.!?' and (i + 1 == n or text[i + 1].isspace()):
+                    cut = 1
+                elif text.startswith(' -- ', i):
+                    cut = 4
+        if cut:
+            out.append((start, i))
+            start = i + cut
+            i += cut
+            continue
+        i += 1
+    if start < n:
+        out.append((start, n))
+    return [(s, e) for s, e in out if text[s:e].strip()]
+
+
+# A kept clause's opener the condensed note already carries: a status
+# word in any case with its date, a date alone, or an upper-case status
+# word alone -- never a lower-case verb that is the clause's own (`closed
+# issue 10 on the site`).
+SEGMENT_OPENER_RE = re.compile(
+    r"^[\s*(]*(?:(?:(?i:" + "|".join(STATUS_WORDS) + r")\s+)?(?:on\s+)?20[0-9]{2}-[0-9]{2}-[0-9]{2}\b[\s:]*"
+    r"|(?:" + "|".join(STATUS_WORDS) + r"|Done)\b[\s:]*)")
+# An identifier a note can rest on when no commit leads it.
+IDENT_RE = re.compile(
+    r"\b(?:issue|issues|PR|pull request)\s+#?[0-9]+\b|https?://\S+|\b[\w.-]+/[\w.-]+#[0-9]+\b|\b[\w.-]+#[0-9]+\b")
+
+
+def segment_text(note, s, e):
+    """A clause kept verbatim, its leading status word and date dropped
+    since the condensed note opens with them."""
+    seg = note[s:e].strip()
+    trimmed = SEGMENT_OPENER_RE.sub("", seg, count=1).strip()
+    return trimmed or seg
+
+
+def batch_resolver(cwd):
+    """A function token -> full commit hash or None, answering from one
+    `git cat-file --batch-check` per run; None when cwd is not in a git
+    repository, so the caller can say the hashes went unchecked."""
+    rc, _ = git(['rev-parse', '--git-dir'], cwd)
+    if rc != 0:
+        return None
+    cache = {}
+
+    def resolve_all(tokens):
+        todo = [t for t in dict.fromkeys(tokens) if t not in cache]
+        if not todo:
+            return
+        try:
+            p = subprocess.run(['git', 'cat-file', '--batch-check'], cwd=cwd, capture_output=True, text=True,
+                               input=''.join(t + '^{commit}\n' for t in todo))
+            answers = p.stdout.splitlines()
+        except OSError:
+            answers = []
+        for t, a in zip(todo, answers + [''] * len(todo)):
+            parts = a.split()
+            cache[t] = parts[0] if len(parts) >= 2 and parts[1] == 'commit' else None
+
+    def resolve(token):
+        if token not in cache:
+            resolve_all([token])
+        return cache.get(token)
+
+    resolve.prime = resolve_all
+    return resolve
+
+
+def note_evidence(note, ctx):
+    """(listed_commits, kept_clauses, unresolved, prose_only): what a
+    condensed note keeps as its evidence.
+
+    Commits are hex words (`SHA_RE`) that resolve as commits in the
+    repository holding the file; one commit named short and full is
+    listed once, as first written. A hex word that does not resolve --
+    a gist ID, a data digest, a commit in another repository -- is
+    never listed as a commit: the clause it sits in is kept verbatim
+    instead, since a resolve-and-drop filter would lose the cross-
+    repository commits notes cite and the sentence saying what a digest
+    was. With no repository the words are listed as written, the
+    report saying so.
+
+    Only commits that LEAD the note -- named in its first clause run,
+    up to the first `;` -- are listed when there are any; others named
+    later in prose are reported and not listed, since a provenance
+    commit (`where a deleted notes.md lived`) is not the evidence. With
+    no commit leading, an issue, PR or URL in that lead is the record's
+    handle and its clause is kept."""
+    toks = list(dict.fromkeys(SHA_RE.findall(note)))
+    if ctx.resolve is None:
+        return toks, [], [], []
+    ctx.resolve.prime(toks)
+    first = split_sentences(note)[:1]
+    lead = (first[0].split(';', 1)[0] if first else '')
+    seen_commit = {}
+    lead_commits, other_commits, unresolved = [], [], []
+    for t in toks:
+        full = ctx.resolve(t)
+        if full is None:
+            unresolved.append(t)
+            continue
+        if full in seen_commit:
+            continue
+        seen_commit[full] = t
+        (lead_commits if re.search(r"(?<![0-9a-f])" + t + r"(?![0-9a-f])", lead) else other_commits).append(t)
+    kept = []
+    segs = segments(note)
+    for t in unresolved:
+        at = re.search(r"(?<![0-9a-f])" + t + r"(?![0-9a-f])", note)
+        for s, e in segs:
+            if at and s <= at.start() < e:
+                txt = segment_text(note, s, e)
+                if txt not in kept:
+                    kept.append(txt)
+                break
+    if lead_commits:
+        return lead_commits, kept, unresolved, other_commits
+    ident = IDENT_RE.search(lead)
+    if ident:
+        for s, e in segs:
+            if s <= ident.start() < e:
+                txt = segment_text(note, s, e)
+                if txt not in kept:
+                    kept.insert(0, txt)
+                break
+        return [], kept, unresolved, other_commits
+    return other_commits, kept, unresolved, []
+
+
+def condensed_note(note, ctx, mark):
+    """(text, notes) -- the completion-note form for one note's text:
+    the status word and date of its own sentence, with the pointer its
+    closing verb carries; its Decision citations; the commits that lead
+    its evidence and the clauses kept verbatim; the dated marker; and
+    the report annotations for what it named and did not list.
+    Everything is read from the NOTE alone -- never from the
+    description beside it, whose asides and dates are not the record's
+    evidence."""
     dates = DATE_RE.findall(note)
-    decs, absent = decisions_cited(note, present)
-    shas = list(dict.fromkeys(SHA_RE.findall(note)))
+    decs, absent, foreign = decisions_cited(note, ctx)
+    shas, kept, unresolved, prose = note_evidence(note, ctx)
     mark_word, date = status_and_date(note, dates)
     head = "%s %s" % (mark_word, date)
     ptr = pointer_of(note)
@@ -350,16 +551,167 @@ def condensed_note(note, present, mark):
         ev.append("reasoning in " + ", ".join(decs))
     if shas:
         ev.append("commits " + ", ".join(shas[:8]) + (" ..." if len(shas) > 8 else ""))
+    ev.extend(kept)
     if ev:
         text = "%s; %s. %s; full record in git before that commit." % (head, "; ".join(ev), mark)
     elif ptr:
         text = "%s. %s; full record in git before that commit." % (head, mark)
     else:
         text = "%s; evidence in the record at the commit preceding this condensation. %s; full record in git before that commit." % (head, mark)
-    return text, absent
+    notes = []
+    if absent:
+        notes.append("not cited, no such Decision here: %s" % ", ".join(absent))
+    if foreign:
+        notes.append("not cited, another workstream's: %s" % ", ".join(foreign))
+    if unresolved:
+        notes.append("not listed, no such commit here, kept in its clause: %s" % ", ".join(unresolved))
+    if prose:
+        notes.append("not listed, named in prose after the lead: %s" % ", ".join(prose))
+    if ctx.resolve is None and shas:
+        notes.append("hashes listed unchecked: not a git repository")
+    return text, notes
 
 
-def condense_records(lines, mark):
+# --- inbound citations: what live content cites a record's NOTE for ---------
+
+# A citation reads a record's note when a note word stands near the ID --
+# `see #X completion note for the measurement`, `#Y in
+# maintain/x (...); its completion note has the number` -- or `see`
+# directly before it. A citation of the task itself (a Decision routing
+# work to it) survives condensation, since the ID and description stay.
+NOTE_WORD_RE = re.compile(r"\b(?:completion\s+)?notes?\b|\bevidence\b|\bmeasurements?\b", re.I)
+SEE_BEFORE_RE = re.compile(r"\bsee\s+(?:the\s+)?$", re.I)
+NOTE_WINDOW = (40, 80)  # characters before and after the ID
+
+
+def live_blocks(lines, whole):
+    """(start, raw) for the blocks of a state file that are LIVE: the
+    whole text when whole, else open Backlog lines and the critical
+    path, unresolved Open Questions and open Deletion Criteria."""
+    blocks = fold_blocks(lines)
+    if whole:
+        return [(s, r) for s, k, t, r in blocks if k != 'heading']
+    out = []
+    cur = None
+    for s, k, t, r in blocks:
+        if k == 'heading':
+            if t.startswith('## '):
+                cur = t
+            continue
+        if cur == '## Backlog' and (TOTAL_OPEN_RE.match(r[0]) or t.startswith('**Critical path')):
+            out.append((s, r))
+        elif cur == '## Open Questions' and re.match(r'^- OQ-', r[0]):
+            out.append((s, r))
+        elif cur == '## Deletion Criteria' and DELETION_OPEN_RE.match(r[0]):
+            out.append((s, r))
+    return out
+
+
+def block_owner(raw):
+    """The ID a block defines: a checkbox's task ID or a Learning's L<n>."""
+    m = CHECKBOX_ID_RE.match(raw[0])
+    if m:
+        return m.group(2)
+    m = LEARNING_RE.match(raw[0])
+    return ("L" + m.group(1)) if m else None
+
+
+def note_citations(root, path, lines, ids):
+    """{id: (where, sentence)} for each of ids that some text cites FOR
+    ITS NOTE: anywhere in this file but the record's own block, ticked
+    criteria and closed Decisions included, since a ticked criterion's
+    `see #X completion note` lost its measurements to a run that
+    never looked; and the live content of every other state file, where
+    a bare ID counts only when its home is this workstream, IDs being
+    per-workstream (ACTIVE.md's home-less mentions belong to the
+    workstream it points at)."""
+    if not ids:
+        return {}
+    alt = "|".join(re.escape(i) for i in sorted(ids, key=len, reverse=True))
+    rx = re.compile(r"(?<![\w/-])(" + alt + r")(?![\w-])")
+    wid = workstream_id(path)
+    found = {}
+    targets = [(os.path.basename(path) if root is None else os.path.relpath(path, root), lines, True, False)]
+    active_ws = None
+    if root is not None:
+        for p, rel in find_workstreams(root):
+            if os.path.abspath(p) != os.path.abspath(path):
+                targets.append((rel, read_lines(p), False, False))
+        active = os.path.join(root, '.state', 'ACTIVE.md')
+        if os.path.isfile(active):
+            alines = read_lines(active)
+            for l in alines[:10]:
+                if l.startswith('workstream:'):
+                    active_ws = l.split(':', 1)[1].strip().strip('"')
+                    break
+            kept = {n for n, _t in strip_frontmatter(alines)}
+            targets.append(('.state/ACTIVE.md', [t if n in kept else '' for n, t in enumerate(alines, start=1)],
+                            False, True))
+    for rel, flines, own, is_active in targets:
+        if own:
+            kept = {n for n, _t in strip_frontmatter(flines)}
+            flines = [t if n in kept else '' for n, t in enumerate(flines, start=1)]
+            heads = {}
+            cur = None
+            for n, l in enumerate(flines, start=1):
+                if l.startswith('## '):
+                    cur = l[3:].strip()
+                heads[n] = cur
+            blocks = live_blocks(flines, True)
+        else:
+            blocks = live_blocks(flines, is_active)
+        for start, raw in blocks:
+            owner = block_owner(raw)
+            text, starts = join_block(raw, start)
+            blanked = blank_strikes(text)
+            for m in rx.finditer(blanked):
+                ident = m.group(1)
+                if ident in found or (own and ident == owner):
+                    continue
+                if not own:
+                    home = ID_HOME_RE.match(blanked, m.end())
+                    s, e = sentence_span(blanked, m.start())
+                    homes = [home.group(1)] if home else sorted(set(CROSS_REF_WS_RE.findall(blanked[s:e])))
+                    if homes:
+                        if homes != [wid]:
+                            continue
+                    elif not (is_active and active_ws == wid):
+                        continue
+                lo = max(0, m.start() - NOTE_WINDOW[0])
+                hi = min(len(blanked), m.end() + NOTE_WINDOW[1])
+                s, e = sentence_span(blanked, m.start())
+                window = blanked[max(lo, s):min(hi, e)]
+                if not (NOTE_WORD_RE.search(window) or SEE_BEFORE_RE.search(blanked[s:m.start()])):
+                    continue
+                line = line_at(starts, m.start())
+                where = "%s:%s" % (rel, line)
+                if own and heads.get(line):
+                    where += " (%s)" % heads[line]
+                found[ident] = (where, blanked[s:e].strip()[:120])
+    return found
+
+
+def condense_context(path, lines, keep=()):
+    """The Context a records or learnings run reads notes with."""
+    p = os.path.abspath(path)
+    wsdir = os.path.dirname(p)
+    up = os.path.dirname(os.path.dirname(wsdir))
+    root = os.path.dirname(os.path.dirname(up)) if (os.path.basename(up) == 'workstreams'
+                                                     and os.path.basename(os.path.dirname(up)) == '.state') else None
+    present = set()
+    if section_bounds(lines, "Decisions"):
+        present = {n for n, _ in decision_blocks(lines)[3]}
+    own = workstream_id(p) if root else None
+    others = [os.path.basename(os.path.dirname(a)) for a, _r in find_workstreams(root)] if root else []
+    ctx = Context(present, own, others, batch_resolver(wsdir))
+    ctx.root = root
+    ctx.path = p
+    ctx.keep = set(keep)
+    ctx.held = {}
+    return ctx
+
+
+def condense_records(lines, mark, ctx=None):
     """Records under ## Backlog and, when the section exists, under
     ## Archive: the extract skill's Move 3 condenses a record whether
     or not its phase has moved, and four records moved before this
@@ -367,28 +719,33 @@ def condense_records(lines, mark):
     bounds = section_bounds(lines, "Backlog")
     if bounds is None:
         raise Refusal("no ## Backlog section")
+    if ctx is None:
+        _s, _e, _pre, dblocks = decision_blocks(lines) if section_bounds(lines, "Decisions") else (0, 0, [], [])
+        ctx = Context({n for n, _ in dblocks})
+        ctx.keep, ctx.held = set(), {}
     condensed = 0
     saved = 0
     entries = []
     report = []
     skipped = 0
+    kept = 0
     orphaned = 0
-    _s, _e, _pre, dblocks = decision_blocks(lines) if section_bounds(lines, "Decisions") else (0, 0, [], [])
-    present = {n for n, _ in dblocks}
     archive = section_bounds(lines, "Archive")
     ranges = [("backlog", bounds)] + ([("archive", archive)] if archive else [])
     # Rebuild from the end so earlier offsets stay valid.
     for name, (start, end) in sorted(ranges, key=lambda r: -r[1][0]):
-        out, c, s, ents, k, o = condense_range(lines, start, end, mark, present)
+        out, c, s, ents, k, o, kp = condense_range(lines, start, end, mark, ctx)
         condensed += c
         saved += s
         skipped += k
         orphaned += o
+        kept += kp
         entries = ents + entries
         report.insert(0, "%s_lines %d->%d" % (name, end - start, len(out)))
         lines = lines[:start] + out + lines[end:]
     report.insert(0, "condensed=%d bytes_saved=%d" % (condensed, saved))
     report.append("skipped=%d" % skipped)
+    report.append("kept=%d" % kept)
     report.append("orphaned_note_lines=%d" % orphaned)
     return lines, " ".join(report), entries
 
@@ -420,7 +777,7 @@ def first_sentence(body):
     return body[:split.start()] if split else body
 
 
-def condense_record(raw, mark, present, tail=""):
+def condense_record(raw, mark, ctx, tail=""):
     """(new_raw, changed_line, absent_decisions) for one completed
     record's block, or (None, None, reason) when the block is left as it
     is. A record is a BLOCK -- the task line plus its continuations --
@@ -468,7 +825,7 @@ def condense_record(raw, mark, present, tail=""):
         if k > 0:
             rest = rest.lstrip()
             rest = (" " + rest) if rest else ""
-        note_text, absent = condensed_note(note + more, present, mark)
+        note_text, absent = condensed_note(note + more, ctx, mark)
         first = "%s%s%s*(%s)*%s" % (prefix, tid, sep, note_text, rest)
         new = [first] + cont[k:]
         if rest.strip() not in first or cont[k:] != new[1:]:
@@ -495,20 +852,20 @@ def condense_record(raw, mark, present, tail=""):
             note = note[1:-1]
             wrap_open, wrap_close = "*", "*"
         indent = note_lines[0][:len(note_lines[0]) - len(note_lines[0].lstrip())]
-        note_text, absent = condensed_note(note + more, present, mark)
+        note_text, absent = condensed_note(note + more, ctx, mark)
         line = indent + wrap_open + note_text + wrap_close
         return desc + [line], line, absent
     if not (STATUS_RE.search(body) or DATE_RE.search(body)):
         return None, None, "a one-line record with no status word or date to condense"
     head = first_sentence(body)
-    note_text, absent = condensed_note(body + more, present, mark)
+    note_text, absent = condensed_note(body + more, ctx, mark)
     line = "%s%s: %s %s" % (prefix, tid, head, note_text)
     if head not in line:
         raise Refusal("%s: the description's first sentence would not survive the condensation" % tid)
     return [line], line, absent
 
 
-def condense_range(lines, start, end, mark, present=frozenset()):
+def condense_range(lines, start, end, mark, ctx):
     """Fold the range into blocks and condense each completed record
     whose BLOCK runs past RECORD_MIN bytes. A per-line loop once fired
     only on first lines over 400 characters: a record whose note and
@@ -529,6 +886,7 @@ def condense_range(lines, start, end, mark, present=frozenset()):
     condensed = 0
     saved = 0
     skipped = 0
+    kept = 0
     orphaned = 0
     entries = []
     consumed = 0
@@ -573,7 +931,18 @@ def condense_range(lines, start, end, mark, present=frozenset()):
             i = j
             continue
         nxt = region[consumed] if consumed < len(region) else ''
-        if len(raw) == 1 and nxt[:1].isspace() and LIST_ITEM_RE.match(nxt) and not CHECKBOX_RE.match(nxt):
+        if tid in ctx.keep:
+            entries.append("KEPT %s: --keep" % tid)
+            kept += 1
+            out.extend(whole)
+            consumed = stop
+            i = j
+            continue
+        if tid in ctx.held:
+            where, sentence = ctx.held[tid]
+            new, changed, why = None, None, ("cited as its note by %s: %s -- re-point that citation, or condense "
+                                             "by hand keeping what it cites" % (where, sentence))
+        elif len(raw) == 1 and nxt[:1].isspace() and LIST_ITEM_RE.match(nxt) and not CHECKBOX_RE.match(nxt):
             # A note written as an indented bullet folds as its own item,
             # which would leave the task line looking like a one-line
             # record and condense its description.
@@ -581,7 +950,7 @@ def condense_range(lines, start, end, mark, present=frozenset()):
         elif any(b[1] == 'item' for b in tail_blocks):
             new, changed, why = None, None, "a note with indented list items after a blank line"
         else:
-            new, changed, why = condense_record(raw, mark, present, " ".join(b[2] for b in tail_blocks))
+            new, changed, why = condense_record(raw, mark, ctx, " ".join(b[2] for b in tail_blocks))
         consumed = stop
         i = j
         if new is None:
@@ -599,11 +968,11 @@ def condense_range(lines, start, end, mark, present=frozenset()):
         entry = entry_line(tid, size, after, changed)
         if tail_blocks:
             entry += " [with %d note line(s) after a blank line]" % sum(len(b[3]) for b in tail_blocks)
-        if why:
-            entry += " [not cited, no such Decision here: %s]" % ", ".join(why)
+        for w in why or ():
+            entry += " [%s]" % w
         entries.append(entry)
     out.extend(region[consumed:])
-    return out, condensed, saved, entries, skipped, orphaned
+    return out, condensed, saved, entries, skipped, orphaned, kept
 
 
 def parse_decisions(spec):
@@ -716,7 +1085,7 @@ def condense_decisions(lines, wanted, release, mark, kind='tag'):
     return lines[:start + 1] + rebuilt + lines[end:], report, entries
 
 
-def run_condense(path, do_tasks, decisions, release, date, dry):
+def run_condense(path, do_tasks, decisions, release, date, dry, keep=()):
     """The shipped script's whole run, kept for the forwarding shim:
     records unless --no-tasks, then the named Decisions, one report."""
     text = load(path)
@@ -726,7 +1095,12 @@ def run_condense(path, do_tasks, decisions, release, date, dry):
     entries = []
     try:
         if do_tasks:
-            lines, r, ents = condense_records(lines, mark)
+            ctx = condense_context(path, lines, keep)
+            done = {m.group(2) for m in (DONE_RE.match(l) for l in lines) if m}
+            ctx.held = note_citations(ctx.root, ctx.path, lines, done - ctx.keep)
+            for k in sorted(ctx.keep - done):
+                entries.append("KEPT %s: no completed record with this ID, nothing to keep" % k)
+            lines, r, ents = condense_records(lines, mark, ctx)
             report.append(r)
             entries.extend(ents)
         if decisions is not None:
@@ -741,10 +1115,14 @@ def run_condense(path, do_tasks, decisions, release, date, dry):
 
 
 def cmd_records(args):
-    rest, o = parse_options(args, flags=('--write',), values=('--date',))
+    rest, o = parse_options(args, flags=('--write',), values=('--date',), multi=('--keep',))
     if len(rest) != 1:
         usage("records takes exactly one workstream.md")
-    return run_condense(rest[0], True, None, None, o['--date'] or datetime.date.today().isoformat(), not o['--write'])
+    for k in o['--keep']:
+        if not re.fullmatch(r"#(?:" + TASK_ID_FORM + "|" + GATE_ID_FORM + ")", k):
+            usage("--keep %r is not a task ID (#XX-N)" % k)
+    return run_condense(rest[0], True, None, None, o['--date'] or datetime.date.today().isoformat(),
+                        not o['--write'], o['--keep'])
 
 
 def cmd_decisions(args):
@@ -1220,24 +1598,7 @@ def sweep_removed(root, path, new_lines, leaving, tag, old_lines=None):
 
     # The record's live blocks for the other files; the whole text for
     # the surviving file, which is live by construction.
-    def live_blocks_of(lines, whole):
-        blocks = fold_blocks(lines)
-        if whole:
-            return [(s, r) for s, k, t, r in blocks if k != 'heading']
-        out = []
-        cur = None
-        for s, k, t, r in blocks:
-            if k == 'heading':
-                if t.startswith('## '):
-                    cur = t
-                continue
-            if cur == '## Backlog' and (TOTAL_OPEN_RE.match(r[0]) or t.startswith('**Critical path')):
-                out.append((s, r))
-            elif cur == '## Open Questions' and re.match(r'^- OQ-', r[0]):
-                out.append((s, r))
-            elif cur == '## Deletion Criteria' and DELETION_OPEN_RE.match(r[0]):
-                out.append((s, r))
-        return out
+    live_blocks_of = live_blocks
 
     needles = []
     for kind, ident, phrase, first in leaving:

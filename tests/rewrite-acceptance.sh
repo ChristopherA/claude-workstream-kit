@@ -102,15 +102,15 @@ check "the entry line's byte figures are the fixture line's length and the note'
 OUT=$(python3 "$SCRIPT" records "$W" --write --date 2026-05-05)
 check "write reports condensed=4 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q '^condensed=4 ' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
 check "#BD-5 keeps its whole first sentence past the full stop inside the backtick span" \
-  "grep '^- \\[x\\] #BD-5' \"\$W\" | grep -q 'then run /workstream-create\.. -- on a stamped target\. DONE 2026-02-02; commits 0ab12cd\. Condensed 2026-05-05 at extract'"
+  "grep '^- \\[x\\] #BD-5' \"\$W\" | grep -q 'then run /workstream-create\.. -- on a stamped target\. DONE 2026-02-02; at commit 0ab12cd\. Condensed 2026-05-05 at extract'"
 check "#IV-1 under Archive condenses to the note form with its commit; #IV-2 and the Archive heading are byte-identical" \
-  "[ \"\$(grep '^- \\[x\\] #IV-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #IV-1' \"\$W\" | grep -q 'DONE 2026-01-04; commits 5ee0aaf. Condensed 2026-05-05 at extract' && grep -qF -- '- [x] #IV-2: a short archived record, DONE 2026-01-04' \"\$W\" && grep -qF '### Inventory (IV) -- moved 2026-01-05' \"\$W\""
-check "#BD-1 fits the completion-note form, keeps status, the date of the status word's OWN sentence (not the later release date), Decision, commit and the dated marker" \
-  "[ \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'DECIDED 2026-01-02; reasoning in D2; commits abc1234, 1bbfbd74. Condensed 2026-05-05 at extract'"
+  "[ \"\$(grep '^- \\[x\\] #IV-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #IV-1' \"\$W\" | grep -q 'DONE 2026-01-04; at commit 5ee0aaf, with the full listing kept here. Condensed 2026-05-05 at extract' && grep -qF -- '- [x] #IV-2: a short archived record, DONE 2026-01-04' \"\$W\" && grep -qF '### Inventory (IV) -- moved 2026-01-05' \"\$W\""
+check "#BD-1 fits the completion-note form, keeps status, the date of the status word's OWN sentence (not the later release date), Decision, its unresolved hashes in their clause, and the dated marker" \
+  "[ \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'DECIDED 2026-01-02; reasoning in D2; Built at commit abc1234, mirrored as 1bbfbd74 in the other repo, 1234567 bytes moved, and released 2026-01-03. Condensed 2026-05-05 at extract'"
 check "#BD-4 pairs the last status word with its own sentence's date (DONE 2026-08-22), never the block's last date (2026-07-02), and keeps both commits" \
-  "grep '^- \\[x\\] #BD-4' \"\$W\" | grep -q 'DONE 2026-08-22; commits fedcb98, 9ab0123. Condensed 2026-05-05 at extract'"
-check "the eight-character hash in another repo is kept verbatim and the seven-digit number is not taken for one" \
-  "grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q '1bbfbd74' && ! grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q '1234567'"
+  "grep '^- \\[x\\] #BD-4' \"\$W\" | grep -q 'DONE 2026-08-22; at commit fedcb98; The other project fixed its side at commit 9ab0123 of 2026-07-02, mentioned last. Condensed 2026-05-05 at extract'"
+check "the eight-character hash in another repo is kept verbatim, never listed as a commit here, and the seven-digit number is not taken for one" \
+  "grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q '1bbfbd74' && ! grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'commits ' && printf '%s' \"\$OUT\" | grep '^#BD-1 ' | grep -qF 'kept in its clause: abc1234, 1bbfbd74]'"
 check "removed side: the evaluation prose is gone from the file" "! grep -q 'do NOT pre-decide' \"\$W\""
 check "#BD-2, the wrapped #BD-3, the indented #BD-3a and the gate are byte-identical" \
   "grep -qF -- '- [x] #BD-2: a short done task, DONE 2026-01-01' \"\$W\" && grep -q '^second line\$' \"\$W\" && grep -qF -- '  - [ ] #BD-3a: an indented sub-task' \"\$W\" && grep -qF -- '- [ ] #G-BD: USER CHECKPOINT -- the build gate; four Decisions stand' \"\$W\""
