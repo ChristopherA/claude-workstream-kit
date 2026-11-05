@@ -1148,8 +1148,66 @@ PROVENANCE_RE = re.compile(
     r'^(?:Carried|Moved|Lifted|Copied|Received|Imported|Ported|Brought)\b.*\b(?:from|at|in)\b', re.I)
 
 
+def prose_spans(text):
+    """[(start, end)] of text's sentences. A sentence ends at `.`, `!`
+    or `?` before whitespace -- never inside a code span, and never when
+    the next word starts lower case: the shared splitter cut a kept
+    sentence at an unquoted `%G? ` and at `e.g. `, and a condensed
+    Learning ended mid-sentence."""
+    spans = []
+    code = False
+    start = 0
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '`':
+            code = not code
+        elif not code and c in '.!?' and i + 1 < n and text[i + 1].isspace():
+            j = i + 1
+            while j < n and text[j].isspace():
+                j += 1
+            if j < n and not text[j].islower():
+                spans.append((start, i + 1))
+                start = j
+                i = j
+                continue
+        i += 1
+    if start < n:
+        spans.append((start, n))
+    return [(s, e) for s, e in spans if text[s:e].strip()]
+
+
+def prose_sentences(text):
+    text = text.strip()
+    return [text[s:e].strip() for s, e in prose_spans(text)]
+
+
+def prose_span(text, offset):
+    for s, e in prose_spans(text):
+        if s <= offset < e:
+            return s, e
+    return 0, len(text)
+
+
+# A kept sentence that points BACK -- `Integration target: that task.`,
+# `received there` -- names nothing once the sentence before it is
+# dropped, and still reads as a routing.
+BACKREF_RE = re.compile(
+    r"\b(?:that|this|the same|the above)\s+(?:task|item|file|commit|workstream|project|handoff|entry|"
+    r"decision|gate|issue|rule|skill|one|place|destination|target|repository|repo)\b"
+    r"|\bthere\b(?!\s+(?:is|are|was|were|will|would|has|have|had|being|be)\b)|\babove\b", re.I)
+
+
 def condense_learning(text):
-    """The condensed joined text of one Learning block, or None when the
+    """The condensed joined text of one Learning block, or None; the
+    reading is condense_learning_why's."""
+    return condense_learning_why(text)[0]
+
+
+def condense_learning_why(text):
+    """(condensed, None) for one Learning block; (None, reason) when it
+    must stay whole and the report says why; (None, None) when the
     entry is not terminal, is struck, or is already that short. The
     statement is the first sentence, or the first two when the first is
     provenance; the disposition is the sentence of the LATEST terminal
@@ -1160,32 +1218,44 @@ def condense_learning(text):
     integration target is kept too, in its place: a real entry's
     disposition read `APPLIED 2026-09-22.` alone, and the target
     sentence -- which in another entry was also the insight itself --
-    was the only record of where it went."""
+    was the only record of where it went. A kept sentence after the
+    statement that points back (`that task`, `there`) at a sentence the
+    condensation would drop leaves the entry whole: a target reading
+    `Integration target: that task.` routed to nothing."""
     if disposition(text) != 'terminal':
-        return None
+        return None, None
     m = LEARNING_PREFIX_RE.match(text)
     if not m:
-        return None
+        return None, None
     prefix, body = m.group(1), m.group(2).strip()
-    sentences = split_sentences(body)
+    sentences = prose_sentences(body)
     if len(sentences) <= 1:
-        return None
+        return None, None
     blanked = blank_strikes(body)
     marks = marker_counts(blanked, TERMINAL_RE)
     if not marks:
-        return None
+        return None, None
     last = marks[-1]
     if any(a.start() > last.start() for a in marker_counts(blanked, ADDENDUM_RE)):
-        return None
-    s, e = sentence_span(body, last.start())
+        return None, None
+    s, e = prose_span(body, last.start())
     disp = body[s:e].strip()
-    keep = set(range(2 if PROVENANCE_RE.match(sentences[0]) else 1))
+    lead = set(range(2 if PROVENANCE_RE.match(sentences[0]) else 1))
+    keep = set(lead)
     keep.update(i for i, x in enumerate(sentences) if TARGET_RE.search(x))
     keep = {i for i in keep if sentences[i] != disp and not ADDENDUM_RE.match(sentences[i])}
+    di = next((i for i, x in enumerate(sentences) if x == disp), None)
+    for i in sorted(keep | ({di} if di is not None else set())):
+        if i in lead or i == 0:
+            continue
+        ref = BACKREF_RE.search(sentences[i])
+        if ref and (i - 1) not in keep and (i - 1) != di:
+            return None, ("a kept sentence points back (%r) at one the condensation drops: %s"
+                          % (ref.group(0), sentences[i][:80]))
     condensed = ' '.join([sentences[i] for i in sorted(keep)] + [disp])
     if condensed == body or len(condensed) >= len(body):
-        return None
-    return '- ' + prefix + ' ' + condensed
+        return None, None
+    return '- ' + prefix + ' ' + condensed, None
 
 
 def learning_loss(before, after):
@@ -1196,7 +1266,7 @@ def learning_loss(before, after):
     condensation that kept the wrong sentences passed it."""
     m = LEARNING_PREFIX_RE.match(before)
     body = m.group(2).strip() if m else before
-    sentences = split_sentences(body)
+    sentences = prose_sentences(body)
     stmt = next((x for x in sentences if not PROVENANCE_RE.match(x)), None)
     if stmt and not ADDENDUM_RE.match(stmt):
         if stmt not in after:
@@ -1206,21 +1276,24 @@ def learning_loss(before, after):
             return "its integration target (%s ...)" % ' '.join(x.split()[:6])
     marks = marker_counts(blank_strikes(body), TERMINAL_RE)
     if marks:
-        s, e = sentence_span(body, marks[-1].start())
+        s, e = prose_span(body, marks[-1].start())
         if body[s:e].strip() not in after:
             return "its disposition (%s)" % body[s:e].strip()[:60]
     return None
 
 
-def condense_learnings(lines):
+def condense_learnings(lines, keep=(), held=None):
     bounds = section_bounds(lines, "Learnings")
     if bounds is None:
         raise Refusal("no ## Learnings section")
+    held = held or {}
     start, end = bounds
     section = lines[start + 1:end]
     out = []
     condensed = 0
     saved = 0
+    skipped = 0
+    kept = 0
     entries = []
     blocks = fold_blocks(section)
     consumed = 0
@@ -1229,7 +1302,18 @@ def condense_learnings(lines):
         out.extend(section[consumed:idx])
         consumed = idx + len(raw)
         if kind == 'item' and LEARNING_RE.match(raw[0]):
-            new = condense_learning(text)
+            lid = "L" + LEARNING_RE.match(raw[0]).group(1)
+            new, why = condense_learning_why(text)
+            if new is not None and lid in keep:
+                entries.append("KEPT %s: --keep" % lid)
+                kept += 1
+                new = None
+            elif new is not None and lid in held:
+                why = "cited as its note by %s: %s" % held[lid]
+                new = None
+            if why:
+                entries.append("SKIPPED %s: %s" % (lid, why))
+                skipped += 1
             if new is not None:
                 lost = learning_loss(text, new)
                 if lost:
@@ -1249,18 +1333,26 @@ def condense_learnings(lines):
     after = sum(1 for l in out if LEARNING_RE.match(l))
     if before != after:
         raise Refusal("Learnings count changed %d->%d" % (before, after))
-    report = "learnings_condensed=%d bytes_saved=%d learnings=%d" % (condensed, saved, after)
+    report = "learnings_condensed=%d bytes_saved=%d learnings=%d skipped=%d kept=%d" % (
+        condensed, saved, after, skipped, kept)
     return lines[:start + 1] + out + lines[end:], report, entries
 
 
 def cmd_learnings(args):
-    rest, o = parse_options(args, flags=('--write',), values=('--date',))
+    rest, o = parse_options(args, flags=('--write',), values=('--date',), multi=('--keep',))
     if len(rest) != 1:
         usage("learnings takes exactly one workstream.md")
+    for k in o['--keep']:
+        if not re.fullmatch(r"L[0-9]+", k):
+            usage("--keep %r is not a Learning ID (L<n>)" % k)
     path = rest[0]
     text = load(path)
     try:
-        lines, report, entries = condense_learnings(text.split("\n"))
+        lines = text.split("\n")
+        ctx = condense_context(path, lines, o['--keep'])
+        lids = {"L" + m.group(1) for m in (LEARNING_RE.match(l) for l in lines) if m}
+        held = note_citations(ctx.root, ctx.path, lines, lids - ctx.keep)
+        lines, report, entries = condense_learnings(lines, ctx.keep, held)
     except Refusal as e:
         sys.stderr.write("%s: %s in %s\n" % (PROG, e, path))
         return 1
