@@ -185,7 +185,84 @@ def finish(path, text, new, dry, report, extra_lines=()):
 DONE_RE = re.compile(r"^( *- \[x\] )(#" + TASK_ID_FORM + "|#" + GATE_ID_FORM + r")(: ?)(.*)$")
 DATE_RE = re.compile(r"\b(20[0-9]{2}-[0-9]{2}-[0-9]{2})\b")
 SHA_RE = re.compile(r"\b(?=[0-9]*[a-f])[0-9a-f]{7,40}\b")  # a hash the note names verbatim, any repo; never a bare number
-STATUS_RE = re.compile(r"\b(DONE|DECIDED|RETIRED|SUPERSEDED|CLOSED|SHIPPED|ABSORBED|RESOLVED|APPROVED|UNBLOCKED|MERGED)\b")
+STATUS_WORDS = ('DONE', 'DECIDED', 'RETIRED', 'SUPERSEDED', 'CLOSED', 'SHIPPED', 'ABSORBED',
+                'RESOLVED', 'APPROVED', 'UNBLOCKED', 'MERGED', 'MOVED')
+STATUS_RE = re.compile(r"\b(" + "|".join(STATUS_WORDS) + r")\b")
+# The same words in any case where they OPEN a clause -- `closed
+# 2026-01-12, superseded by #BD-12` -- which an upper-case-only match
+# missed, writing DONE over a record closed unbuilt. Counted only when
+# the word is used as a status: directly before a date, a pointer's
+# preposition or another status word -- `closed issue 10` is an act,
+# not a closing -- and, like any mark, only when its sentence carries a
+# date, so a description's passing `done` never displaces a dated one.
+CLAUSE_STATUS_RE = re.compile(
+    r"(?:^|(?<=\*\()|(?<=\()|(?<=[.;:,]\s)|(?<=\s--\s))(" + "|".join(STATUS_WORDS) + r")\b", re.I)
+CLAUSE_STATUS_FOLLOW_RE = re.compile(
+    r"(?::?\s+(?:on\s+)?20[0-9]{2}-[0-9]{2}-[0-9]{2}\b|\s+(?:by|to|into|as)\s|,\s+(?:"
+    + "|".join(STATUS_WORDS) + r")\b)", re.I)
+# The pointer a closing verb carries -- `superseded by #BD-12 (the
+# replacement)`, `moved 2026-01-13 to feature/x as #XY-1` -- which is
+# the whole content of a record closed that way and was dropped.
+POINTER_RE = re.compile(
+    r"\b(superseded|absorbed|merged|moved)(?:\s+(?:on\s+)?20[0-9]{2}-[0-9]{2}-[0-9]{2}\b)?"
+    r"\s+(?:by|to|into|as|in)\s+", re.I)
+POINTER_MAX = 240  # characters; a pointer clause with no end in that span is not guessed at
+
+
+def status_marks(body):
+    """(start, end, WORD, upper) for every status word in body: upper
+    case anywhere, or any case where it opens a clause."""
+    seen = {}
+    for m in STATUS_RE.finditer(body):
+        seen[m.start(1)] = (m.start(1), m.end(1), m.group(1), True)
+    for m in CLAUSE_STATUS_RE.finditer(body):
+        if m.start(1) not in seen and CLAUSE_STATUS_FOLLOW_RE.match(body, m.end(1)):
+            seen[m.start(1)] = (m.start(1), m.end(1), m.group(1).upper(), False)
+    return [seen[k] for k in sorted(seen)]
+
+
+def clause_end(text, start, limit=POINTER_MAX):
+    """The offset where the clause running from start ends: a `;` or
+    `,`, a full stop before whitespace, or a note's closing `)*`, at
+    parenthesis depth 0 and outside a code span; None when no end
+    falls within limit characters."""
+    depth = 0
+    code = False
+    i = start
+    while i < len(text) and i - start <= limit:
+        c = text[i]
+        if c == '`':
+            code = not code
+        elif not code:
+            if c == '(':
+                depth += 1
+            elif c == ')':
+                if depth == 0:
+                    return i
+                depth -= 1
+            elif depth == 0 and c in ';,':
+                return i
+            elif depth == 0 and c in '.!?' and (i + 1 == len(text) or text[i + 1].isspace()):
+                return i
+        i += 1
+    return len(text) if i == len(text) else None
+
+
+def pointer_of(note):
+    """(verb, phrase_after_verb_and_date, whole_phrase) for the LAST
+    closing pointer in note, or None. Its verb must itself be a status
+    mark -- upper case, or opening a clause -- so prose that says `the
+    rounds moved to another skill` is not read as where the record
+    went."""
+    found = None
+    starts = {m[0] for m in status_marks(note)}
+    for m in POINTER_RE.finditer(note):
+        if m.start(1) not in starts:
+            continue
+        end = clause_end(note, m.end())
+        if end is not None and end > m.end():
+            found = (m.group(1).upper(), note[m.end(1):end].strip(), note[m.start():end].strip())
+    return found
 
 
 def entry_line(ident, before, after, line):
@@ -202,25 +279,29 @@ def status_and_date(body, dates):
     mentioned last. A later status word whose sentence carries no date
     (`DONE 2026-09-22 at e0c1afb ... SUPERSEDED the same day by D12`)
     does not displace the dated one; with no dated status word at all
-    the last one stands as n.d. With no status word, a note that OPENS
-    with a date (`2026-01-02 at abc1234: ...`) is dated by it, and
-    otherwise the block's last date stands, since nothing else ties a
-    date to the status."""
-    marks = list(STATUS_RE.finditer(body))
-    if not marks:
-        lead = re.match(r"[\s*(]*(?:[Dd]one\s+)?(20[0-9]{2}-[0-9]{2}-[0-9]{2})\b", body)
-        if lead:
-            return "DONE", lead.group(1)
-        return "DONE", (dates[-1] if dates else "n.d.")
-    for m in reversed(marks):
-        s, e = sentence_span(body, m.start())
-        after = DATE_RE.search(body, m.end(), e)
+    the last upper-case one stands as n.d. With no status word, the
+    note is dated by the LAST of its sentences that opens with a date
+    (`2026-01-02 at abc1234: ...`) -- a note kept as several dated
+    paragraphs was dated by its first, which is the work's start rather
+    than its close -- and otherwise the block's last date stands, since
+    nothing else ties a date to the status."""
+    marks = status_marks(body)
+    for start, end, word, _upper in reversed(marks):
+        s, e = sentence_span(body, start)
+        after = DATE_RE.search(body, end, e)
         if after:
-            return m.group(1), after.group(1)
+            return word, after.group(1)
         within = DATE_RE.search(body, s, e)
         if within:
-            return m.group(1), within.group(1)
-    return marks[-1].group(1), "n.d."
+            return word, within.group(1)
+    upper = [m for m in marks if m[3]]
+    if upper:
+        return upper[-1][2], "n.d."
+    opened = [m.group(1) for m in (re.match(r"[\s*(]*(?:[Dd]one\s+)?(20[0-9]{2}-[0-9]{2}-[0-9]{2})\b", s)
+                                   for s in split_sentences(body)) if m]
+    if opened:
+        return "DONE", opened[-1]
+    return "DONE", (dates[-1] if dates else "n.d.")
 
 
 # A Decision a record cites: the ID standing as its own token, never
@@ -254,15 +335,27 @@ def condensed_note(note, present, mark):
     decs, absent = decisions_cited(note, present)
     shas = list(dict.fromkeys(SHA_RE.findall(note)))
     mark_word, date = status_and_date(note, dates)
+    head = "%s %s" % (mark_word, date)
+    ptr = pointer_of(note)
+    if ptr:
+        verb, after_verb, whole = ptr
+        if verb == mark_word:
+            # The record's own verb carries the pointer: `SUPERSEDED
+            # 2026-01-12 by #BD-12 (...)`, the date not repeated.
+            head += " " + re.sub(r"^(?:on\s+)?20[0-9]{2}-[0-9]{2}-[0-9]{2}\b\s*", "", after_verb)
+        else:
+            head += ", " + whole
     ev = []
     if decs:
         ev.append("reasoning in " + ", ".join(decs))
     if shas:
         ev.append("commits " + ", ".join(shas[:8]) + (" ..." if len(shas) > 8 else ""))
-    text = "%s %s; %s. %s; full record in git before that commit." % (
-        mark_word, date,
-        "; ".join(ev) if ev else "evidence in the record at the commit preceding this condensation",
-        mark)
+    if ev:
+        text = "%s; %s. %s; full record in git before that commit." % (head, "; ".join(ev), mark)
+    elif ptr:
+        text = "%s. %s; full record in git before that commit." % (head, mark)
+    else:
+        text = "%s; evidence in the record at the commit preceding this condensation. %s; full record in git before that commit." % (head, mark)
     return text, absent
 
 
@@ -279,21 +372,24 @@ def condense_records(lines, mark):
     entries = []
     report = []
     skipped = 0
+    orphaned = 0
     _s, _e, _pre, dblocks = decision_blocks(lines) if section_bounds(lines, "Decisions") else (0, 0, [], [])
     present = {n for n, _ in dblocks}
     archive = section_bounds(lines, "Archive")
     ranges = [("backlog", bounds)] + ([("archive", archive)] if archive else [])
     # Rebuild from the end so earlier offsets stay valid.
     for name, (start, end) in sorted(ranges, key=lambda r: -r[1][0]):
-        out, c, s, ents, k = condense_range(lines, start, end, mark, present)
+        out, c, s, ents, k, o = condense_range(lines, start, end, mark, present)
         condensed += c
         saved += s
         skipped += k
+        orphaned += o
         entries = ents + entries
         report.insert(0, "%s_lines %d->%d" % (name, end - start, len(out)))
         lines = lines[:start] + out + lines[end:]
     report.insert(0, "condensed=%d bytes_saved=%d" % (condensed, saved))
     report.append("skipped=%d" % skipped)
+    report.append("orphaned_note_lines=%d" % orphaned)
     return lines, " ".join(report), entries
 
 
@@ -301,8 +397,15 @@ RECORD_MIN = 400  # bytes of the whole BLOCK, never of its first line
 DATE_PAT = r"20[0-9]{2}-[0-9]{2}-[0-9]{2}\b"
 # Where a completion note begins: a status word or a date, after an
 # opening `*(`, `**` or `*` -- `DONE 2026-01-02 at abc1234: ...`,
-# `*Done 2026-08-07 (D4): ...*`.
-NOTE_START_RE = re.compile(r"^(?:\*\(|\*\*|\*)?(?:" + STATUS_RE.pattern + r"|Done\b|" + DATE_PAT + ")")
+# `*Done 2026-08-07 (D4): ...*` -- or any upper-case word, or a status
+# word in any case, written directly before a date: a note kept in
+# parts (`*(STARTED 2026-01-02: ...`, `PROGRESS 2026-01-03: ...`,
+# `DONE ...)*`) opened at its first DONE, so its earlier parts were read
+# as description and its `*(` was left with no `)*`.
+NOTE_START_RE = re.compile(
+    r"^(?:\*\(|\*\*|\*)?(?:" + STATUS_RE.pattern + r"|Done\b|" + DATE_PAT
+    + r"|[A-Z]{4,}:?\s+(?:on\s+)?" + DATE_PAT
+    + r"|(?i:" + "|".join(STATUS_WORDS) + r"):?\s+(?:on\s+)?" + DATE_PAT + ")")
 
 
 def first_sentence(body):
@@ -317,7 +420,7 @@ def first_sentence(body):
     return body[:split.start()] if split else body
 
 
-def condense_record(raw, mark, present):
+def condense_record(raw, mark, present, tail=""):
     """(new_raw, changed_line, absent_decisions) for one completed
     record's block, or (None, None, reason) when the block is left as it
     is. A record is a BLOCK -- the task line plus its continuations --
@@ -344,10 +447,16 @@ def condense_record(raw, mark, present):
     description and a note without guessing, and is skipped with a
     reason the report prints. A one-line record carrying neither a
     status word nor a date has no note to condense and is skipped the
-    same way."""
+    same way.
+
+    tail is the text of the record's own note paragraphs that follow it
+    after a blank line; it is read as part of the note and leaves with
+    it, since a run that condensed the first paragraph alone left the
+    rest verbatim under the condensed line, attributed to nothing."""
     m = DONE_RE.match(raw[0])
     prefix, tid, sep, body = m.groups()
     cont = raw[1:]
+    more = (" " + tail) if tail else ""
     if body.startswith("*("):
         segs = [body[2:]] + cont
         close = next(((k, sg.find(")*")) for k, sg in enumerate(segs) if ")*" in sg), None)
@@ -359,7 +468,7 @@ def condense_record(raw, mark, present):
         if k > 0:
             rest = rest.lstrip()
             rest = (" " + rest) if rest else ""
-        note_text, absent = condensed_note(note, present, mark)
+        note_text, absent = condensed_note(note + more, present, mark)
         first = "%s%s%s*(%s)*%s" % (prefix, tid, sep, note_text, rest)
         new = [first] + cont[k:]
         if rest.strip() not in first or cont[k:] != new[1:]:
@@ -370,18 +479,29 @@ def condense_record(raw, mark, present):
         if k is None:
             return None, None, "continuation lines that are neither a note nor recognisably the description"
         desc, note_lines = raw[:k + 1], cont[k:]
+        if any("*(" in d for d in desc[1:]):
+            return None, None, "a note that opens in what reads as the description"
         note = " ".join(c.strip() for c in note_lines)
-        italic = note.startswith("*") and not note.startswith(("*(", "**")) and note.endswith("*")
-        if italic:
+        wrap_open, wrap_close = "", ""
+        if note.startswith("*("):
+            # A whole note in `*( ... )*` below the description: condensed
+            # inside its delimiters, or not at all.
+            close = note.rfind(")*")
+            if close < 0 or note[close + 2:].strip():
+                return None, None, "a note below the description whose `*(` does not close at its end"
+            note = note[2:close]
+            wrap_open, wrap_close = "*(", ")*"
+        elif note.startswith("*") and not note.startswith("**") and note.endswith("*"):
             note = note[1:-1]
+            wrap_open, wrap_close = "*", "*"
         indent = note_lines[0][:len(note_lines[0]) - len(note_lines[0].lstrip())]
-        note_text, absent = condensed_note(note, present, mark)
-        line = indent + ("*%s*" % note_text if italic else note_text)
+        note_text, absent = condensed_note(note + more, present, mark)
+        line = indent + wrap_open + note_text + wrap_close
         return desc + [line], line, absent
     if not (STATUS_RE.search(body) or DATE_RE.search(body)):
         return None, None, "a one-line record with no status word or date to condense"
     head = first_sentence(body)
-    note_text, absent = condensed_note(body, present, mark)
+    note_text, absent = condensed_note(body + more, present, mark)
     line = "%s%s: %s %s" % (prefix, tid, head, note_text)
     if head not in line:
         raise Refusal("%s: the description's first sentence would not survive the condensation" % tid)
@@ -394,50 +514,96 @@ def condense_range(lines, start, end, mark, present=frozenset()):
     only on first lines over 400 characters: a record whose note and
     description shared that line lost its description's opening clause
     with its continuations left orphaned mid-sentence, and a long
-    record with a short first line was passed over entirely."""
+    record with a short first line was passed over entirely.
+
+    A record is also every INDENTED paragraph after it that only blank
+    lines separate from it, up to the next checkbox, heading or
+    flush-left line: `fold_blocks` ends a block at a blank line, and a
+    run that condensed the first paragraph alone left 159 note lines
+    verbatim under 19 condensed records with nothing in the report.
+    Such paragraphs under a record an EARLIER run condensed are counted
+    as orphaned_note_lines and left for the operator, since a second
+    run must stay a no-op."""
     region = lines[start:end]
     out = []
     condensed = 0
     saved = 0
     skipped = 0
+    orphaned = 0
     entries = []
     consumed = 0
-    for bstart, kind, text, raw in fold_blocks(region):
+    blocks = fold_blocks(region)
+    i = 0
+    while i < len(blocks):
+        bstart, kind, text, raw = blocks[i]
+        i += 1
         idx = bstart - 1
+        if idx < consumed:
+            continue  # absorbed into the record before it
         out.extend(region[consumed:idx])
         consumed = idx + len(raw)
-        size = len('\n'.join(raw))
-        if (kind != 'item' or not DONE_RE.match(raw[0]) or size <= RECORD_MIN
-                or GUARD_RE.search(text)):
+        if kind != 'item' or not DONE_RE.match(raw[0]):
             out.extend(raw)
             continue
+        # The record's blank-separated tail.
+        tail_blocks = []
+        stop = consumed
+        j = i
+        while j < len(blocks):
+            nb = blocks[j]
+            gap = region[stop:nb[0] - 1]
+            if (not gap or any(g.strip() for g in gap) or nb[1] == 'heading'
+                    or not nb[3][0][:1].isspace() or CHECKBOX_RE.match(nb[3][0])):
+                break
+            tail_blocks.append(nb)
+            stop = nb[0] - 1 + len(nb[3])
+            j += 1
+        whole = region[idx:stop]
         tid = DONE_RE.match(raw[0]).group(2)
+        if GUARD_RE.search(text):
+            orphaned += sum(1 for l in region[consumed:stop] if l.strip())
+            out.extend(whole)
+            consumed = stop
+            i = j
+            continue
+        size = len('\n'.join(whole))
+        if size <= RECORD_MIN:
+            out.extend(whole)
+            consumed = stop
+            i = j
+            continue
         nxt = region[consumed] if consumed < len(region) else ''
         if len(raw) == 1 and nxt[:1].isspace() and LIST_ITEM_RE.match(nxt) and not CHECKBOX_RE.match(nxt):
             # A note written as an indented bullet folds as its own item,
             # which would leave the task line looking like a one-line
             # record and condense its description.
             new, changed, why = None, None, "a completion note written as an indented list item"
+        elif any(b[1] == 'item' for b in tail_blocks):
+            new, changed, why = None, None, "a note with indented list items after a blank line"
         else:
-            new, changed, why = condense_record(raw, mark, present)
+            new, changed, why = condense_record(raw, mark, present, " ".join(b[2] for b in tail_blocks))
+        consumed = stop
+        i = j
         if new is None:
             entries.append("SKIPPED %s: %s" % (tid, why))
             skipped += 1
-            out.extend(raw)
+            out.extend(whole)
             continue
         after = len('\n'.join(new))
         if after >= size:
-            out.extend(raw)  # already at or under the condensed form
+            out.extend(whole)  # already at or under the condensed form
             continue
         out.extend(new)
         condensed += 1
         saved += size - after
         entry = entry_line(tid, size, after, changed)
+        if tail_blocks:
+            entry += " [with %d note line(s) after a blank line]" % sum(len(b[3]) for b in tail_blocks)
         if why:
             entry += " [not cited, no such Decision here: %s]" % ", ".join(why)
         entries.append(entry)
     out.extend(region[consumed:])
-    return out, condensed, saved, entries, skipped
+    return out, condensed, saved, entries, skipped, orphaned
 
 
 def parse_decisions(spec):
