@@ -24,6 +24,8 @@
 ^\.claude/rules/workstreams-rule\.md:[0-9]+:.*#MG-2\b
 # The rotate script's home-matching comment quotes the rule's own example.
 ^\.claude/scripts/workstream-rewrite\.py:[0-9]+:.*#MG-2\b
+# The condenser's pointer comments quote the condenser suite's fixture.
+^\.claude/scripts/workstream-rewrite\.py:[0-9]+:.*#BD-12\b
 
 # The workstream template ships the Completion phase as literal tasks.
 ^\.claude/skills/workstream-create/templates/workstream\.md:[0-9]+:.*#CL-[123]\b
@@ -72,7 +74,8 @@
 ^tests/rotate-acceptance\.sh:[0-9]+:.*\.state/workstreams/(maintain/kit|feature/other)\b
 ^tests/self-check-acceptance\.sh:[0-9]+:.*#(G-BD|BD-[0-9]+[a-z]?)\b
 ^tests/damage-acceptance\.sh:[0-9]+:.*#(G-BD|BD-[0-9]+[a-z]?)\b
-^tests/(cites|refs|paths|decay|git|fires|learnings|rewrite|rotate|record|damage)-acceptance\.sh:[0-9]+:.*(\$T/)?([a-z]+/)?\.state/workstreams/(feature|project|maintain)/[a-z]+\b
+^tests/condenser-acceptance\.sh:[0-9]+:.*#(BD|NX|XY)-[0-9]+\b
+^tests/(cites|refs|paths|decay|git|fires|learnings|rewrite|rotate|record|damage|condenser)-acceptance\.sh:[0-9]+:.*(\$T/)?([a-z]+/)?\.state/workstreams/(feature|project|maintain)/[a-z]+\b
 ^tests/cites-acceptance\.sh:[0-9]+:.*#G-OG\b
 ^tests/decay-acceptance\.sh:[0-9]+:.*commit_at .*\bOG-[0-9]\b
 
