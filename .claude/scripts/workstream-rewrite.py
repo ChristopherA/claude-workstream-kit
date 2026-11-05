@@ -17,28 +17,42 @@ infers a judgment the caller names: which Decisions shipped is
 live in workstream-record.py. Standard library only.
 
 Usage:
-  workstream-rewrite.py records   <workstream.md> [--write] [--date YYYY-MM-DD]
+  workstream-rewrite.py records   <workstream.md> [--write] [--date YYYY-MM-DD] [--keep <#ID>]...
   workstream-rewrite.py decisions <workstream.md> --decisions D1,D4-D9 --release <tag>
                                   [--write] [--date YYYY-MM-DD]
-  workstream-rewrite.py learnings <workstream.md> [--write] [--date YYYY-MM-DD]
+  workstream-rewrite.py learnings <workstream.md> [--write] [--date YYYY-MM-DD] [--keep L<n>]...
   workstream-rewrite.py rotate    <workstream.md> --tag ws/<name>-<date> [--write]
                                   [--date YYYY-MM-DD] [--keep <phrase>]...
                                   [--allow-stale-claims]
 
 `records`: every `- [x]` record in the live Backlog, and under
-## Archive when that section exists, whose BLOCK -- the task line and
-its continuations -- runs past 400 bytes has its completion NOTE
-condensed to the rule's form (the last dated status word and the date
-in its own sentence, its Decision citations and commit hashes, a dated
-marker), read from the note alone. The description is never cut: a
-note below the task line, or a leading `*(<note>)*`, is replaced in
-place with the description lines byte-identical; a one-line record
-with no delimiter keeps its description's first sentence whole. A
-Decision is cited only as its own token (not `pre-D26`, not
-`D4/D8/D9`, not `D4 in <home>`) and only when this file defines it; one
-it does not is named on the entry's report line. A multi-line record
-in no recognised shape is left as it is and reported `SKIPPED <ID>:
-<reason>`, never guessed at.
+## Archive when that section exists, whose BLOCK -- the task line, its
+continuations, and its own indented note paragraphs after a blank
+line -- runs past 400 bytes has its completion NOTE condensed to the
+rule's form, read from the note alone: the last dated status word,
+in any case where it opens a clause, with the date in its own
+sentence (with no status word, the date opening its LAST dated
+sentence) and the pointer a closing verb carries (`SUPERSEDED
+2026-01-12 by #X (...)`, `MOVED ... to <home> as #Y`); its Decision
+citations; the commits that lead its evidence; the clauses it must
+keep verbatim; a dated marker. The description is never cut: a note
+below the task line, or a leading `*(<note>)*`, is replaced in place
+with the description lines byte-identical; a one-line record with no
+delimiter keeps its description's first sentence whole; a note below
+the description, in parts or in `*( )*`, condenses whole or not at all.
+A Decision is cited only as its own token (not `pre-D26`, not
+`D4/D8/D9`), only when this file defines it, and never when a run of
+IDs carries another workstream's home -- a path, a tag, or another
+workstream's name, after the run (`D2 and D4 in feature/x`) or before
+it (`beta's D4`); the ones it does not cite are named on the entry's
+report line. A record that this file, or another state file's live
+content, cites FOR ITS NOTE (`see #ID completion note`, a note word
+near the ID) is left whole and reported `SKIPPED <ID>: cited as its
+note by <file>:<line>`, and `--keep <#ID>` leaves any record whole
+(`KEPT`). A multi-line record in no recognised shape is left as it is
+and reported `SKIPPED <ID>: <reason>`, never guessed at. Note
+paragraphs an earlier run left under a condensed record are counted
+as orphaned_note_lines and left in place.
 
 `decisions`: each named Decision condenses to its heading, its first
 paragraph and a line naming the release; the section is restored to
@@ -53,9 +67,14 @@ marker at sentence start with a date in its sentence, or struck
 through whole) condenses to its statement -- the first sentence, with
 a leading provenance sentence kept beside it -- every sentence naming
 its integration target, and the sentence of its LATEST terminal
-marker, re-wrapped; a deferred or undispositioned
+marker, re-wrapped; a sentence never ends inside a code span or
+before a lower-case word; a deferred or undispositioned
 entry is byte-identical after, and so is a terminal one already that
 short or one with an EXTENDED written after its last terminal marker.
+A terminal entry is also left whole, and reported `SKIPPED L<n>`, when
+a kept sentence points back (`that task`, `there`) at one the
+condensation drops, or when live content cites it for its note;
+`--keep L<n>` leaves any entry whole.
 
 `rotate`: the extract skill's Move 3b -- keep only what is live (the
 frontmatter and Purpose; open Backlog lines under their headings with
@@ -88,11 +107,17 @@ check, 2 on usage or an unreadable file. Prints a report, then WRITTEN
 or NO CHANGE (a dry run with changes prints the report alone). The
 report is one shape for records, decisions and learnings: a summary
 line, then one line per condensed entry -- `<ID> <bytes before>-><bytes
-after>: <the condensed line's first 160 characters>` -- so a dry run
-shows what a write would leave. The commit hashes a condensed record
-keeps are those its note names VERBATIM, 7 to 40 hex characters with
-at least one letter, in any repository, kept as written; the script
-never derives one, and a note naming none says so.
+after>: <the condensed line's first 160 characters>`, with what the
+note named and did not keep in brackets after it -- so a dry run
+shows what a write would leave. A condensed record lists as `commits`
+only the hex words its note names (7 to 40 characters, at least one a
+letter) that resolve as commits in the repository holding the file,
+each once, as first written, and only those in its lead clause when
+any are there; any other hex word -- a gist ID, a digest, a commit in
+another repository -- keeps the clause it sits in, and with no commit
+leading, an issue, PR or URL in the lead does too. The script never
+derives a hash; outside a repository the words are listed unchecked
+and the report says so.
 """
 
 import datetime
