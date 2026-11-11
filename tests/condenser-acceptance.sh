@@ -346,6 +346,18 @@ check "L4's statement survives whole past 'e.g.'" \
   "grep -A2 '^- L4 ' \"$W\" | tr '\\n' ' ' | tr -s ' ' | grep -qF 'e.g. the record script, over a hand count.' && ! grep -A2 '^- L4 ' \"$W\" | grep -q 'middle sentence'"
 check "L5, the control, still condenses" "! grep -A2 '^- L5 ' \"$W\" | grep -q 'middle sentence'"
 
+echo "== learnings: the last marker decides"
+# A terminal marker followed by QUEUED reopened the entry; the condenser
+# offered it anyway and dropped the sentence saying why it reopened.
+mkdir -p "$T/last/.state/workstreams/maintain/q"
+LW="$T/last/.state/workstreams/maintain/q/workstream.md"
+printf -- '---\nname: q\ntype: maintain\nstatus: active\ncreated: 2026-01-01\n---\n## Purpose\nA fixture.\n\n## Backlog\n### Work (BD)\n- [ ] #BD-1: a task\n- [ ] #BD-2: another\n\n## Learnings\n- L1 (2026-01-01): The first statement of the insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to #BD-1 and #BD-2. QUEUED 2026-01-03 on #BD-2, since the second half reopened when its build found a gap.\n- L2 (2026-01-01): The second insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to docs/x.md. EXTENDED 2026-01-03: a further case, still owed to a file.\n- L3 (2026-01-01): The control insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to docs/x.md.\n' > "$LW"
+rc=0; python3 "$SCRIPT" learnings "$LW" >"$T/last.txt" 2>&1 || rc=$?
+check "fixture: L1 runs APPLIED then QUEUED, L2 APPLIED then EXTENDED, L3 APPLIED alone" \
+  "grep -q 'APPLIED 2026-01-02 to #BD-1 and #BD-2. QUEUED 2026-01-03' \"\$LW\" && grep -q 'APPLIED 2026-01-02 to docs/x.md. EXTENDED' \"\$LW\""
+check "L1 (terminal, then QUEUED) and L2 (terminal, then EXTENDED) are not offered; L3, the control, is" \
+  "[ \"\$rc\" -eq 0 ] && grep -q '^learnings_condensed=1 ' \"\$T/last.txt\" && grep -q '^L3 ' \"\$T/last.txt\" && ! grep -qE '^L[12] ' \"\$T/last.txt\""
+
 echo "== the extract skill"
 check "Move 3 names the cites step and --keep beside the records command" \
   "awk '/^## Move 3 /{on=1;next} /^## /{on=0} on' \"$SKILL\" | grep -q 'cites' && awk '/^## Move 3 /{on=1;next} /^## /{on=0} on' \"$SKILL\" | grep -q -- '--keep'"

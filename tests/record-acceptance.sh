@@ -412,6 +412,16 @@ printf -- '## Learnings\n- L1 (2026-01-01): An insight. APPLIED to docs/design.m
 check "the same marker scores undispositioned without a date in its sentence and terminal with one (1 and 1)" \
   '[ "$(python3 "$SCRIPT" "$T/dated" | jq -r ".workstreams[0].learnings | \"\\(.terminal) \\(.undispositioned | length)\"")" = "1 1" ]'
 
+echo "== Learnings: the last marker decides"
+mkdir -p "$T/last/.state/workstreams/maintain/q"
+printf -- '---\nname: q\ntype: maintain\nstatus: active\ncreated: 2026-01-01\n---\n## Purpose\nA fixture.\n\n## Backlog\n### Work (BD)\n- [ ] #BD-1: a task\n- [ ] #BD-2: another\n\n## Learnings\n- L1 (2026-01-01): The first statement of the insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to #BD-1 and #BD-2. QUEUED 2026-01-03 on #BD-2, since the second half reopened when its build found a gap.\n- L2 (2026-01-01): The second insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to docs/x.md. EXTENDED 2026-01-03: a further case, still owed to a file.\n- L3 (2026-01-01): The control insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to docs/x.md.\n' > "$T/last/.state/workstream-tmp.md"
+mv "$T/last/.state/workstream-tmp.md" "$T/last/.state/workstreams/maintain/q/workstream.md"
+lq() { python3 "$SCRIPT" "$T/last" | jq -r ".workstreams[0].learnings | $1"; }
+check "terminal then QUEUED scores deferred, terminal then EXTENDED undispositioned, the control terminal (1 1 1)" \
+  '[ "$(lq "\"\\(.terminal) \\(.deferred | length) \\(.undispositioned | length)\"")" = "1 1 1" ] && lq ".deferred[0]" | grep -q "^- L1 " && lq ".undispositioned[0]" | grep -q "^- L2 "'
+check "fires names the reopened L2 as undispositioned" \
+  'python3 "$SCRIPT" fires "$T/last" | grep -q "undispositioned Learnings 1"'
+
 echo "== Deletion Criteria are read as blocks: a wrapped STANDING criterion still scores"
 mkdir -p "$T/wrapped/.state/workstreams/maintain/w"
 printf -- '## Deletion Criteria\n- [ ] STANDING: the inbox stays empty and the roster\n  reads clean -- HOLDS 2026-01-01, HOLDS 2026-02-02\n- [ ] the split lands, wrapped\nacross a line\n- [x] done criterion\n' > "$T/wrapped/.state/workstreams/maintain/w/workstream.md"

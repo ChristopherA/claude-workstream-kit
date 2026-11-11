@@ -208,10 +208,10 @@ for k, v in cases.items():
 check "an emphasised marker after an emphasised sentence is terminal" "printf '%s\n' \"\$DISP\" | grep -qx 'emph terminal'"
 check "the plain-sentence form still scores terminal" "printf '%s\n' \"\$DISP\" | grep -qx 'plain terminal'"
 check "a Learning carrying only EXTENDED is not dispositioned" "printf '%s\n' \"\$DISP\" | grep -qx 'ext None'"
-check "ROUTED then EXTENDED still scores terminal (the ROUTED marker)" "printf '%s\n' \"\$DISP\" | grep -qx 'routed_ext terminal'"
+check "ROUTED then EXTENDED is reopened, not terminal: an EXTENDED after the last terminal marker reopens the entry" "printf '%s\n' \"\$DISP\" | grep -qx 'routed_ext None'"
 check "a bold marker mid-sentence is still a mention" "printf '%s\n' \"\$DISP\" | grep -qx 'mid None'"
-check "the record scores L2, L4 and L5 terminal and L3 alone undispositioned" \
-  "python3 \"$RECORD\" \"$T\" | jq -e '.workstreams[0].learnings | .terminal == 3 and (.undispositioned | length == 1 and (.[0] | startswith(\"- L3 \")))' >/dev/null"
+check "the record scores L2 and L5 terminal and L3 and L4 (EXTENDED after its ROUTED) undispositioned" \
+  "python3 \"$RECORD\" \"$T\" | jq -e '.workstreams[0].learnings | .terminal == 2 and (.undispositioned | length == 2 and (.[0] | startswith(\"- L3 \")) and (.[1] | startswith(\"- L4 \")))' >/dev/null"
 
 echo
 if [ "$RESULT" -eq 0 ]; then echo "DAMAGE ACCEPTANCE: ALL CHECKS PASS"; else echo "DAMAGE ACCEPTANCE: FAILURES ABOVE"; fi

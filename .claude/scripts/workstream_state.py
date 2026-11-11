@@ -475,17 +475,36 @@ def marker_counts(text, marker_re):
 def disposition(text):
     """'terminal', 'deferred' or None for a Learning block's joined text.
     The leading `- ` is tolerated. A block struck through whole is
-    terminal: the entry has been retired in place."""
+    terminal: the entry has been retired in place.
+
+    The LAST marker decides, read in the order written: a terminal
+    marker followed by a deferred one (`APPLIED ... QUEUED <date> on the
+    task that reopened it`) is deferred, and an EXTENDED written after
+    the last terminal marker reopens the entry, as the rule says, so it
+    scores undispositioned; an EXTENDED after a deferred marker leaves
+    the deferral standing. Scoring any terminal marker first, wherever it
+    sat, stopped `fires` reporting reopened entries and offered them to
+    the learnings condenser, which then dropped the sentence saying why
+    the entry reopened. Struck markers are blanked first, so a retracted
+    marker decides nothing."""
     body = text[2:] if text.startswith('- ') else text
     body = body.strip()
     if body.startswith('~~') and body.endswith('~~') and body.count('~~') == 2:
         return 'terminal'
     body = blank_strikes(body)
-    if marker_counts(body, TERMINAL_RE):
-        return 'terminal'
-    if marker_counts(body, DEFERRED_RE):
-        return 'deferred'
-    return None
+    marks = sorted(
+        [(m.start(), 'terminal') for m in marker_counts(body, TERMINAL_RE)]
+        + [(m.start(), 'deferred') for m in marker_counts(body, DEFERRED_RE)]
+        + [(m.start(), 'addendum') for m in marker_counts(body, ADDENDUM_RE)]
+    )
+    state = None
+    for _pos, kind in marks:
+        if kind == 'addendum':
+            if state == 'terminal':
+                state = None
+        else:
+            state = kind
+    return state
 
 
 # --- structure fingerprint (asserted by every rewrite) --------------------
