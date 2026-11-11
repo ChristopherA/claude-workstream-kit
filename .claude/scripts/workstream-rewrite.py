@@ -117,10 +117,14 @@ note named and did not keep in brackets after it -- so a dry run
 shows what a write would leave. A condensed record lists as `commits`
 only the hex words its note names (7 to 40 characters, at least one a
 letter) that resolve as commits in the repository holding the file,
-each once, as first written, and only those in its lead clause when
-any are there; any other hex word -- a gist ID, a digest, a commit in
-another repository -- keeps the clause it sits in, and with no commit
-leading, an issue, PR or URL in the lead does too. The script never
+each once, as first written: those in its lead clause, and one named
+later only when a verb of making stands directly before it (landed,
+built, shipped, fixed, committed, merged, released or pushed, an `at`,
+`in` or `as` allowed between; the noun `commit` is not one). Any other
+commit, and any hex word that does not resolve -- a gist ID, a
+digest, a commit in another repository -- keeps the clause it sits in
+and is named in the report, and with no commit leading, an issue, PR
+or URL in the lead keeps its clause too. The script never
 derives a hash; outside a repository the words are listed unchecked
 and the report says so.
 """
@@ -492,8 +496,16 @@ def batch_resolver(cwd):
     return resolve
 
 
+# A verb of making directly before a hash, an `at`, `in` or `as`
+# allowed between: what says a commit IS the work rather than a point
+# the note measures from. The bare noun `commit` is not one -- `after the
+# capture commit 9910d4c` was listed as a record's evidence.
+MAKING_BEFORE_RE = re.compile(
+    r"\b(?:landed|built|shipped|fixed|committed|merged|released|pushed)(?:\s+(?:at|in|as))?\s+`?$", re.I)
+
+
 def note_evidence(note, ctx):
-    """(listed_commits, kept_clauses, unresolved, prose_only): what a
+    """(listed_commits, kept_clauses, unresolved, unmade): what a
     condensed note keeps as its evidence.
 
     Commits are hex words (`SHA_RE`) that resolve as commits in the
@@ -506,12 +518,15 @@ def note_evidence(note, ctx):
     was. With no repository the words are listed as written, the
     report saying so.
 
-    Only commits that LEAD the note -- named in its first clause run,
-    up to the first `;` -- are listed when there are any; others named
-    later in prose are reported and not listed, since a provenance
-    commit (`where a deleted notes.md lived`) is not the evidence. With
-    no commit leading, an issue, PR or URL in that lead is the record's
-    handle and its clause is kept."""
+    Commits that LEAD the note -- named in its first clause run, up to
+    the first `;` -- are listed. A commit named later is listed only
+    when a verb of making stands directly before it (`landed at`,
+    `committed as`, `fixed in`); any other keeps its clause verbatim
+    and is reported as unmade, since a provenance commit (`where a
+    deleted notes.md lived`) or a time reference (`started after the
+    capture commit X`) is not the work's own commit. With no commit
+    leading, an issue, PR or URL in that lead is the record's handle
+    and its clause is kept."""
     toks = list(dict.fromkeys(SHA_RE.findall(note)))
     if ctx.resolve is None:
         return toks, [], [], []
@@ -531,16 +546,30 @@ def note_evidence(note, ctx):
         (lead_commits if re.search(r"(?<![0-9a-f])" + t + r"(?![0-9a-f])", lead) else other_commits).append(t)
     kept = []
     segs = segments(note)
-    for t in unresolved:
-        at = re.search(r"(?<![0-9a-f])" + t + r"(?![0-9a-f])", note)
+
+    def keep_clause(at):
         for s, e in segs:
-            if at and s <= at.start() < e:
+            if s <= at < e:
                 txt = segment_text(note, s, e)
                 if txt not in kept:
                     kept.append(txt)
-                break
+                return
+
+    for t in unresolved:
+        at = re.search(r"(?<![0-9a-f])" + t + r"(?![0-9a-f])", note)
+        if at:
+            keep_clause(at.start())
+    made, unmade = [], []
+    for t in other_commits:
+        hits = list(re.finditer(r"(?<![0-9a-f])" + t + r"(?![0-9a-f])", note))
+        if any(MAKING_BEFORE_RE.search(note[:h.start()]) for h in hits):
+            made.append(t)
+        else:
+            unmade.append(t)
+            if hits:
+                keep_clause(hits[0].start())
     if lead_commits:
-        return lead_commits, kept, unresolved, other_commits
+        return lead_commits + made, kept, unresolved, unmade
     ident = IDENT_RE.search(lead)
     if ident:
         for s, e in segs:
@@ -549,8 +578,7 @@ def note_evidence(note, ctx):
                 if txt not in kept:
                     kept.insert(0, txt)
                 break
-        return [], kept, unresolved, other_commits
-    return other_commits, kept, unresolved, []
+    return made, kept, unresolved, unmade
 
 
 def condensed_note(note, ctx, mark):
@@ -564,7 +592,7 @@ def condensed_note(note, ctx, mark):
     evidence."""
     dates = DATE_RE.findall(note)
     decs, absent, foreign = decisions_cited(note, ctx)
-    shas, kept, unresolved, prose = note_evidence(note, ctx)
+    shas, kept, unresolved, unmade = note_evidence(note, ctx)
     mark_word, date = status_and_date(note, dates)
     head = "%s %s" % (mark_word, date)
     ptr = pointer_of(note)
@@ -595,8 +623,8 @@ def condensed_note(note, ctx, mark):
         notes.append("not cited, another workstream's: %s" % ", ".join(foreign))
     if unresolved:
         notes.append("not listed, no such commit here, kept in its clause: %s" % ", ".join(unresolved))
-    if prose:
-        notes.append("not listed, named in prose after the lead: %s" % ", ".join(prose))
+    if unmade:
+        notes.append("not listed, no verb of making before it, kept in its clause: %s" % ", ".join(unmade))
     if ctx.resolve is None and shas:
         notes.append("hashes listed unchecked: not a git repository")
     return text, notes

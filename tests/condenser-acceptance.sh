@@ -14,7 +14,10 @@
 #   records, the evidence lead: a note whose evidence is an issue, with
 #     no commit leading it, fell back to `evidence in the record at the
 #     commit preceding` and lost its only handle, while a provenance
-#     commit named later in prose was listed as the evidence.
+#     commit named later in prose was listed as the evidence. A commit
+#     named as a time reference (`after the capture commit`) was listed
+#     too. A commit past the lead is now listed only after a verb of
+#     making (`landed at`); any other keeps its clause and is reported.
 #   records, foreign Decisions: `D2 and D4 in feature/alpha` credited D2
 #     as this file's, since only the ID written directly before `in
 #     <home>` was read as foreign.
@@ -119,6 +122,12 @@ A fixture carrying the record and Learning shapes 0.11.2 damaged.
       DONE 2026-01-04: GAUGEWORD the gauge read 71 on the left dial and 64 on the right. $P
 - [x] #BD-23: Calibrate the dial.
       DONE 2026-01-04: CALIBWORD the dial was set against the reference and held. $P
+- [x] #BD-24: Write the guide section.
+      DONE 2026-01-06: the guide gains a section on the server. The restart is confirmed: this process started 2026-01-06 12:08:39, after the capture commit $PROV. $P
+- [x] #BD-25: Build the probe.
+      DONE 2026-01-06: the probe reads the gauge. The work landed at $PROV and was read back. $P
+- [x] #BD-26: Build both halves.
+      DONE 2026-01-07 at $SHORT: the first half. The second half landed at $PROV. $P
 - [ ] #BD-20: the next audit re-reads the tokens; the 2026-01-04 readings are in the #BD-21 (read the tokens) record
 
 ## Decisions
@@ -206,8 +215,16 @@ check "#BD-8 keeps its issue, its only handle, rather than the 'evidence in the 
   "block '#BD-8' | grep -q 'Condensed 2026-05-05' && block '#BD-8' | grep -q 'web-site issue 10' && ! block '#BD-8' | grep -q 'evidence in the record'"
 check "#BD-8 does not list the provenance commit named later in its prose" \
   "block '#BD-8' | grep -q 'Condensed 2026-05-05' && ! block '#BD-8' | grep -q \"commits.*$PROV\""
-check "the report names the commit #BD-8 did not list" \
-  "grep -E '^#BD-8 ' \"$T/out.txt\" | grep -qF \"named in prose after the lead: $PROV]\""
+check "#BD-8 keeps the provenance commit's clause verbatim, and the report names the commit it did not list" \
+  "block '#BD-8' | grep -qF \"a provenance commit $PROV is where a deleted notes.md lived\" && grep -E '^#BD-8 ' \"$T/out.txt\" | grep -qF \"no verb of making before it, kept in its clause: $PROV]\""
+check "#BD-26 lists its lead commit and the later one a verb of making names, in that order" \
+  "block '#BD-26' | grep -q \"commits $SHORT, $PROV[;.]\""
+check "#BD-24 does not list the capture commit it names only as a time reference" \
+  "block '#BD-24' | grep -q 'Condensed 2026-05-05' && ! block '#BD-24' | grep -q \"commits $PROV\""
+check "#BD-24 keeps that commit's clause verbatim, and the report names it" \
+  "block '#BD-24' | grep -qF \"after the capture commit $PROV\" && grep -E '^#BD-24 ' \"$T/out.txt\" | grep -qF \"no verb of making before it, kept in its clause: $PROV]\""
+check "#BD-25 lists the commit a verb of making names: 'landed at'" \
+  "block '#BD-25' | grep -q \"commits $PROV[;.]\""
 
 echo "== records: foreign Decisions"
 check "#BD-2 cites its one local Decision, D3" "block '#BD-2' | grep -q 'reasoning in D3'"
@@ -236,8 +253,8 @@ check "the report counts #BD-17's leftover paragraph as orphaned_note_lines=1 an
 echo "== records: notes in parts and closing verbs"
 check "#BD-9's note in parts condenses whole: no STARTED or PROGRESS line left" \
   "block '#BD-9' | grep -q 'Condensed 2026-05-05' && ! block '#BD-9' | grep -qE 'STARTED|PROGRESS'"
-check "#BD-9's condensed note keeps its delimiters, *( ... )*" \
-  "block '#BD-9' | grep -qE '^      \\*\\(DONE 2026-01-09; commits $SHORT\\. Condensed 2026-05-05 at extract; full record in git before that commit\\.\\)\\*\$'"
+check "#BD-9's condensed note keeps its delimiters, *( ... )*, and its closing part's commit in its clause, since no commit leads the note" \
+  "block '#BD-9' | grep -qE '^      \\*\\(DONE 2026-01-09; at $SHORT\\. Condensed 2026-05-05 at extract; full record in git before that commit\\.\\)\\*\$'"
 check "#BD-10 is dated by its closing paragraph (2026-01-15), not its first (2026-01-02)" \
   "block '#BD-10' | grep -q 'DONE 2026-01-15' && ! block '#BD-10' | grep -q '2026-01-02'"
 check "#BD-11 keeps its own verb and pointer: SUPERSEDED 2026-01-12 by #BD-12 (the replacement), no DONE" \
