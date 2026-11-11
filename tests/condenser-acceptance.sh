@@ -37,8 +37,9 @@
 #     dated by its first; `closed, superseded by #X` became DONE with
 #     the pointer gone.
 #   learnings: a kept sentence pointing back at a dropped one (`that
-#     task`, `there`) left a routing to nothing; a sentence was cut at
-#     an unquoted `%G? ` or an `e.g. `.
+#     task`, `there`, `it does;`) left a routing to nothing; a sentence
+#     was cut at an unquoted `%G? ` or an `e.g. `; only the latest
+#     marker's sentence was kept, losing the earlier ones.
 #
 # Each check names the old behaviour it rules out, so the suite fails
 # on 0.11.2 and passes on the fix. REWRITE_SCRIPT overrides the script
@@ -165,6 +166,8 @@ A local D4 the foreign D4 must not be read as.
 - L4 (2026-01-01): Prefer a probe, e.g. the record script, over a hand count. A middle sentence that goes. APPLIED 2026-01-10 to \`f.md\`.
 - L5 (2026-01-01): A plain insight. A middle sentence that goes. APPLIED 2026-01-10 to \`g.md\`.
 - L6 (2026-01-01): A clear starts a session but not a process. A middle sentence of evidence that goes. Anything that loads a plugin mid-session needs a relaunch first -- integration target: \`docs/tools.md\`. QUEUED 2026-01-03: the #BD-4 task line now names it. APPLIED 2026-01-04: \`docs/tools.md\` corrected on the way: the remedy is not only a relaunch, because \`/reload\` activates pending changes in the running session. VERIFIED 2026-01-04: it does; the session served the new version after \`/reload\` with no relaunch.
+- L7 (2026-01-01): A reload can stand in for a relaunch. The reload command activates pending changes. A middle sentence that goes. VERIFIED 2026-01-04: it does; the new version was served.
+- L8 (2026-01-01): The probe misreads a stale cache. The cache notes belong with the probe's own notes. It goes in the probe's notes -- integration target: \`h.md\`. APPLIED 2026-01-10 to \`h.md\`.
 - L9 (2026-01-01): The handoff reached its inbox. A sentence naming the docs-site inbox that goes. VERIFIED 2026-01-04: received there that day and triaged.
 
 ## Open Questions
@@ -329,6 +332,12 @@ check "L2 keeps both marker sentences, so the HANDED OFF naming docs-site still 
   "entry L2 | grep -qF 'HANDED OFF 2026-01-03 to docs-site as its handoff of that day. VERIFIED 2026-01-04: received there' && ! entry L2 | grep -q 'middle sentence'"
 check "L9, whose kept marker says 'received there' with the sentence naming the place dropped, is left whole and reported" \
   "entry L9 | grep -qF 'naming the docs-site inbox' && grep -q '^SKIPPED L9:' \"$T/learn.txt\""
+check "L7, whose kept VERIFIED sentence opens 'it does;' after a dropped sentence, is left whole and reported" \
+  "entry L7 | grep -qF 'The reload command activates pending changes.' && grep -E '^SKIPPED L7:' \"$T/learn.txt\" | grep -qF \"('it')\""
+check "L8, whose kept target sentence opens 'It' after a dropped sentence, is left whole and reported" \
+  "entry L8 | grep -qF 'The cache notes belong with' && grep -q '^SKIPPED L8:' \"$T/learn.txt\""
+check "L6's 'it does;' follows a kept APPLIED sentence, so the entry still condenses (the control)" \
+  "! grep -q '^SKIPPED L6:' \"$T/learn.txt\" && ! entry L6 | grep -q 'middle sentence'"
 check "L6 keeps its QUEUED, APPLIED and VERIFIED sentences: the correction ('not only a relaunch') stays beside the target it corrected" \
   "entry L6 | grep -qF 'QUEUED 2026-01-03: the #BD-4 task line now names it.' && entry L6 | grep -qF 'the remedy is not only a relaunch' && entry L6 | grep -qF 'VERIFIED 2026-01-04: it does;' && ! entry L6 | grep -q 'middle sentence'"
 check "L3's statement survives whole past an unquoted %G? (not cut at the question mark)" \

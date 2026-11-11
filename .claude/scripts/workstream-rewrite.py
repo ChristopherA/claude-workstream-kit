@@ -82,8 +82,9 @@ before a lower-case word; a deferred or undispositioned
 entry is byte-identical after, and so is a terminal one already that
 short or one with an EXTENDED written after its last terminal marker.
 A terminal entry is also left whole, and reported `SKIPPED L<n>`, when
-a kept sentence points back (`that task`, `there`) at one the
-condensation drops, or when live content cites it for its note;
+a kept sentence points back (`that task`, `there`, or `it` as its
+subject) at one the condensation drops, or when some text cites it
+for its note;
 `--keep L<n>` leaves any entry whole.
 
 `rotate`: the extract skill's Move 3b -- keep only what is live (the
@@ -144,7 +145,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from workstream_state import (  # noqa: E402
     ANY_HEADING_RE, CHECKBOX_ID_RE, CHECKBOX_RE, LIST_ITEM_RE, ADDENDUM_RE, DECISION_HEADING_RE, DELETION_OPEN_RE, DONE_LINE_RE,
-    DEFERRED_RE,
+    DEFERRED_RE, TERMINAL_MARKERS, DEFERRED_MARKERS, ADDENDUM_MARKERS,
     GATE_LINE_RE, LEARNING_RE, PHASE_HEADING_RE, TERMINAL_RE, TOTAL_OPEN_RE, STRIKE_RE,
     blank_strikes, disposition, extract_section, find_workstreams, fingerprint, fold_blocks,
     git, join_block, line_at, marker_counts, read_lines, section_bounds, sentence_span,
@@ -1337,6 +1338,13 @@ BACKREF_RE = re.compile(
     r"\b(?:that|this|the same|the above)\s+(?:task|item|file|commit|workstream|project|handoff|entry|"
     r"decision|gate|issue|rule|skill|one|place|destination|target|repository|repo)\b"
     r"|\bthere\b(?!\s+(?:is|are|was|were|will|would|has|have|had|being|be)\b)|\babove\b", re.I)
+# `it` points back only as a kept sentence's SUBJECT -- opening it, or
+# right after its marker and date (`VERIFIED 2026-01-04: it does;`) --
+# whose antecedent sat in the sentence before; `it` as an object (`the
+# task line now names it`) refers inside its own sentence.
+IT_SUBJECT_RE = re.compile(
+    r"^[*_]*(?:(?:" + "|".join(re.escape(m) for m in TERMINAL_MARKERS + DEFERRED_MARKERS + ADDENDUM_MARKERS)
+    + r")[*_]*(?:\s+(?:on\s+)?20[0-9]{2}-[0-9]{2}-[0-9]{2}\b)?[*_]*[:,]?\s+)?(it(?:'s)?)\b", re.I)
 
 
 def condense_learning(text):
@@ -1406,10 +1414,11 @@ def condense_learning_why(text):
     for i in sorted(keep):
         if i in lead or i == 0:
             continue
-        ref = BACKREF_RE.search(sentences[i])
+        ref = BACKREF_RE.search(sentences[i]) or IT_SUBJECT_RE.match(sentences[i])
         if ref and (i - 1) not in keep:
+            word = ref.group(ref.lastindex or 0)
             return None, ("a kept sentence points back (%r) at one the condensation drops: %s"
-                          % (ref.group(0), sentences[i][:80]))
+                          % (word, sentences[i][:80]))
     condensed = ' '.join(sentences[i] for i in sorted(keep))
     if condensed == body or len(condensed) >= len(body):
         return None, None
