@@ -47,13 +47,14 @@ workstream's name, after the run (`D2 and D4 in feature/x`) or before
 it (`beta's D4`); the ones it does not cite are named on the entry's
 report line. A record that LIVE content cites -- an open task, gate
 line, the critical path, an open criterion or an unresolved Open
-Question in this file, or another state file's live content homed
-here, ACTIVE.md read whole -- is left whole whatever the citation's
-wording, and reported `SKIPPED <ID>: cited by live content at
-<file>:<line>`; this file's closed content (ticked criteria,
-Decisions, records) holds a record only when it cites it FOR ITS
-NOTE (`see #ID completion note`, a note word near the ID), reported
-`cited as its note by`. `--keep <#ID>` leaves any record whole
+Question in this file, or another workstream file's live content
+homed here -- is left whole whatever the citation's wording, and
+reported `SKIPPED <ID>: cited by live content at <file>:<line>`. This
+file's closed content (ticked criteria, Decisions, records), an Open
+Question resolved in place (`RESOLVED <date> via #ID`) and ACTIVE.md
+hold a record only when they cite it FOR ITS NOTE (`see #ID
+completion note`, a note word near the ID), reported `cited as its
+note by`. `--keep <#ID>` leaves any record whole
 (`KEPT`). A note already at the completion-note form -- one sentence,
 opening with its status word or date, naming its commit and a
 backticked command or a count -- is left whole and reported SKIPPED,
@@ -717,6 +718,18 @@ def block_owner(raw):
     return ("L" + m.group(1)) if m else None
 
 
+RESOLVED_MARK_RE = re.compile(r"\bRESOLVED\b")
+
+
+def resolved_question(raw):
+    """True for an Open Question resolved in place -- `- OQ-1:
+    ~~question~~ RESOLVED <date> via #X: answer` -- which the
+    `- OQ-` test that selects live blocks still reads as open."""
+    if not re.match(r"^- (?:~~)?OQ-[0-9]+", raw[0]):
+        return False
+    return bool(marker_counts(blank_strikes(join_block(raw, 0)[0]), RESOLVED_MARK_RE))
+
+
 def note_citations(root, path, lines, ids, live=False):
     """{id: (where, sentence, kind)} for each of ids that some text
     cites FOR ITS NOTE: anywhere in this file but the record's own
@@ -724,17 +737,21 @@ def note_citations(root, path, lines, ids, live=False):
     criterion's `see #X completion note` lost its measurements to a run
     that never looked; and the live content of every other state file,
     where a bare ID counts only when its home is this workstream, IDs
-    being per-workstream (ACTIVE.md, read whole, has its home-less
+    being per-workstream (ACTIVE.md is read whole, and its home-less
     mentions belong to the workstream it points at). kind is 'note'
     for a citation the note words found.
 
     With live, a citation from LIVE content -- this file's open tasks,
     gate lines, critical path, open criteria and unresolved Open
-    Questions, or another state file's live content homed here -- is
-    found whatever its wording, kind 'live': an open task reading `the
-    readings are in the #X record` named no note word, and the record
-    condensed to its fallback and lost readings that existed nowhere
-    else. Note words still decide for closed content."""
+    Questions, or another workstream file's live content homed here --
+    is found whatever its wording, kind 'live': an open task reading
+    `the readings are in the #X record` named no note word, and the
+    record condensed to its fallback and lost readings that existed
+    nowhere else. Note words still decide for closed content, for an
+    Open Question resolved in place (`~~question~~ RESOLVED <date> via
+    #X`), which names where it was settled rather than pointing at a
+    note, and for ACTIVE.md, whose session narrative (`Done: #X (...)`)
+    is rewritten every session."""
     if not ids:
         return {}
     alt = "|".join(re.escape(i) for i in sorted(ids, key=len, reverse=True))
@@ -768,10 +785,11 @@ def note_citations(root, path, lines, ids, live=False):
                     cur = l[3:].strip()
                 heads[n] = cur
             blocks = live_blocks(flines, True)
-            live_starts = {s for s, _r in live_blocks(flines, False)} if live else set()
+            live_starts = {s for s, r in live_blocks(flines, False) if not resolved_question(r)} if live else set()
         else:
             blocks = live_blocks(flines, is_active)
-            live_starts = {s for s, _r in blocks} if live else set()
+            live_starts = ({s for s, r in blocks if not resolved_question(r)}
+                           if live and not is_active else set())
         for start, raw in blocks:
             owner = block_owner(raw)
             text, starts = join_block(raw, start)

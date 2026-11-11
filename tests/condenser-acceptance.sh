@@ -140,6 +140,12 @@ A fixture carrying the record and Learning shapes 0.11.2 damaged.
       DONE 2026-01-09 at review: every mention glossed, and \`fx-ids .\` reports 0 for this file, 24 before the pass. The placement half was already done: $P
 - [x] #BD-30: Write the guide.
       DONE 2026-01-09 at $SHORT: the guide gained a section on the server, its settings, the way it loads and the order its parts are read in at start. $P
+- [x] #BD-31: Read the meter.
+      DONE 2026-01-10: METERWORD the meter was read and logged. $P $P
+- [x] #BD-32: Pick the meter.
+      DONE 2026-01-10: PICKWORD the left meter was picked over the right. $P $P
+- [x] #BD-33: Read the right meter.
+      DONE 2026-01-10: RIGHTWORD the right meter read 9 at noon and 11 at dusk. $P
 - [ ] #BD-20: the next audit re-reads the tokens; the 2026-01-04 readings are in the #BD-21 (read the tokens) record
 
 ## Decisions
@@ -158,6 +164,10 @@ A local D4 the foreign D4 must not be read as.
 - L3 (2026-01-01): Confirm the log reads %G? as G before any push, since an empty signature exits 0. A middle sentence that goes. APPLIED 2026-01-10 to \`rules/sign.md\`.
 - L4 (2026-01-01): Prefer a probe, e.g. the record script, over a hand count. A middle sentence that goes. APPLIED 2026-01-10 to \`f.md\`.
 - L5 (2026-01-01): A plain insight. A middle sentence that goes. APPLIED 2026-01-10 to \`g.md\`.
+
+## Open Questions
+- OQ-1: ~~Which meter is read?~~ RESOLVED 2026-01-10 via #BD-32 (pick the meter): the left one.
+- OQ-2: Does the right meter drift? Compare against #BD-33 (read the right meter) first.
 
 ## Deletion Criteria
 - [x] The tracked count is zero; see #BD-1 completion note for the measurement.
@@ -192,7 +202,7 @@ workstream: maintain/fx
 task: none
 ---
 ## Now
-Fixture.
+Fixture. Done: #BD-31 (read the meter), confirmed by the reading.
 FIX
 git add -A; git commit -qm fixture
 cp "$W" "$T/original.md"
@@ -219,6 +229,12 @@ check "#BD-22, cited by another workstream's open task with no note word, is lef
   "grep -qF 'GAUGEWORD the gauge read 71' \"$W\" && grep -E '^SKIPPED #BD-22: cited by live content at ' \"$T/out.txt\" | grep -q 'feature/alpha'"
 check "#BD-23, cited by a TICKED criterion with no note word, is still condensed: closed content needs a note word" \
   "block '#BD-23' | grep -q 'Condensed 2026-05-05' && ! grep -qF 'CALIBWORD' \"$W\""
+check "#BD-33, cited by an unresolved Open Question with no note word, is left whole" \
+  "grep -qF 'RIGHTWORD the right meter read 9' \"$W\" && grep -E '^SKIPPED #BD-33: cited by live content at ' \"$T/out.txt\" | grep -q 'Open Questions'"
+check "#BD-32, cited only by an Open Question resolved in place, is still condensed" \
+  "block '#BD-32' | grep -q 'Condensed 2026-05-05' && ! grep -qF 'PICKWORD' \"$W\""
+check "#BD-31, cited only by ACTIVE.md's session narrative with no note word, is still condensed" \
+  "block '#BD-31' | grep -q 'Condensed 2026-05-05' && ! grep -qF 'METERWORD' \"$W\""
 check "#BD-8, cited by a closed Decision with no note word, is still condensed" \
   "block '#BD-8' | grep -q 'Condensed 2026-05-05'"
 
