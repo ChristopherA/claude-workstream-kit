@@ -429,6 +429,16 @@ check "fires names the symptom with each line" \
 check "the misfiled L2 is exempt from the Learnings count, which is why the placement check exists (count 1)" \
   '[ "$(python3 "$SCRIPT" "$T/place" | jq -r ".workstreams[0].learnings.count")" = "1" ]'
 
+echo "== A terminal disposition's referent: the cheap cases are flagged, the score unchanged"
+mkdir -p "$T/target/.state/workstreams/maintain/t"
+printf -- '## Backlog\n### Work (BD)\n- [ ] #BD-1: an open task\n- [x] #BD-2: a done task\n\n## Learnings\n- L1 (2026-01-01): to the repo. APPLIED 2026-01-02 to docs/x.md.\n- L2 (2026-01-01): to a state file. APPLIED 2026-01-02 to .state/notes.md, beside the record.\n- L3 (2026-01-01): to an open task here. ROUTED 2026-01-02 to #BD-1.\n- L4 (2026-01-01): to a done task here. ROUTED 2026-01-02 to #BD-2.\n- L5 (2026-01-01): nowhere. APPLIED 2026-01-02.\n- L6 (2026-01-01): handed off. HANDED OFF 2026-01-02 as .state/handoffs/from-x-20260102-000000.md in docs-site.\n- L7 (2026-01-01): to an open task in another workstream. ROUTED 2026-01-02 to #BD-1 in feature/other.\n- L8 (2026-01-01): named in words. Integration target: the patch README. APPLIED 2026-01-02.\n' > "$T/target/.state/workstreams/maintain/t/workstream.md"
+tf() { python3 "$SCRIPT" "$T/target" | jq -r ".workstreams[0].learnings | $1"; }
+check "the score is unchanged: all eight are terminal" '[ "$(tf ".terminal")" = "8" ]'
+check "flagged: L2 state_path, L3 open_task_here, L5 no_target, and nothing else" \
+  '[ "$(tf "[.target_flags[] | \"\\(.id):\\(.kind)\"] | join(\",\")")" = "L2:state_path,L3:open_task_here,L5:no_target" ]'
+check "the flag names what it found: the .state/ path and the open task" \
+  '[ "$(tf ".target_flags[0].detail")" = ".state/notes.md" ] && [ "$(tf ".target_flags[1].detail")" = "#BD-1" ]'
+
 echo "== Learnings: the last marker decides"
 mkdir -p "$T/last/.state/workstreams/maintain/q"
 printf -- '---\nname: q\ntype: maintain\nstatus: active\ncreated: 2026-01-01\n---\n## Purpose\nA fixture.\n\n## Backlog\n### Work (BD)\n- [ ] #BD-1: a task\n- [ ] #BD-2: another\n\n## Learnings\n- L1 (2026-01-01): The first statement of the insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to #BD-1 and #BD-2. QUEUED 2026-01-03 on #BD-2, since the second half reopened when its build found a gap.\n- L2 (2026-01-01): The second insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to docs/x.md. EXTENDED 2026-01-03: a further case, still owed to a file.\n- L3 (2026-01-01): The control insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to docs/x.md.\n' > "$T/last/.state/workstream-tmp.md"

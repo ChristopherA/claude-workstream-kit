@@ -157,7 +157,7 @@ from workstream_state import (  # noqa: E402
     DECISION_HEADING_RE, DELETION_DONE_RE, DELETION_OPEN_RE, DONE_GATE_RE, DONE_LINE_RE,
     GATE_LINE_RE, HOLDS_RE, HOLD_RE, ID_RE, LEARNING_RE, LIST_ITEM_RE, PHASE_HEADING_RE,
     SATISFIED_MARK_RE, TASK_CODE_RE, TOP_HEADING_RE, TOTAL_OPEN_RE,
-    blank_strikes, disposition, extract_section, find_workstreams, fold_blocks, in_strike,
+    blank_strikes, disposition, extract_section, marker_counts, TERMINAL_RE, find_workstreams, fold_blocks, in_strike,
     git, join_block, line_at, negated, read_lines, require_root, section_of, sentence_span,
     split_sentences, state_files, strip_frontmatter, workstream_id, SIZE_BYTES,
     CROSS_REF_WS_RE as _WS_RE, TASK_ID_RE,
@@ -382,6 +382,72 @@ def composition(lines):
     }
 
 
+# A disposition's REFERENT, the cheap cases. The marker says an entry
+# left the file; what it points at can still be gone or not yet there.
+TARGET_MARKER_WORDS = ('APPLIED', 'ROUTED', 'EXTRACTED', 'SENT', 'HANDED OFF', 'FULFILLED')
+NO_TARGET_WORDS = ('APPLIED', 'ROUTED', 'EXTRACTED')
+# A path under .state/ naming a file or directory; a handoff file is the
+# sanctioned form of HANDED OFF (the receiver's triage is its home), and a
+# bare `.state/` is prose about the directory, so neither is a finding.
+STATE_PATH_RE = re.compile(r'(?<![\w-])\.state/(?!handoffs/)[\w.-][\w./-]*')
+TARGET_TOKEN_RE = re.compile(
+    r'[\w.~-]*/[\w./-]+|\b[\w-]+\.(?:md|py|sh|json|txt|ya?ml|toml)\b|#[A-Z][A-Z0-9]*-[0-9]+[a-z]?|#G-[A-Z0-9]+'
+    r'|\b[0-9a-f]{7,40}\b|https?://|\b(?:D|L)[0-9]+\b|\bOQ-[0-9]+\b'
+)
+OUTSIDE_TARGET_RE = re.compile(r'[\w.~-]*/[\w./-]+|\b[\w-]+\.(?:md|py|sh|json|txt|ya?ml|toml)\b|\b[0-9a-f]{7,40}\b|https?://')
+
+
+def target_flags(text, lines):
+    """What a TERMINAL Learning's last disposition points at, in the
+    three cases a marker cannot vouch for, as a list of
+    {"kind", "detail"}: `state_path`, the last marker's sentence names a
+    path under .state/, a file the archive removes; `open_task_here`,
+    its only targets are tasks this file defines and at least one is
+    still open, so the routing is aspirational until that task runs and
+    impossible under a close, since the tag lands first; `no_target`, an
+    APPLIED, ROUTED or EXTRACTED entry naming no path, file, ID, commit,
+    URL, workstream, tag or `integration target:` phrase anywhere. The score is unchanged: these are
+    referent findings beside a form verdict, never a re-score. Measured
+    2026-11-11 over 602 terminal Learnings in 104 workstream files: 7
+    state_path and 34 same-workstream-task-only, before the open-task
+    narrowing; no_target matched none. After the narrowing to an open task
+    and to a named path outside the handoff inbox: 13 open_task_here and
+    1 state_path, a durable baseline file kept under .state/; once a
+    target named in words counts, 7 no_target, each an APPLIED whose
+    entry cites nothing it was applied to."""
+    body = blank_strikes(text)
+    marks = marker_counts(body, TERMINAL_RE)
+    if not marks:
+        return []
+    last = marks[-1]
+    s, e = sentence_span(body, last.start())
+    sent = body[s:e]
+    word = last.group(0)
+    out = []
+    m = STATE_PATH_RE.search(sent)
+    if m:
+        out.append({"kind": "state_path", "detail": m.group(0)})
+    if word in TARGET_MARKER_WORDS:
+        ids = list(dict.fromkeys(TASK_ID_RE.findall(sent)))
+        rest = TASK_ID_RE.sub(' ', sent)
+        homed = CROSS_REF_WS_RE.search(sent) or CROSS_REF_TAG_RE.search(sent)
+        if ids and not homed and not OUTSIDE_TARGET_RE.search(rest):
+            defined = [i for i in ids if defines(lines, i)]
+            open_ = [i for i in defined
+                     if any(re.match(r'^ *- \[ \] ' + re.escape(i) + r'(?![\w-])', l) for l in lines)]
+            if len(defined) == len(ids) and open_:
+                out.append({"kind": "open_task_here", "detail": ", ".join(open_)})
+    # The entry's own ID is not a target: strip the `- L<n>` that opens it.
+    own = re.sub(r'^- (?:~~)?L[0-9]+', '', body)
+    # A target named in words (`Integration target: the patch README`)
+    # is named: the check is for an entry that names none at all.
+    if word in NO_TARGET_WORDS and not TARGET_TOKEN_RE.search(own) \
+            and not CROSS_REF_WS_RE.search(own) and not CROSS_REF_TAG_RE.search(own) \
+            and not re.search(r'integration target:?\s+\S', own, re.IGNORECASE):
+        out.append({"kind": "no_target", "detail": word})
+    return out
+
+
 def learnings_field(lines, blocks):
     """Learnings, block-scoped and bounded to ## Learnings: a disposition
     marker on a wrapped continuation counts, and a list item beginning
@@ -393,6 +459,7 @@ def learnings_field(lines, blocks):
     terminal = 0
     deferred = []
     undispositioned = []
+    flagged = []
     count = 0
     for start, kind, text, raw in blocks:
         if kind == 'item' and LEARNING_RE.match(raw[0]) and start in learnings_lines:
@@ -400,12 +467,15 @@ def learnings_field(lines, blocks):
             d = disposition(text)
             if d == 'terminal':
                 terminal += 1
+                for fl in target_flags(text, lines):
+                    flagged.append({"line": start, "id": 'L' + LEARNING_RE.match(raw[0]).group(1),
+                                    "kind": fl["kind"], "detail": fl["detail"]})
             elif d == 'deferred':
                 deferred.append(text)
             else:
                 undispositioned.append(text)
     return {"count": count, "terminal": terminal, "deferred": deferred,
-            "undispositioned": undispositioned}
+            "undispositioned": undispositioned, "target_flags": flagged}
 
 
 def open_outside_backlog_field(lines):
