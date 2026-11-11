@@ -18,6 +18,10 @@
 #     named as a time reference (`after the capture commit`) was listed
 #     too. A commit past the lead is now listed only after a verb of
 #     making (`landed at`); any other keeps its clause and is reported.
+#   records, notes already at the form: `DONE <date> at <commit>:
+#     <command> reports 14 patterns OK` condensed to its date and commit,
+#     and a command result with no commit fell back to `evidence in the
+#     record`. The first is left whole; the second keeps its result.
 #   records, foreign Decisions: `D2 and D4 in feature/alpha` credited D2
 #     as this file's, since only the ID written directly before `in
 #     <home>` was read as foreign.
@@ -128,6 +132,14 @@ A fixture carrying the record and Learning shapes 0.11.2 damaged.
       DONE 2026-01-06: the probe reads the gauge. The work landed at $PROV and was read back. $P
 - [x] #BD-26: Build both halves.
       DONE 2026-01-07 at $SHORT: the first half. The second half landed at $PROV. $P
+- [x] #BD-27: Check the patterns in the other kit. $P
+      DONE 2026-01-08 at c0ffee1 in the-other-kit: \`fx-check self-test\` reports 14 patterns OK, the sender's case among them.
+- [x] #BD-28: Check the cases here. $P
+      DONE 2026-01-08 at $SHORT: \`fx-check\` reports 3 cases OK, each of the three planted cases read back from the log the way its sender described it.
+- [x] #BD-29: Gloss the mentions.
+      DONE 2026-01-09 at review: every mention glossed, and \`fx-ids .\` reports 0 for this file, 24 before the pass. The placement half was already done: $P
+- [x] #BD-30: Write the guide.
+      DONE 2026-01-09 at $SHORT: the guide gained a section on the server, its settings, the way it loads and the order its parts are read in at start. $P
 - [ ] #BD-20: the next audit re-reads the tokens; the 2026-01-04 readings are in the #BD-21 (read the tokens) record
 
 ## Decisions
@@ -219,6 +231,18 @@ check "#BD-8 keeps the provenance commit's clause verbatim, and the report names
   "block '#BD-8' | grep -qF \"a provenance commit $PROV is where a deleted notes.md lived\" && grep -E '^#BD-8 ' \"$T/out.txt\" | grep -qF \"no verb of making before it, kept in its clause: $PROV]\""
 check "#BD-26 lists its lead commit and the later one a verb of making names, in that order" \
   "block '#BD-26' | grep -q \"commits $SHORT, $PROV[;.]\""
+
+echo "== records: notes already at the form"
+check "#BD-27, one sentence with its date, an other-repository commit and a command result, is byte-identical (not cut to its date and commit)" \
+  "[ \"\$(block '#BD-27')\" = \"\$(awk -v id='#BD-27' 'index(\$0, \"- [x] \" id \":\") == 1 {on=1; print; next} on && /^- / {exit} on {print}' \"$T/original.md\")\" ] && grep -qF 'reports 14 patterns OK' \"$W\""
+check "the report names #BD-27 as skipped, a note already at the form" \
+  "grep -E '^SKIPPED #BD-27: a note already at the completion-note form' \"$T/out.txt\" >/dev/null"
+check "#BD-28, the same form with a commit that resolves here, is left whole too" \
+  "grep -qF '\`fx-check\` reports 3 cases OK, each of the three planted cases' \"$W\" && ! block '#BD-28' | grep -q 'Condensed 2026-05-05'"
+check "#BD-29, a command result with no commit leading, keeps that clause rather than the 'evidence in the record' fallback" \
+  "block '#BD-29' | grep -q 'Condensed 2026-05-05' && block '#BD-29' | grep -qF '\`fx-ids .\` reports 0 for this file, 24 before the pass' && ! block '#BD-29' | grep -q 'evidence in the record'"
+check "#BD-30, one sentence with a commit and no command or count, is not at the form and still condenses" \
+  "block '#BD-30' | grep -q \"DONE 2026-01-09; commits $SHORT. Condensed 2026-05-05\""
 check "#BD-24 does not list the capture commit it names only as a time reference" \
   "block '#BD-24' | grep -q 'Condensed 2026-05-05' && ! block '#BD-24' | grep -q \"commits $PROV\""
 check "#BD-24 keeps that commit's clause verbatim, and the report names it" \

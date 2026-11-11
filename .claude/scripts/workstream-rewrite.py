@@ -54,7 +54,11 @@ wording, and reported `SKIPPED <ID>: cited by live content at
 Decisions, records) holds a record only when it cites it FOR ITS
 NOTE (`see #ID completion note`, a note word near the ID), reported
 `cited as its note by`. `--keep <#ID>` leaves any record whole
-(`KEPT`). A multi-line record in no recognised shape is left as it is
+(`KEPT`). A note already at the completion-note form -- one sentence,
+opening with its status word or date, naming its commit and a
+backticked command or a count -- is left whole and reported SKIPPED,
+and with no commit leading a note, every lead clause carrying a
+command or a count is kept, as an issue's is. A multi-line record in no recognised shape is left as it is
 and reported `SKIPPED <ID>: <reason>`, never guessed at. Note
 paragraphs an earlier run left under a condensed record are counted
 as orphaned_note_lines and left in place.
@@ -454,6 +458,33 @@ SEGMENT_OPENER_RE = re.compile(
 # An identifier a note can rest on when no commit leads it.
 IDENT_RE = re.compile(
     r"\b(?:issue|issues|PR|pull request)\s+#?[0-9]+\b|https?://\S+|\b[\w.-]+/[\w.-]+#[0-9]+\b|\b[\w.-]+#[0-9]+\b")
+# A count a note's evidence states -- `reports 14 patterns`, `0 for this
+# file` -- and never a date, a time, a version, an ID or a hash part:
+# the digits stand alone, not after `-`, `.`, `:`, `/`, `#` or a letter.
+COUNT_RE = re.compile(r"(?<![\w#.:/-])[0-9]+(?![\w:/-]|\.[0-9])")
+
+
+def carries_evidence(text):
+    """True when a clause states a result the note rests on: a
+    backticked command or a count (hex words blanked first, so an
+    all-digit hash is not read as one)."""
+    return '`' in text or bool(COUNT_RE.search(SHA_RE.sub(' ', text)))
+
+
+AT_THE_FORM = "a note already at the completion-note form (one sentence: its date, its commit, its command or count)"
+
+
+def at_the_form(note):
+    """True for a note already in the rule's completion-note form: ONE
+    sentence, opening with its status word or date, that names its
+    commit and the command or count whose result is the evidence. The
+    condenser could only drop that result, for fewer bytes than its own
+    marker: `DONE 2026-10-03 at 9b6933f in <kit>: \\`self-check\\` reports
+    14 patterns OK` would have become `DONE 2026-10-03; at 9b6933f in
+    <kit>` to save 15."""
+    n = note.strip()
+    return (len(prose_sentences(n)) == 1 and bool(NOTE_START_RE.match(n)) and bool(SHA_RE.search(n))
+            and carries_evidence(n))
 
 
 def segment_text(note, s, e):
@@ -526,7 +557,10 @@ def note_evidence(note, ctx):
     deleted notes.md lived`) or a time reference (`started after the
     capture commit X`) is not the work's own commit. With no commit
     leading, an issue, PR or URL in that lead is the record's handle
-    and its clause is kept."""
+    and its clause is kept, and so is every lead clause carrying a
+    backticked command or a count: a note whose evidence was
+    `\\`bare-ids\\` reports 0 for this file` fell back to `evidence in the
+    record at the commit preceding` and lost the result."""
     toks = list(dict.fromkeys(SHA_RE.findall(note)))
     if ctx.resolve is None:
         return toks, [], [], []
@@ -570,15 +604,24 @@ def note_evidence(note, ctx):
                 keep_clause(hits[0].start())
     if lead_commits:
         return lead_commits + made, kept, unresolved, unmade
+    handles = []
     ident = IDENT_RE.search(lead)
     if ident:
         for s, e in segs:
             if s <= ident.start() < e:
-                txt = segment_text(note, s, e)
-                if txt not in kept:
-                    kept.insert(0, txt)
+                handles.append(segment_text(note, s, e))
                 break
-    return made, kept, unresolved, unmade
+    # A command or count is the evidence only when the lead IS the note
+    # -- opening with its status word or date -- and not a one-line
+    # record's description quoting a command.
+    off = note.find(lead) if lead.strip() else -1
+    if off >= 0 and NOTE_START_RE.match(lead.strip()):
+        for s, e in segs:
+            if off <= s < off + len(lead) and carries_evidence(note[s:e]):
+                txt = segment_text(note, s, e)
+                if txt not in handles:
+                    handles.append(txt)
+    return made, handles + [k for k in kept if k not in handles], unresolved, unmade
 
 
 def condensed_note(note, ctx, mark):
@@ -898,6 +941,8 @@ def condense_record(raw, mark, ctx, tail=""):
         if k > 0:
             rest = rest.lstrip()
             rest = (" " + rest) if rest else ""
+        if not more and at_the_form(note):
+            return None, None, AT_THE_FORM
         note_text, absent = condensed_note(note + more, ctx, mark)
         first = "%s%s%s*(%s)*%s" % (prefix, tid, sep, note_text, rest)
         new = [first] + cont[k:]
@@ -925,6 +970,8 @@ def condense_record(raw, mark, ctx, tail=""):
             note = note[1:-1]
             wrap_open, wrap_close = "*", "*"
         indent = note_lines[0][:len(note_lines[0]) - len(note_lines[0].lstrip())]
+        if not more and at_the_form(note):
+            return None, None, AT_THE_FORM
         note_text, absent = condensed_note(note + more, ctx, mark)
         line = indent + wrap_open + note_text + wrap_close
         return desc + [line], line, absent
