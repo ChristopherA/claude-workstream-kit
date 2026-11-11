@@ -182,10 +182,66 @@ check "ticking #LV-2 removes #OT-7 from every class (the scope is live content)"
   '[ "$(python3 "$SCRIPT" refs "$T" | jq -r "[.classes[][] | select(.id == \"#OT-7\")] | length")" = "0" ]'
 git checkout -q -- .state/workstreams/feature/live/workstream.md
 
-echo "== ACTIVE.md: nothing is defined there, so every ID needs a home"
+echo "== ACTIVE.md: an ID its own workstream defines needs no home; a homed one resolves"
 check "#LV-1 in feature/live (ACTIVE.md's Now) is homed and resolved" '[ "$(cls homed_resolved \#LV-1 | grep -c "^.state feature/live")" = "1" ]'
 check "the report lists classes with lines, and a line number is an integer" '[ "$(q ".classes.homed_resolved[0].line")" -gt 0 ]'
 check "no count field is reported" '[ "$(q "keys | join(\",\")")" = "classes" ]'
+
+echo "== The refs family: what counts as a reference, and where a home is read"
+# A second archive tag over the WHOLE tree as it stands now (live and
+# other), then the citations added after it.
+git tag -a ws/snap -m "snapshot of the whole tree"
+cat > .state/ACTIVE.md <<'FIX'
+---
+workstream: feature/live
+task: "#LV-1 - the first task"
+---
+## Now
+D1 and #LV-2 frame the week, beside #OT-1 in feature/other (the only
+task there).
+
+Then #OT-9 waits, which holds #OT-1 in feature/other (the only task).
+FIX
+printf -- '\n## Decisions\n### D1 (2026-01-01): Other numbers its Decisions from one too\nReasoning.\n' >> .state/workstreams/feature/other/workstream.md
+printf -- '- [ ] #OT-2: a second task there\n' > "$T/ot2.txt"
+sed '/^- \[ \] #OT-1:/r '"$T/ot2.txt" .state/workstreams/feature/other/workstream.md > "$T/o.tmp" && mv "$T/o.tmp" .state/workstreams/feature/other/workstream.md
+cat > "$T/lv.txt" <<'FIX'
+- [ ] #LV-8: the gloss form quoted as an example, `#QZ-4 in feature/zz (a gloss)`, and a real citation in a code span, `#OT-2` in feature/other
+- [ ] #LV-9: moved in (was feature/old #OL-3.) and see feature/other for the rest
+- [ ] #LV-10: reads #OT-1 in ws/snap, a tag naming no workstream, whose tree holds other's file
+FIX
+sed '/^- \[ \] #LV-7:/r '"$T/lv.txt" .state/workstreams/feature/live/workstream.md > "$T/l.tmp" && mv "$T/l.tmp" .state/workstreams/feature/live/workstream.md
+printf -- '- L3 (2026-01-01): A routed insight. ROUTED 2026-01-02 to #OT-5 in feature/other, which never defined it.\n' > "$T/l3.txt"
+sed '/^- L1 (2026-01-01):/r '"$T/l3.txt" .state/workstreams/feature/live/workstream.md > "$T/l.tmp" && mv "$T/l.tmp" .state/workstreams/feature/live/workstream.md
+sed 's/^### D2 (2026-01-01): Decision 2$/&\
+Reasoning in D17 in ws\/old, and a bare #ZZ-7 as frozen provenance./' .state/workstreams/feature/live/workstream.md > "$T/l.tmp" && mv "$T/l.tmp" .state/workstreams/feature/live/workstream.md
+git add -A && git -c commit.gpgsign=false commit -q -m "refs family cases"
+python3 "$SCRIPT" refs "$T" > "$T/out.json"
+LV9=$(grep -n '^- \[ \] #LV-9' .state/workstreams/feature/live/workstream.md | cut -d: -f1)
+check "fixture: the snapshot tag holds other's file and names no workstream" \
+  "git ls-tree -r --name-only ws/snap | grep -q 'feature/other/workstream.md' && ! git ls-tree -r --name-only ws/snap | grep -q '/snap/'"
+check "fixture: other defines D1, and the ACTIVE.md sentence names D1 beside a home in feature/other" \
+  "grep -q '^### D1 ' .state/workstreams/feature/other/workstream.md && grep -q '^D1 and #LV-2 frame' .state/ACTIVE.md"
+check "ACTIVE.md: #LV-2, which its own workstream defines, is defined here and not homed at the sentence's feature/other" \
+  '[ "$(q "[.classes.defined_here[] | select(.id == \"#LV-2\" and .file == \".state/ACTIVE.md\")] | length")" = "1" ] && [ "$(q "[.classes[][] | select(.id == \"#LV-2\" and .home == \"feature/other\")] | length")" = "0" ]'
+check "ACTIVE.md: D1 is its own workstream's, never resolved at feature/other though other defines a D1 (the false success)" \
+  '[ "$(q "[.classes.defined_here[] | select(.id == \"D1\" and .file == \".state/ACTIVE.md\")] | length")" = "1" ] && [ "$(q "[.classes.homed_resolved[] | select(.id == \"D1\")] | length")" = "0" ]'
+check "an ID quoted inside a longer code span is no reference: #QZ-4 is in no class" \
+  '[ "$(q "[.classes[][] | select(.id == \"#QZ-4\")] | length")" = "0" ]'
+check "a code span that IS an ID still cites: #OT-2 in backticks, in feature/other, resolves" \
+  '[ "$(cls homed_resolved \#OT-2)" = "live feature/other" ]'
+check "a provenance note is history: #OL-3 on #LV-9 is in no class, and not home-lacking at the later feature/other" \
+  '[ "$(q "[.classes[][] | select(.id == \"#OL-3\" and .line == $LV9)] | length")" = "0" ]'
+check "a tag home is read as the whole tree: #OT-1 in ws/snap resolves, in other's file" \
+  '[ "$(q ".classes.homed_resolved[] | select(.id == \"#OT-1\" and .home == \"ws/snap\") | .resolved_in")" = ".state/workstreams/feature/other/workstream.md" ]'
+check "Learnings are read for homed references: L3's #OT-5 in feature/other is home-lacking, its section named" \
+  '[ "$(q ".classes.homed_home_lacks[] | select(.id == \"#OT-5\") | .section")" = "## Learnings" ]'
+check "Decisions are read for homed references: D17 in ws/old in D2's paragraph resolves" \
+  '[ "$(q "[.classes.homed_resolved[] | select(.id == \"D17\" and .section == \"## Decisions\")] | length")" = "1" ]'
+check "an ID whose only home was written beside another ID is unhomed, not home-lacking at that home: #OT-9" \
+  '[ "$(q ".classes.unhomed[] | select(.id == \"#OT-9\") | .home_beside | join(\",\")")" = "#OT-1" ] && [ "$(q "[.classes.homed_home_lacks[] | select(.id == \"#OT-9\")] | length")" = "0" ]'
+check "a bare ID in a Decision stays frozen provenance: #ZZ-7 is in no class" \
+  '[ "$(q "[.classes[][] | select(.id == \"#ZZ-7\")] | length")" = "0" ]'
 
 echo "== Exit codes"
 rc=0; python3 "$SCRIPT" refs >/dev/null 2>&1 || rc=$?

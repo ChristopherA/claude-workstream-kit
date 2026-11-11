@@ -52,12 +52,24 @@ every task, gate, D, L and OQ reference in LIVE content -- open backlog
 blocks, the critical path, unresolved Open Questions, open and standing
 criteria, ACTIVE.md -- classified as defined here, homed and resolved,
 homed with the home missing, homed with the home lacking it, or
-unhomed. A home is `in type/name` or `in ws/<tag>` beside the ID; a tag
-home is read with `git show`. A home is named once per block: a bare
-mention AFTER a homed one in the same block inherits its class and
-home (`homed_by_line` says which). Placeholders with no digit (#XX-N)
-and the literal #G-XX are skipped. Classes with their lines, never a
-count.
+unhomed; and every HOMED reference in Learnings, Decisions and resolved
+Open Questions, whose bare IDs are frozen provenance but whose homes
+are claims (those rows carry `section`). A home written BESIDE the ID
+-- `in type/name`, `at ws/<tag>`, or inside its gloss -- is tried first;
+otherwise an ID the file defines is defined here, and ACTIVE.md's own
+file is the workstream its `workstream:` line names; otherwise each
+home in the sentence is tried, nearest first. An ID with no home of its
+own whose sentence offers only homes written beside OTHER IDs is
+unhomed (`home_beside` names them), not home-lacking at a neighbour's
+home. A tag home is the whole tree at the tag, read with `git`: the
+tag-named workstream first, then every workstream file there
+(`resolved_in` names the one that defined it). Not references: an ID
+inside a code span holding more than the ID (a quoted form), and a
+provenance note, `(was <name> <ID>)`. A home is named once per block: a
+bare mention AFTER a homed one in the same block inherits its class
+and home (`homed_by_line` says which). Placeholders with no digit
+(#XX-N) and the literal #G-XX are skipped. Classes with their lines,
+never a count.
 
 `paths` is the review skill's cheapest staleness probe: every
 path-like token in Decisions and open task blocks -- a token with a `/`
@@ -917,34 +929,126 @@ def live_blocks(lines):
 
 
 class TagReader:
-    """Reads a workstream.md at an archive or rotation tag, both git
-    reads, caching per tag."""
+    """Reads workstream files at an archive or rotation tag, both git
+    reads, caching per tag. A tag is a WHOLE-TREE snapshot, not a
+    workstream: a citation homed at `ws/<name>` whose referent sits in a
+    different workstream's file at that tag resolves correctly, and was
+    reported home-lacking when only the tag-named workstream was read."""
 
     def __init__(self, root):
         self.root = root
         self.cache = {}
+        self.trees = {}
+
+    def exists(self, tag):
+        rc, out = git(['tag', '-l', tag], self.root)
+        return rc == 0 and out.strip() == tag
+
+    def _paths(self, tag):
+        if tag not in self.trees:
+            rc, out = git(['ls-tree', '-r', '--name-only', tag, '--', '.state/workstreams'], self.root)
+            self.trees[tag] = [p for p in out.splitlines() if p.endswith('/workstream.md')] if rc == 0 else []
+        return self.trees[tag]
+
+    def _show(self, tag, path):
+        key = (tag, path)
+        if key not in self.cache:
+            rc, out = git(['show', '%s:%s' % (tag, path)], self.root)
+            self.cache[key] = out.splitlines() if rc == 0 else []
+        return self.cache[key]
 
     def lines_at(self, tag):
-        if tag in self.cache:
-            return self.cache[tag]
-        rc, out = git(['tag', '-l', tag], self.root)
-        if rc != 0 or out.strip() != tag:
-            self.cache[tag] = 'missing'
+        """The tag-named workstream's lines, None when the tree holds no
+        such file, 'missing' when the tag is absent."""
+        if not self.exists(tag):
             return 'missing'
-        name = tag[len('ws/'):]
-        name = re.sub(r'-[0-9]{4}-[0-9]{2}-[0-9]{2}$', '', name)
-        rc, out = git(['ls-tree', '-r', '--name-only', tag, '--', '.state/workstreams'], self.root)
-        path = None
-        for p in out.splitlines():
+        name = re.sub(r'-[0-9]{4}-[0-9]{2}-[0-9]{2}$', '', tag[len('ws/'):])
+        for p in self._paths(tag):
             if p.endswith('/' + name + '/workstream.md'):
-                path = p
-                break
-        if path is None:
-            self.cache[tag] = None
-            return None
-        rc, out = git(['show', '%s:%s' % (tag, path)], self.root)
-        self.cache[tag] = out.splitlines() if rc == 0 else None
-        return self.cache[tag]
+                return self._show(tag, p)
+        return None
+
+    def defining_file(self, tag, ref):
+        """The path at the tag whose workstream file defines ref -- the
+        tag-named workstream first, then every other -- or None."""
+        name = re.sub(r'-[0-9]{4}-[0-9]{2}-[0-9]{2}$', '', tag[len('ws/'):])
+        paths = sorted(self._paths(tag), key=lambda p: not p.endswith('/' + name + '/workstream.md'))
+        for p in paths:
+            if defines(self._show(tag, p), ref):
+                return p
+        return None
+
+
+HOME_FORM = (r'(?:(?:explore|feature|fix|project|maintain)/[a-z0-9-]+(?:\.[a-z0-9-]+)*'
+             r'|ws/[a-z0-9-]+(?:\.[a-z0-9-]+)*)')
+# A home written BESIDE the ID -- `#EX-30 in project/tier`, `D17 at ws/old`,
+# or inside its gloss, `#OG-91 (the paragraph split, at ws/kit-2026-09-04)`
+# -- is what the author said about that ID; a home elsewhere in the
+# sentence is a guess about it.
+ADJACENT_HOME_RE = re.compile(
+    r"`?(?:'s)?(?: (?:in|at) `?(?P<h>" + HOME_FORM + r")(?![\w.-])(?!`?'s)"
+    r"| \([^()]*?\b(?:in|at) `?(?P<g>" + HOME_FORM + r")(?![\w.-])`?\))"
+)
+# A provenance note -- `(was beta #FL-3.)`, ``(was `#EX-2`)`` -- says
+# where an ID CAME FROM, and is history rather than a reference: homing
+# it to a name written after it in the block reported correct prose.
+PROVENANCE_RE = re.compile(r'\(was [^()]*\)')
+
+
+def _blank(text, rx):
+    return rx.sub(lambda m: ' ' * (m.end() - m.start()), text)
+
+
+def _blank_quoting_spans(text):
+    """A code span that holds an ID and MORE than the ID -- the canonical
+    gloss form quoted as an example, a checkbox line quoted as a regex
+    repro -- quotes the ID rather than citing it, and is blanked; a span
+    that is exactly one ID (`#FS-10`) is a citation and is kept."""
+    def sub(m):
+        inner = m.group(0)[1:-1]
+        if REF_RE.search(inner) and not REF_RE.fullmatch(inner.strip()):
+            return ' ' * (m.end() - m.start())
+        return m.group(0)
+    return re.sub(r'`[^`\n]*`', sub, text)
+
+
+def adjacent_home(text, end):
+    m = ADJACENT_HOME_RE.match(text, end)
+    if not m:
+        return None
+    name = m.group('h') or m.group('g')
+    return (name, 'tag' if name.startswith('ws/') else 'workstream')
+
+
+def frozen_blocks(lines):
+    """(start_no, raw) for the sections refs reads for HOMED references
+    only: Learnings, Decisions, and Open Questions already resolved. Their
+    bare IDs are frozen provenance, but a home written there is a claim
+    about where the referent lives, and a Learning is where a routing
+    citation most often sits: two routed Learnings named tasks a rotation
+    had moved, in sections the check never read."""
+    sections = section_of(lines)
+    live = {s for s, _r in live_blocks(lines)}
+    out = []
+    for start, kind, _text, raw in fold_blocks(lines):
+        if kind == 'heading' or start in live:
+            continue
+        if sections[start - 1] in ('## Learnings', '## Decisions', '## Open Questions'):
+            out.append((start, raw))
+    return out
+
+
+def active_workstream(root, lines):
+    """The `workstream:` value of ACTIVE.md's flat frontmatter, or None."""
+    if not lines or lines[0].strip() != '---':
+        return None
+    for line in lines[1:]:
+        if line.strip() == '---':
+            break
+        m = re.match(r'^workstream:\s*(\S+)\s*$', line)
+        if m and m.group(1) != 'none':
+            return m.group(1)
+    return None
 
 
 def refs(root):
@@ -958,37 +1062,77 @@ def refs(root):
             file_lines[path] = read_lines(path) if os.path.isfile(path) else None
         return file_lines[path]
 
+    # (path, rel, own_lines, blocks, homed_only)
     sources = []
     for path, rel in find_workstreams(root):
         lines = lines_of(path)
-        sources.append((path, rel, lines, live_blocks(lines)))
+        sources.append((path, rel, lines, live_blocks(lines), False))
+        sources.append((path, rel, lines, frozen_blocks(lines), True))
     active = os.path.join(root, '.state', 'ACTIVE.md')
     if os.path.isfile(active):
-        body = strip_frontmatter(lines_of(active))
+        alines = lines_of(active)
+        body = strip_frontmatter(alines)
         body_lines = [t for _n, t in body]
         offset = body[0][0] - 1 if body else 0
         blocks = [(start + offset, raw) for start, _k, _t, raw in fold_blocks(body_lines)]
-        sources.append((active, os.path.relpath(active, root), None, blocks))
+        # ACTIVE.md's own workstream is the one its frontmatter names: an
+        # ID that workstream defines crosses no boundary and owes no home.
+        own = None
+        ws = active_workstream(root, alines)
+        if ws:
+            own = lines_of(os.path.join(root, '.state', 'workstreams', ws, 'workstream.md'))
+        sources.append((active, os.path.relpath(active, root), own, blocks, False))
 
-    for path, rel, own_lines, blocks in sources:
+    def resolve(home, kind, ref):
+        """(class, resolved_in) for ref at one home."""
+        if kind == 'workstream':
+            hlines = lines_of(os.path.join(root, '.state', 'workstreams', home, 'workstream.md'))
+            if hlines is None:
+                return "homed_home_missing", None
+            return ("homed_resolved", None) if defines(hlines, ref) else ("homed_home_lacks", None)
+        if not tags.exists(home):
+            return "homed_home_missing", None
+        found = tags.defining_file(home, ref)
+        return ("homed_resolved", found) if found else ("homed_home_lacks", None)
+
+    for path, rel, own_lines, blocks, homed_only in sources:
         for start, raw in blocks:
             text, starts = join_block(raw, start)
-            blanked = blank_strikes(text)
+            blanked = _blank(_blank_quoting_spans(blank_strikes(text)), PROVENANCE_RE)
             # The rule names a home once per readable unit, and a block
             # is the unit: a homed mention covers every LATER bare
             # mention of the same ID in the block, which inherits its
             # class and home (an earlier bare mention stays unhomed).
             homed_in_block = {}
+            # The home written beside each ID in the block: a sentence's
+            # home that sits beside ANOTHER ID was written for that ID.
+            beside = {}
+            for m in REF_RE.finditer(blanked):
+                a = adjacent_home(blanked, m.end())
+                if a:
+                    beside.setdefault(a, set()).add(m.group(0))
             for m in REF_RE.finditer(blanked):
                 ref = m.group(0)
                 if ref == PLACEHOLDER_GATE:
                     continue
                 entry = {"file": rel, "line": line_at(starts, m.start()), "id": ref,
                          "home": None, "context": text[max(0, m.start() - 60):m.end() + 60]}
-                if own_lines is not None and defines(own_lines, ref):
-                    classes["defined_here"].append(entry)
-                    continue
-                candidates = homes_near(blanked, m.start(), m.end())
+                adj = adjacent_home(blanked, m.end())
+                if homed_only:
+                    if adj is None:
+                        if ref in homed_in_block:
+                            cls, home, at = homed_in_block[ref]
+                            entry.update(home=home, homed_by_line=at)
+                            classes[cls].append(entry)
+                        continue
+                    candidates = [adj]
+                else:
+                    if adj is None and own_lines is not None and defines(own_lines, ref):
+                        classes["defined_here"].append(entry)
+                        continue
+                    candidates = homes_near(blanked, m.start(), m.end())
+                    if adj:
+                        candidates = [adj] + [c for c in candidates if c != adj]
                 if not candidates:
                     if ref in homed_in_block:
                         cls, home, at = homed_in_block[ref]
@@ -998,30 +1142,37 @@ def refs(root):
                     else:
                         classes["unhomed"].append(entry)
                     continue
-                # Resolve against each home the sentence names, nearest
-                # first; the one that defines the ID wins. When none does,
-                # the nearest is reported as before, and every candidate
-                # is listed so the reader sees what was tried.
+                # Resolve against each home, the one written beside the
+                # ID first and then the sentence's others nearest first;
+                # the one that defines the ID wins. When none does, the
+                # first is reported, and every candidate is listed so the
+                # reader sees what was tried.
                 verdict = None
                 for home, kind in candidates:
-                    if kind == 'workstream':
-                        hpath = os.path.join(root, '.state', 'workstreams', home, 'workstream.md')
-                        hlines = lines_of(hpath)
-                    else:
-                        hlines = tags.lines_at(home)
-                        if hlines == 'missing':
-                            hlines = None
-                        elif hlines is None:
-                            hlines = []
-                    if hlines is not None and defines(hlines, ref):
-                        verdict = ("homed_resolved", home)
+                    cls, found = resolve(home, kind, ref)
+                    if cls == "homed_resolved":
+                        verdict = (cls, home, found)
                         break
                     if verdict is None:
-                        verdict = ("homed_home_missing" if hlines is None else "homed_home_lacks", home)
-                cls, home = verdict
+                        verdict = (cls, home, None)
+                cls, home, found = verdict
+                # No home resolved it, and none was written beside it:
+                # if every home the sentence offered sits beside another
+                # ID, this ID took a home written for its neighbour and is
+                # UNHOMED -- reporting it home-lacking there charged the
+                # neighbour's home with a defect the prose never claimed.
+                if cls != "homed_resolved" and adj is None and all(
+                        beside.get(c, set()) - {ref} for c in candidates):
+                    entry["home_beside"] = sorted(set().union(*(beside[c] for c in candidates)) - {ref})
+                    classes["unhomed"].append(entry)
+                    continue
                 entry["home"] = home
+                if found:
+                    entry["resolved_in"] = found
                 if len(candidates) > 1:
                     entry["candidates"] = [h for h, _k in candidates]
+                if homed_only:
+                    entry["section"] = section_of(own_lines)[start - 1]
                 classes[cls].append(entry)
                 if ref not in homed_in_block:
                     homed_in_block[ref] = (cls, home, entry["line"])
