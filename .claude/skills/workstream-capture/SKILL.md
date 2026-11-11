@@ -22,7 +22,7 @@ Run the workstreams-rule **capture sweep** -- detection, cascade and synthesis a
 
 - A disagreement a `/workstream-status` run reported for ANOTHER workstream becomes one Backlog line in the owning workstream, with its provenance (`from /workstream-status <date>`), never a paragraph in ACTIVE.md's Now, Next or Blockers -- the hook shows a backlog line; hand-written cross-workstream prose is what the status skill replaces.
 - Synthesis is a different question from detection, not a harder pass at it; the test is whether anything in the sweep's output would change how a DIFFERENT piece of work is done -- if nothing would, the step is still owed.
-- Detection includes the claims this session AUTHORED: for each state change the session made -- a pause, a checkbox, a decision, a routing -- run `python3 .claude/scripts/workstream-record.py cites <project root> "<the thing changed>"` once, the session's own claims included -- the author is the reader least likely to re-open what they wrote an hour ago, and capture is the one place that sees the whole session.
+- Detection includes the claims this session AUTHORED: for each state change the session made -- a pause, a checkbox, a decision, a routing -- run `python3 .claude/scripts/workstream-record.py cites <project root> "<the thing changed>"` once, the session's own claims included -- the line the session wrote is the control, so a count of zero means the needle is wrong, never that nothing cites it -- the author is the reader least likely to re-open what they wrote an hour ago, and capture is the one place that sees the whole session.
 
 ## Move 2 -- Close the boundary
 

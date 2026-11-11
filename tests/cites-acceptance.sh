@@ -137,6 +137,22 @@ check "--section Decisions keeps only the D2 hit" '[ "$(q ".hits | length")" = "
 run 'HANDED OFF' --section Learnings
 check "the wrapped marker in L1 and the mention in L2 are both found (the sweep does not judge)" '[ "$(q ".hits | length")" = "2" ]'
 
+echo "== Case is folded by default; --exact matches as written"
+check "fixture: the Purpose writes 'Alpha exercises' capitalised, and no lowercase 'alpha exercises' exists" \
+  "grep -q 'Alpha exercises the citation sweep' \"$A\" && ! grep -q 'alpha exercises' \"$A\""
+run 'alpha exercises the citation sweep'
+check "a lowercase needle finds the capitalised sentence (1 hit), case reported as folded" \
+  '[ "$(q ".hits | length")" = "1" ] && [ "$(q ".case")" = "folded" ] && [ "$(q ".hits[0].section")" = "## Purpose" ]'
+run 'alpha exercises the citation sweep' --exact
+check "--exact misses it (0 hits), case reported as exact" '[ "$(q ".hits | length")" = "0" ] && [ "$(q ".case")" = "exact" ]'
+run 'Alpha exercises the citation sweep' --exact
+check "--exact with the case as written finds it (1 hit)" '[ "$(q ".hits | length")" = "1" ]'
+run '#bt-1'
+check "an ID needle folds too: #bt-1 finds the four #BT-1 blocks" '[ "$(q ".hits | length")" = "4" ]'
+run '#BT-1' 'no-such-phrase-anywhere'
+check "counts gives each needle its own hit count, the zero beside the control that hit" \
+  '[ "$(q ".counts[\"#BT-1\"]")" = "4" ] && [ "$(q ".counts[\"no-such-phrase-anywhere\"]")" = "0" ]'
+
 echo "== A known-absent needle on a fixture carrying every other case: a real negative"
 run 'no-such-phrase-anywhere' '#ZZ-99'
 check "zero hits, with files_scanned above zero (the sweep ran)" \

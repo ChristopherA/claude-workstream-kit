@@ -12,7 +12,7 @@ Usage:
   workstream-record.py record <project-root>
   workstream-record.py <project-root>            (alias of record)
   workstream-record.py cites <project-root> <needle> [<needle>...]
-                             [--repo] [--section <name>]
+                             [--repo] [--section <name>] [--exact]
   workstream-record.py refs <project-root>
   workstream-record.py paths <project-root>
   workstream-record.py decay <project-root>
@@ -40,7 +40,12 @@ command for: every block under .state/ (the whole tree minus .git with
 a wrap still matches, each hit with its file, line, section, the
 Backlog ID whose block it sits in, whether it is inside a strike, and
 the hold verb preceding it in the sentence. A needle shaped like an ID
-matches on word boundaries only, so #BD-1 does not match #BD-10.
+matches on word boundaries only, so #BD-1 does not match #BD-10. Case
+is FOLDED by default -- `seven items` finds `Seven items` -- since a
+sweep that missed a capitalised instance read as clean; --exact matches
+case as written. The output names the mode (`case`) and each needle's
+hit count (`counts`): a zero is a finding only beside a needle in the
+same call that must match and did, such as the cited block's own ID.
 
 `refs` is the cited-ID resolution the review skill specifies in prose:
 every task, gate, D, L and OQ reference in LIVE content -- open backlog
@@ -642,13 +647,17 @@ def cmd_record(args):
 
 # --- cites: the citation sweep ----------------------------------------------
 
-def needle_regex(needle):
+def needle_regex(needle, exact=False):
     """An ID-shaped needle matches on word boundaries only, so `#BD-1`
     does not hit `#BD-10` or `#BD-1a`; a prose needle matches across any
-    whitespace, which is what a 70-column wrap turns a space into."""
+    whitespace, which is what a 70-column wrap turns a space into. Case
+    is folded unless exact: the needle `seven items` returned 0 hits over
+    a file whose only instance was `Seven items`, a falsely clean sweep
+    caught only by a known-positive control."""
+    flags = 0 if exact else re.IGNORECASE
     if re.fullmatch(r'#[A-Za-z][A-Za-z0-9]*-[0-9]+[a-z]?|#G-[A-Za-z0-9]+|D[0-9]+|L[0-9]+|OQ-[0-9]+', needle):
-        return re.compile(r'(?<![\w-])' + re.escape(needle) + r'(?![\w-])')
-    return re.compile(r'\s+'.join(re.escape(w) for w in needle.split()))
+        return re.compile(r'(?<![\w-])' + re.escape(needle) + r'(?![\w-])', flags)
+    return re.compile(r'\s+'.join(re.escape(w) for w in needle.split()), flags)
 
 
 def hold_before(text, offset):
@@ -663,8 +672,8 @@ def hold_before(text, offset):
     return last
 
 
-def cites(root, needles, repo=False, section=None):
-    regexes = [(n, needle_regex(n)) for n in needles]
+def cites(root, needles, repo=False, section=None, exact=False):
+    regexes = [(n, needle_regex(n, exact)) for n in needles]
     hits = []
     files = state_files(root, repo=repo)
     for path in files:
@@ -692,12 +701,17 @@ def cites(root, needles, repo=False, section=None):
                         "hold_before": hold_before(text, hm.start()),
                         "context": text[max(0, hm.start() - 80):hm.end() + 80],
                     })
+    counts = {n: 0 for n in needles}
+    for h in hits:
+        counts[h["needle"]] += 1
     return {"needles": needles, "files_scanned": len(files), "repo": repo,
-            "section": section, "hits": hits}
+            "section": section, "case": "exact" if exact else "folded",
+            "counts": counts, "hits": hits}
 
 
 def cmd_cites(args):
     repo = False
+    exact = False
     section = None
     rest = []
     i = 0
@@ -705,6 +719,8 @@ def cmd_cites(args):
         a = args[i]
         if a == '--repo':
             repo = True
+        elif a == '--exact':
+            exact = True
         elif a == '--section':
             if i + 1 >= len(args):
                 usage("--section needs a value")
@@ -718,7 +734,7 @@ def cmd_cites(args):
     if len(rest) < 2:
         usage("cites takes a project root and at least one needle")
     root = require_root(rest[0], PROG)
-    print(json.dumps(cites(root, rest[1:], repo=repo, section=section), indent=2))
+    print(json.dumps(cites(root, rest[1:], repo=repo, section=section, exact=exact), indent=2))
     return 0
 
 
