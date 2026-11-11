@@ -45,10 +45,15 @@ A Decision is cited only as its own token (not `pre-D26`, not
 IDs carries another workstream's home -- a path, a tag, or another
 workstream's name, after the run (`D2 and D4 in feature/x`) or before
 it (`beta's D4`); the ones it does not cite are named on the entry's
-report line. A record that this file, or another state file's live
-content, cites FOR ITS NOTE (`see #ID completion note`, a note word
-near the ID) is left whole and reported `SKIPPED <ID>: cited as its
-note by <file>:<line>`, and `--keep <#ID>` leaves any record whole
+report line. A record that LIVE content cites -- an open task, gate
+line, the critical path, an open criterion or an unresolved Open
+Question in this file, or another state file's live content homed
+here, ACTIVE.md read whole -- is left whole whatever the citation's
+wording, and reported `SKIPPED <ID>: cited by live content at
+<file>:<line>`; this file's closed content (ticked criteria,
+Decisions, records) holds a record only when it cites it FOR ITS
+NOTE (`see #ID completion note`, a note word near the ID), reported
+`cited as its note by`. `--keep <#ID>` leaves any record whole
 (`KEPT`). A multi-line record in no recognised shape is left as it is
 and reported `SKIPPED <ID>: <reason>`, never guessed at. Note
 paragraphs an earlier run left under a condensed record are counted
@@ -641,15 +646,24 @@ def block_owner(raw):
     return ("L" + m.group(1)) if m else None
 
 
-def note_citations(root, path, lines, ids):
-    """{id: (where, sentence)} for each of ids that some text cites FOR
-    ITS NOTE: anywhere in this file but the record's own block, ticked
-    criteria and closed Decisions included, since a ticked criterion's
-    `see #X completion note` lost its measurements to a run that
-    never looked; and the live content of every other state file, where
-    a bare ID counts only when its home is this workstream, IDs being
-    per-workstream (ACTIVE.md's home-less mentions belong to the
-    workstream it points at)."""
+def note_citations(root, path, lines, ids, live=False):
+    """{id: (where, sentence, kind)} for each of ids that some text
+    cites FOR ITS NOTE: anywhere in this file but the record's own
+    block, ticked criteria and closed Decisions included, since a ticked
+    criterion's `see #X completion note` lost its measurements to a run
+    that never looked; and the live content of every other state file,
+    where a bare ID counts only when its home is this workstream, IDs
+    being per-workstream (ACTIVE.md, read whole, has its home-less
+    mentions belong to the workstream it points at). kind is 'note'
+    for a citation the note words found.
+
+    With live, a citation from LIVE content -- this file's open tasks,
+    gate lines, critical path, open criteria and unresolved Open
+    Questions, or another state file's live content homed here -- is
+    found whatever its wording, kind 'live': an open task reading `the
+    readings are in the #X record` named no note word, and the record
+    condensed to its fallback and lost readings that existed nowhere
+    else. Note words still decide for closed content."""
     if not ids:
         return {}
     alt = "|".join(re.escape(i) for i in sorted(ids, key=len, reverse=True))
@@ -683,8 +697,10 @@ def note_citations(root, path, lines, ids):
                     cur = l[3:].strip()
                 heads[n] = cur
             blocks = live_blocks(flines, True)
+            live_starts = {s for s, _r in live_blocks(flines, False)} if live else set()
         else:
             blocks = live_blocks(flines, is_active)
+            live_starts = {s for s, _r in blocks} if live else set()
         for start, raw in blocks:
             owner = block_owner(raw)
             text, starts = join_block(raw, start)
@@ -706,13 +722,17 @@ def note_citations(root, path, lines, ids):
                 hi = min(len(blanked), m.end() + NOTE_WINDOW[1])
                 s, e = sentence_span(blanked, m.start())
                 window = blanked[max(lo, s):min(hi, e)]
-                if not (NOTE_WORD_RE.search(window) or SEE_BEFORE_RE.search(blanked[s:m.start()])):
+                if start in live_starts:
+                    kind = 'live'
+                elif NOTE_WORD_RE.search(window) or SEE_BEFORE_RE.search(blanked[s:m.start()]):
+                    kind = 'note'
+                else:
                     continue
                 line = line_at(starts, m.start())
                 where = "%s:%s" % (rel, line)
                 if own and heads.get(line):
                     where += " (%s)" % heads[line]
-                found[ident] = (where, blanked[s:e].strip()[:120])
+                found[ident] = (where, blanked[s:e].strip()[:120], kind)
     return found
 
 
@@ -964,9 +984,10 @@ def condense_range(lines, start, end, mark, ctx):
             i = j
             continue
         if tid in ctx.held:
-            where, sentence = ctx.held[tid]
-            new, changed, why = None, None, ("cited as its note by %s: %s -- re-point that citation, or condense "
-                                             "by hand keeping what it cites" % (where, sentence))
+            where, sentence, how = ctx.held[tid]
+            new, changed, why = None, None, ("%s %s: %s -- re-point that citation, or condense by hand keeping "
+                                             "what it cites" % ("cited by live content at" if how == 'live'
+                                                                else "cited as its note by", where, sentence))
         elif len(raw) == 1 and nxt[:1].isspace() and LIST_ITEM_RE.match(nxt) and not CHECKBOX_RE.match(nxt):
             # A note written as an indented bullet folds as its own item,
             # which would leave the task line looking like a one-line
@@ -1122,7 +1143,7 @@ def run_condense(path, do_tasks, decisions, release, date, dry, keep=()):
         if do_tasks:
             ctx = condense_context(path, lines, keep)
             done = {m.group(2) for m in (DONE_RE.match(l) for l in lines) if m}
-            ctx.held = note_citations(ctx.root, ctx.path, lines, done - ctx.keep)
+            ctx.held = note_citations(ctx.root, ctx.path, lines, done - ctx.keep, live=True)
             for k in sorted(ctx.keep - done):
                 entries.append("KEPT %s: no completed record with this ID, nothing to keep" % k)
             lines, r, ents = condense_records(lines, mark, ctx)
@@ -1334,7 +1355,7 @@ def condense_learnings(lines, keep=(), held=None):
                 kept += 1
                 new = None
             elif new is not None and lid in held:
-                why = "cited as its note by %s: %s" % held[lid]
+                why = "cited as its note by %s: %s" % held[lid][:2]
                 new = None
             if why:
                 entries.append("SKIPPED %s: %s" % (lid, why))

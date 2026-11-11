@@ -7,7 +7,10 @@
 #     note -- a ticked criterion's `see #BD-1 completion note`, another
 #     workstream's open task -- lost the measurements the citation
 #     points at. It is now left whole and the citer named; `--keep <ID>`
-#     leaves any record whole.
+#     leaves any record whole. An open task's `the readings are in the
+#     #BD-21 record` named no note word and lost the readings: a
+#     citation from live content now holds a record whatever its
+#     wording, while closed content still needs a note word.
 #   records, the evidence lead: a note whose evidence is an issue, with
 #     no commit leading it, fell back to `evidence in the record at the
 #     commit preceding` and lost its only handle, while a provenance
@@ -110,7 +113,13 @@ A fixture carrying the record and Learning shapes 0.11.2 damaged.
 - [x] #BD-14: *(2026-01-12: closed, superseded by #BD-12 (the replacement). $P $P)* Build another.
 - [x] #BD-13: Moved away.
       Moved 2026-01-13 to feature/alpha as #XY-1 (the moved build). $P $P
-- [ ] #BD-20: an open task naming #BD-11 (the unbuilt thing)
+- [x] #BD-21: Read the tokens.
+      DONE 2026-01-04: each token's name, scope and expiry read from the account, READINGWORD three tokens with one expiring 2026-03-01. $P
+- [x] #BD-22: Read the gauge.
+      DONE 2026-01-04: GAUGEWORD the gauge read 71 on the left dial and 64 on the right. $P
+- [x] #BD-23: Calibrate the dial.
+      DONE 2026-01-04: CALIBWORD the dial was set against the reference and held. $P
+- [ ] #BD-20: the next audit re-reads the tokens; the 2026-01-04 readings are in the #BD-21 (read the tokens) record
 
 ## Decisions
 ### D2 (2026-01-01): two
@@ -131,6 +140,7 @@ A local D4 the foreign D4 must not be read as.
 
 ## Deletion Criteria
 - [x] The tracked count is zero; see #BD-1 completion note for the measurement.
+- [x] The dial is calibrated, per #BD-23 (calibrate the dial).
 FIX
 cat > .state/workstreams/feature/alpha/workstream.md <<'FIX'
 ---
@@ -144,6 +154,7 @@ Another workstream.
 ## Backlog
 ### Next (NX)
 - [ ] #NX-1: Re-use the figure from #BD-15 in maintain/fx (the other figure); its completion note has the number.
+- [ ] #NX-2: Compare the dials against #BD-22 in maintain/fx (read the gauge) before the next reading.
 FIX
 cat > .state/workstreams/feature/beta/workstream.md <<'FIX'
 ---
@@ -179,8 +190,16 @@ check "the report names #BD-1 as skipped and names the citing criterion" \
   "grep -E '^SKIPPED #BD-1:' \"$T/out.txt\" | grep -q 'Deletion Criteria'"
 check "#BD-15, cited as its note from another workstream's open task, is left whole and that file is named" \
   "grep -qF '2430 changed pixels' \"$W\" && grep -E '^SKIPPED #BD-15:' \"$T/out.txt\" | grep -q 'feature/alpha'"
-check "#BD-11, cited by an open task without naming its note, is still condensed" \
-  "ln '#BD-11:' | grep -q 'Condensed 2026-05-05'"
+check "#BD-21, cited by an open task as 'the readings are in the #BD-21 record' with no note word, is left whole (not condensed to its fallback)" \
+  "grep -qF 'READINGWORD three tokens' \"$W\" && ! block '#BD-21' | grep -q 'Condensed 2026-05-05'"
+check "the report names #BD-21 as skipped, cited by live content, and names the open task's line" \
+  "grep -E '^SKIPPED #BD-21: cited by live content at ' \"$T/out.txt\" | grep -q 'readings are in the #BD-21'"
+check "#BD-22, cited by another workstream's open task with no note word, is left whole and that file is named" \
+  "grep -qF 'GAUGEWORD the gauge read 71' \"$W\" && grep -E '^SKIPPED #BD-22: cited by live content at ' \"$T/out.txt\" | grep -q 'feature/alpha'"
+check "#BD-23, cited by a TICKED criterion with no note word, is still condensed: closed content needs a note word" \
+  "block '#BD-23' | grep -q 'Condensed 2026-05-05' && ! grep -qF 'CALIBWORD' \"$W\""
+check "#BD-8, cited by a closed Decision with no note word, is still condensed" \
+  "block '#BD-8' | grep -q 'Condensed 2026-05-05'"
 
 echo "== records: the evidence lead"
 check "#BD-8 keeps its issue, its only handle, rather than the 'evidence in the record' fallback" \
