@@ -76,8 +76,8 @@ Decisions land in commits rather than releases.
 marker at sentence start with a date in its sentence, or struck
 through whole) condenses to its statement -- the first sentence, with
 a leading provenance sentence kept beside it -- every sentence naming
-its integration target, and the sentence of its LATEST terminal
-marker, re-wrapped; a sentence never ends inside a code span or
+its integration target, and the sentence of EVERY disposition marker
+it carries, terminal or deferred, each in its place, re-wrapped; a sentence never ends inside a code span or
 before a lower-case word; a deferred or undispositioned
 entry is byte-identical after, and so is a terminal one already that
 short or one with an EXTENDED written after its last terminal marker.
@@ -144,6 +144,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from workstream_state import (  # noqa: E402
     ANY_HEADING_RE, CHECKBOX_ID_RE, CHECKBOX_RE, LIST_ITEM_RE, ADDENDUM_RE, DECISION_HEADING_RE, DELETION_OPEN_RE, DONE_LINE_RE,
+    DEFERRED_RE,
     GATE_LINE_RE, LEARNING_RE, PHASE_HEADING_RE, TERMINAL_RE, TOTAL_OPEN_RE, STRIKE_RE,
     blank_strikes, disposition, extract_section, find_workstreams, fingerprint, fold_blocks,
     git, join_block, line_at, marker_counts, read_lines, section_bounds, sentence_span,
@@ -1344,30 +1345,50 @@ def condense_learning(text):
     return condense_learning_why(text)[0]
 
 
+def sentence_index(spans, offset):
+    """The index of the span holding offset, or None."""
+    for i, (s, e) in enumerate(spans):
+        if s <= offset < e:
+            return i
+    return None
+
+
+def marker_sentences(body, spans):
+    """The indices of the sentences carrying a disposition marker,
+    terminal or deferred, in order."""
+    blanked = blank_strikes(body)
+    found = {sentence_index(spans, m.start())
+             for m in marker_counts(blanked, TERMINAL_RE) + marker_counts(blanked, DEFERRED_RE)}
+    return sorted(i for i in found if i is not None)
+
+
 def condense_learning_why(text):
     """(condensed, None) for one Learning block; (None, reason) when it
     must stay whole and the report says why; (None, None) when the
     entry is not terminal, is struck, or is already that short. The
     statement is the first sentence, or the first two when the first is
-    provenance; the disposition is the sentence of the LATEST terminal
-    marker -- an entry that ran EXTENDED, then APPLIED, once condensed
-    to the EXTENDED sentence and dropped the APPLIED one. An EXTENDED
-    written after that marker is new matter the disposition does not
-    carry, and the entry is left whole. Every sentence naming an
-    integration target is kept too, in its place: a real entry's
-    disposition read `APPLIED 2026-09-22.` alone, and the target
-    sentence -- which in another entry was also the insight itself --
-    was the only record of where it went. A kept sentence after the
-    statement that points back (`that task`, `there`) at a sentence the
-    condensation would drop leaves the entry whole: a target reading
-    `Integration target: that task.` routed to nothing."""
+    provenance; the disposition is the sentence of EVERY disposition
+    marker the entry carries, terminal or deferred, in its place -- an
+    entry that ran QUEUED, APPLIED, VERIFIED once condensed to its
+    VERIFIED sentence alone, and kept a target sentence the dropped
+    APPLIED sentence had corrected. An EXTENDED written after the last
+    terminal marker is new matter the disposition does not carry, and
+    the entry is left whole. Every sentence naming an integration
+    target is kept too, in its place: a real entry's disposition read
+    `APPLIED 2026-09-22.` alone, and the target sentence -- which in
+    another entry was also the insight itself -- was the only record of
+    where it went. A kept sentence after the statement that points back
+    (`that task`, `there`) at a sentence the condensation would drop
+    leaves the entry whole: a target reading `Integration target: that
+    task.` routed to nothing."""
     if disposition(text) != 'terminal':
         return None, None
     m = LEARNING_PREFIX_RE.match(text)
     if not m:
         return None, None
     prefix, body = m.group(1), m.group(2).strip()
-    sentences = prose_sentences(body)
+    spans = prose_spans(body)
+    sentences = [body[s:e].strip() for s, e in spans]
     if len(sentences) <= 1:
         return None, None
     blanked = blank_strikes(body)
@@ -1377,21 +1398,19 @@ def condense_learning_why(text):
     last = marks[-1]
     if any(a.start() > last.start() for a in marker_counts(blanked, ADDENDUM_RE)):
         return None, None
-    s, e = prose_span(body, last.start())
-    disp = body[s:e].strip()
+    markers = set(marker_sentences(body, spans))
     lead = set(range(2 if PROVENANCE_RE.match(sentences[0]) else 1))
     keep = set(lead)
-    keep.update(i for i, x in enumerate(sentences) if TARGET_RE.search(x))
-    keep = {i for i in keep if sentences[i] != disp and not ADDENDUM_RE.match(sentences[i])}
-    di = next((i for i, x in enumerate(sentences) if x == disp), None)
-    for i in sorted(keep | ({di} if di is not None else set())):
+    keep.update(i for i, x in enumerate(sentences) if TARGET_RE.search(x) and not ADDENDUM_RE.match(x))
+    keep |= markers
+    for i in sorted(keep):
         if i in lead or i == 0:
             continue
         ref = BACKREF_RE.search(sentences[i])
-        if ref and (i - 1) not in keep and (i - 1) != di:
+        if ref and (i - 1) not in keep:
             return None, ("a kept sentence points back (%r) at one the condensation drops: %s"
                           % (ref.group(0), sentences[i][:80]))
-    condensed = ' '.join([sentences[i] for i in sorted(keep)] + [disp])
+    condensed = ' '.join(sentences[i] for i in sorted(keep))
     if condensed == body or len(condensed) >= len(body):
         return None, None
     return '- ' + prefix + ' ' + condensed, None
@@ -1400,12 +1419,14 @@ def condense_learning_why(text):
 def learning_loss(before, after):
     """What a condensed Learning lost that it must keep, or None: its
     statement (the first sentence that is not provenance, whole), every
-    sentence naming its integration target and the whole sentence of its latest terminal marker.
-    The structure fingerprint sees headings and checkboxes only, so a
-    condensation that kept the wrong sentences passed it."""
+    sentence naming its integration target, and the whole sentence of
+    every disposition marker it carries. The structure fingerprint sees
+    headings and checkboxes only, so a condensation that kept the wrong
+    sentences passed it."""
     m = LEARNING_PREFIX_RE.match(before)
     body = m.group(2).strip() if m else before
-    sentences = prose_sentences(body)
+    spans = prose_spans(body)
+    sentences = [body[s:e].strip() for s, e in spans]
     stmt = next((x for x in sentences if not PROVENANCE_RE.match(x)), None)
     if stmt and not ADDENDUM_RE.match(stmt):
         if stmt not in after:
@@ -1413,11 +1434,9 @@ def learning_loss(before, after):
     for x in sentences:
         if TARGET_RE.search(x) and not ADDENDUM_RE.match(x) and x not in after:
             return "its integration target (%s ...)" % ' '.join(x.split()[:6])
-    marks = marker_counts(blank_strikes(body), TERMINAL_RE)
-    if marks:
-        s, e = prose_span(body, marks[-1].start())
-        if body[s:e].strip() not in after:
-            return "its disposition (%s)" % body[s:e].strip()[:60]
+    for i in marker_sentences(body, spans):
+        if sentences[i] not in after:
+            return "its disposition (%s)" % sentences[i][:60]
     return None
 
 

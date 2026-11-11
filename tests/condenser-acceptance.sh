@@ -160,10 +160,12 @@ A local D4 the foreign D4 must not be read as.
 
 ## Learnings
 - L1 (2026-01-01): Signing can return an empty signature with exit 0. The work goes to #BD-3 (the signing check). Integration target: that task. APPLIED 2026-01-10.
-- L2 (2026-01-01): A condensed entry can point at nothing. HANDED OFF 2026-01-03 to docs-site as its handoff of that day. VERIFIED 2026-01-04: received there that day and triaged.
+- L2 (2026-01-01): A condensed entry can point at nothing. A middle sentence that goes. HANDED OFF 2026-01-03 to docs-site as its handoff of that day. VERIFIED 2026-01-04: received there that day and triaged.
 - L3 (2026-01-01): Confirm the log reads %G? as G before any push, since an empty signature exits 0. A middle sentence that goes. APPLIED 2026-01-10 to \`rules/sign.md\`.
 - L4 (2026-01-01): Prefer a probe, e.g. the record script, over a hand count. A middle sentence that goes. APPLIED 2026-01-10 to \`f.md\`.
 - L5 (2026-01-01): A plain insight. A middle sentence that goes. APPLIED 2026-01-10 to \`g.md\`.
+- L6 (2026-01-01): A clear starts a session but not a process. A middle sentence of evidence that goes. Anything that loads a plugin mid-session needs a relaunch first -- integration target: \`docs/tools.md\`. QUEUED 2026-01-03: the #BD-4 task line now names it. APPLIED 2026-01-04: \`docs/tools.md\` corrected on the way: the remedy is not only a relaunch, because \`/reload\` activates pending changes in the running session. VERIFIED 2026-01-04: it does; the session served the new version after \`/reload\` with no relaunch.
+- L9 (2026-01-01): The handoff reached its inbox. A sentence naming the docs-site inbox that goes. VERIFIED 2026-01-04: received there that day and triaged.
 
 ## Open Questions
 - OQ-1: ~~Which meter is read?~~ RESOLVED 2026-01-10 via #BD-32 (pick the meter): the left one.
@@ -322,8 +324,13 @@ rc=0; python3 "$SCRIPT" learnings "$W" --write >"$T/learn.txt" 2>&1 || rc=$?
 check "learnings exits 0" "[ \"\$rc\" -eq 0 ]"
 check "L1, whose kept target says 'that task', is left whole and reported" \
   "grep -qF 'The work goes to #BD-3 (the signing check).' \"$W\" && grep -q '^SKIPPED L1:' \"$T/learn.txt\""
-check "L2, whose kept marker says 'received there', is left whole and reported" \
-  "grep -qF 'HANDED OFF 2026-01-03 to docs-site' \"$W\" && grep -q '^SKIPPED L2:' \"$T/learn.txt\""
+entry() { awk -v id="$1" 'index($0, "- " id " ") == 1 {on=1; print; next} on && (/^- / || /^#/ || /^$/) {exit} on {print}' "$W" | tr '\n' ' ' | tr -s ' '; }
+check "L2 keeps both marker sentences, so the HANDED OFF naming docs-site still stands before VERIFIED's 'received there'" \
+  "entry L2 | grep -qF 'HANDED OFF 2026-01-03 to docs-site as its handoff of that day. VERIFIED 2026-01-04: received there' && ! entry L2 | grep -q 'middle sentence'"
+check "L9, whose kept marker says 'received there' with the sentence naming the place dropped, is left whole and reported" \
+  "entry L9 | grep -qF 'naming the docs-site inbox' && grep -q '^SKIPPED L9:' \"$T/learn.txt\""
+check "L6 keeps its QUEUED, APPLIED and VERIFIED sentences: the correction ('not only a relaunch') stays beside the target it corrected" \
+  "entry L6 | grep -qF 'QUEUED 2026-01-03: the #BD-4 task line now names it.' && entry L6 | grep -qF 'the remedy is not only a relaunch' && entry L6 | grep -qF 'VERIFIED 2026-01-04: it does;' && ! entry L6 | grep -q 'middle sentence'"
 check "L3's statement survives whole past an unquoted %G? (not cut at the question mark)" \
   "grep -A2 '^- L3 ' \"$W\" | tr '\\n' ' ' | tr -s ' ' | grep -qF 'since an empty signature exits 0.' && ! grep -A2 '^- L3 ' \"$W\" | grep -q 'middle sentence'"
 check "L4's statement survives whole past 'e.g.'" \
