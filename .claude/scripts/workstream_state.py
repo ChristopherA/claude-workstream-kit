@@ -113,11 +113,23 @@ def standing_state(text):
 # (`Nothing in this file is held by ...`) is dropped: a critical-path
 # paragraph is exactly where a workstream says it is NOT held. A
 # struck-through span (`~~...~~`) is blanked before matching, so a hold
-# already retired in place does not count.
+# already retired in place does not count. Holds are also written as
+# IMPERATIVE or TEMPORAL prose -- `Do not start before #X closes`, `Do
+# not upgrade npm until OQ-3 resolves`, `stays deprioritized until P3
+# ships`, `only after #X lands` -- and those are the holds most likely to
+# rot, since no hold verb marks them; a human found two such by reading
+# cross-references. `only after` counts only with a task or gate ID ahead
+# in its clause: `orphans exist only after the text is set` is not a
+# hold. Over the live blocks of 104 real workstream files (2026-11-11)
+# these forms added 8 matches beside the 182 already found.
+_HOLD_EVENT = r'(?:lands|closes|resolves|ships)'
 HOLD_RE = re.compile(
     r'(?<![\w-])(?:held (?:by|behind|until|pending|for|on|back)|'
     r'holds? (?:for|until|behind|pending|back))\b|blocked (?:by|on)|unblocks when|'
-    r'\bwait(?:s|ing)? (?:for|on)\b|not before|sequenced after',
+    r'\bwait(?:s|ing)? (?:for|on)\b|not before|sequenced after|'
+    r'\bdo not (?:[\w-]+ ){1,3}?(?:before|until)\b|'
+    r'\b(?:until|after) (?:[^\s.;:]+ ){1,8}?' + _HOLD_EVENT + r'\b|'
+    r'\bonly after (?=[^.;:]{0,60}#(?:[A-Z][A-Z0-9]*-[0-9]|G-[A-Z]))',
     re.IGNORECASE,
 )
 STRIKE_RE = re.compile(r'~~.*?~~', re.S)

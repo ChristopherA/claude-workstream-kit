@@ -412,6 +412,13 @@ printf -- '## Learnings\n- L1 (2026-01-01): An insight. APPLIED to docs/design.m
 check "the same marker scores undispositioned without a date in its sentence and terminal with one (1 and 1)" \
   '[ "$(python3 "$SCRIPT" "$T/dated" | jq -r ".workstreams[0].learnings | \"\\(.terminal) \\(.undispositioned | length)\"")" = "1 1" ]'
 
+echo "== Holds written as imperative or temporal prose are found"
+mkdir -p "$T/holds/.state/workstreams/maintain/h"
+printf -- '## Backlog\n### Work (BD)\n- [ ] #BD-1: the upgrade. Do not start before #BD-2 closes.\n- [ ] #BD-2: the pin. Do not upgrade npm until OQ-3 resolves.\n- [ ] #BD-3: the post, which stays deprioritized until P3 ships.\n- [ ] #BD-4: the probe. Orphans exist only after the text is set, so measure then.\n' > "$T/holds/.state/workstreams/maintain/h/workstream.md"
+hq() { python3 "$SCRIPT" "$T/holds" | jq -r ".workstreams[0].hold_lines | $1"; }
+check "three holds found, on lines 3, 4 and 5; the non-hold 'only after the text is set' on line 6 is not" \
+  '[ "$(hq "[.[].line] | join(\",\")")" = "3,4,5" ]'
+
 echo "== Entries outside their own section are reported"
 # Must flag: a Learning under ## Open Questions, an Open Question under
 # ## Learnings, a Decision heading under ## Backlog. Must pass: each in
