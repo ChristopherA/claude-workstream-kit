@@ -412,6 +412,23 @@ printf -- '## Learnings\n- L1 (2026-01-01): An insight. APPLIED to docs/design.m
 check "the same marker scores undispositioned without a date in its sentence and terminal with one (1 and 1)" \
   '[ "$(python3 "$SCRIPT" "$T/dated" | jq -r ".workstreams[0].learnings | \"\\(.terminal) \\(.undispositioned | length)\"")" = "1 1" ]'
 
+echo "== Entries outside their own section are reported"
+# Must flag: a Learning under ## Open Questions, an Open Question under
+# ## Learnings, a Decision heading under ## Backlog. Must pass: each in
+# its own section, a list item in a Decision that mentions L4, and an
+# entry quoted inside a fence.
+mkdir -p "$T/place/.state/workstreams/maintain/p" "$T/placeok/.state/workstreams/maintain/p"
+printf -- '## Backlog\n### Work (BD)\n- [ ] #BD-1: a task\n### D9 (2026-01-01): a Decision filed in the Backlog\n\n## Decisions\n### D1 (2026-01-01): first\n- L4'"'"'s bug becomes load-bearing here, a mention\n\n## Learnings\n- L1 (2026-01-01): placed right. APPLIED 2026-01-02 to docs/x.md.\n- OQ-7 (2026-01-01): an Open Question filed under Learnings?\n\n## Open Questions\n- OQ-1: placed right?\n- L2 (2026-01-01): an undispositioned Learning filed under Open Questions.\n' > "$T/place/.state/workstreams/maintain/p/workstream.md"
+printf -- '## Backlog\n### Work (BD)\n- [ ] #BD-1: a task\n\n## Decisions\n### D1 (2026-01-01): first\n- L4'"'"'s bug becomes load-bearing here, a mention\n\n## Learnings\n- L1 (2026-01-01): placed right. APPLIED 2026-01-02 to docs/x.md.\n\n```\n- L2 (2026-01-01): an entry quoted in a fence\n```\n\n## Open Questions\n- ~~OQ-1~~: resolved in place\n' > "$T/placeok/.state/workstreams/maintain/p/workstream.md"
+pq() { python3 "$SCRIPT" "$1" | jq -r ".workstreams[0].misplaced_entries | map(\"\\(.id)@\\(.section)\") | join(\",\")"; }
+check "the three misfiled entries are reported with the section each sits in" \
+  '[ "$(pq "$T/place")" = "D9@## Backlog,OQ-7@## Learnings,L2@## Open Questions" ]'
+check "the placed file reports none: a mention of L4 in a Decision and an entry quoted in a fence are not entries" '[ "$(pq "$T/placeok")" = "" ]'
+check "fires names the symptom with each line" \
+  'python3 "$SCRIPT" fires "$T/place" | grep -q "entry outside its section line 4 (D9 under ## Backlog), line 12 (OQ-7 under ## Learnings), line 16 (L2 under ## Open Questions)"'
+check "the misfiled L2 is exempt from the Learnings count, which is why the placement check exists (count 1)" \
+  '[ "$(python3 "$SCRIPT" "$T/place" | jq -r ".workstreams[0].learnings.count")" = "1" ]'
+
 echo "== Learnings: the last marker decides"
 mkdir -p "$T/last/.state/workstreams/maintain/q"
 printf -- '---\nname: q\ntype: maintain\nstatus: active\ncreated: 2026-01-01\n---\n## Purpose\nA fixture.\n\n## Backlog\n### Work (BD)\n- [ ] #BD-1: a task\n- [ ] #BD-2: another\n\n## Learnings\n- L1 (2026-01-01): The first statement of the insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to #BD-1 and #BD-2. QUEUED 2026-01-03 on #BD-2, since the second half reopened when its build found a gap.\n- L2 (2026-01-01): The second insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to docs/x.md. EXTENDED 2026-01-03: a further case, still owed to a file.\n- L3 (2026-01-01): The control insight. A middle sentence the condenser would drop. APPLIED 2026-01-02 to docs/x.md.\n' > "$T/last/.state/workstream-tmp.md"

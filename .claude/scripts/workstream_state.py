@@ -44,6 +44,17 @@ DELETION_DONE_RE = re.compile(r'^ *- \[[xX]\]')
 LEARNING_RE = re.compile(r'^- (?:~~)?L([0-9]+)')
 OQ_RE = re.compile(r'^- (?:~~)?OQ-([0-9]+)')
 DECISION_HEADING_RE = re.compile(r'^### D([0-9]+)\b')
+# An ENTRY -- a Learning, an Open Question, a Decision -- as it is
+# written where it lives: the ID, struck or not, then ` (` or `: `.
+# Narrower than the patterns above on purpose: a list item inside a
+# Decision reading `- L4's bug ...` mentions L4 and is not one. Over 104
+# real workstream files this form matched 2,272 entries and nothing
+# else (measured 2026-11-11). ENTRY_HOMES names the section each belongs under.
+ENTRY_FORMS = (
+    ('Learning', re.compile(r'^- (?:~~)?(L[0-9]+)(?:~~)?(?: \(|: )'), '## Learnings'),
+    ('Open Question', re.compile(r'^- (?:~~)?(OQ-[0-9]+)(?:~~)?(?: \(|: )'), '## Open Questions'),
+    ('Decision', re.compile(r'^### (?:~~)?(D[0-9]+)(?:~~)?(?: \(|: )'), '## Decisions'),
+)
 # A phase heading is `### <Name> (<XX>)` or `### <Name> (<XX> / <YY>)`;
 # text after the code ("-- retired", "-- rollout residue") is tolerated,
 # since real files carry it, and so is a multi-code heading.

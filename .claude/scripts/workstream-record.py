@@ -104,6 +104,9 @@ network call, taken only under --tags.
 workstream, each symptom named: undispositioned Learnings, a completed
 phase, an open task line outside ## Backlog (appended after the
 section ended, which the roster counts and no phase count sees), a
+Learning, Open Question or Decision entry outside its own section
+(every check for an entry is bounded to its section, so a misfiled one
+is exempt from all of them), a
 sentence severed inside a wrapped block (a continuation opening
 lowercase, after any opening emphasis or square bracket, under a line
 ending a sentence, after any closing markup such as `.**` or `.)` --
@@ -159,7 +162,7 @@ from workstream_state import (  # noqa: E402
     split_sentences, state_files, strip_frontmatter, workstream_id, SIZE_BYTES,
     CROSS_REF_WS_RE as _WS_RE, TASK_ID_RE,
     bare_ids, blank_fences, purpose_paragraphs_for_gloss, TASK_ID_FORM, GATE_ID_FORM,
-    CHECKBOX_HASH_RE, BREACH_RE, standing_state,
+    CHECKBOX_HASH_RE, BREACH_RE, standing_state, ENTRY_FORMS,
 )
 
 PROG = 'workstream-record.py'
@@ -426,6 +429,26 @@ def open_outside_backlog_field(lines):
     return out
 
 
+def misplaced_entries_field(lines):
+    """Every Learning, Open Question or Decision ENTRY (ENTRY_FORMS) that
+    sits outside its own section, with its line, ID, kind, the section
+    it sits in and the one it belongs in. Every check written for an
+    entry is bounded to its section, so an entry filed under another
+    heading is EXEMPT from the check meant to catch it: an undispositioned
+    Learning under ## Open Questions fired nothing, and three sat there
+    in one workstream for a day with every probe reading clean. Fenced
+    blocks are skipped, since a file may quote an entry."""
+    sections = section_of(lines)
+    out = []
+    for i, line in enumerate(blank_fences(lines)):
+        for kind, rx, home in ENTRY_FORMS:
+            m = rx.match(line)
+            if m and sections[i] != home:
+                out.append({"line": i + 1, "id": m.group(1), "kind": kind,
+                            "section": sections[i], "belongs_in": home})
+    return out
+
+
 def unparsable_ids_field(lines):
     """Every Backlog checkbox line that opens with an ID-shaped token the
     task-ID grammar cannot parse (`#P8-V`). The hook counts such a line
@@ -560,6 +583,7 @@ def build_workstream_record(path, rel_path):
         "tasks_outside_phases": tasks_outside_phases,
         "open_outside_backlog": open_outside_backlog,
         "unparsable_ids": unparsable_ids_field(lines),
+        "misplaced_entries": misplaced_entries_field(lines),
         "codes_without_heading": codes_without_heading,
         "code_heading_mismatches": code_mismatches,
         "first_open_task": first_open_task,
@@ -1375,6 +1399,10 @@ def fires(root, only=None, interval_days=30):
             symptoms.append({"symptom": "open task outside Backlog",
                              "detail": ", ".join("line %d (%s)" % (e["line"], e["id"] or "no ID")
                                                  for e in rec["open_outside_backlog"])})
+        if rec["misplaced_entries"]:
+            symptoms.append({"symptom": "entry outside its section",
+                             "detail": ", ".join("line %d (%s under %s)" % (e["line"], e["id"], e["section"] or "no heading")
+                                                 for e in rec["misplaced_entries"])})
         if rec["unparsable_ids"]:
             symptoms.append({"symptom": "unparsable task ID",
                              "detail": ", ".join("line %d (%s)" % (e["line"], e["token"])
