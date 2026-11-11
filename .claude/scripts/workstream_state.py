@@ -63,7 +63,36 @@ DATE_RE = re.compile(r'\b' + DATE + r'\b')
 SATISFIED_MARK_RE = re.compile(
     r'\b(?:SATISFIED|READY|criterion is met) ' + DATE
 )
-HOLDS_RE = re.compile(r'\bHOLDS (' + DATE + ')')
+# A STANDING criterion's re-check stamps. HOLDS is a clean re-check; a
+# BREACH is one that found the condition false, and is written `FAILS
+# <date>` -- the negations `DOES NOT HOLD <date>` and `NO LONGER HOLDS
+# <date>` are read the same way, since an author who reaches for one is
+# recording a breach, and HOLDS_RE must not read the second as a hold.
+# Before the breach forms existed a breached criterion scored as never
+# re-checked or as holding, depending only on which negation was written.
+HOLDS_RE = re.compile(r'(?<!NO LONGER )(?<!NOT )\bHOLDS (' + DATE + ')')
+BREACH_RE = re.compile(r'\b(?:FAILS|DOES NOT HOLD|NO LONGER HOLDS) (' + DATE + ')')
+
+
+def standing_state(text):
+    """(latest, breach) for a STANDING criterion block's text: `latest`
+    is the NEWEST stamp date of either kind, or None when the block
+    carries none; `breach` is the newest breach date when it is at least
+    as new as the newest HOLDS, else None. The newest date wins whatever
+    the order the stamps were written in -- ISO dates compare as strings
+    -- since authors stamp newest-first and oldest-first alike and the
+    textually last stamp scored a criterion re-checked today by its
+    oldest date. A breach and a hold on the same day read as a breach:
+    the order within a day is not recoverable, and the false alarm is
+    the cheaper mistake."""
+    holds = HOLDS_RE.findall(text)
+    breaches = BREACH_RE.findall(text)
+    newest_hold = max(holds) if holds else None
+    newest_breach = max(breaches) if breaches else None
+    stamps = [d for d in (newest_hold, newest_breach) if d]
+    latest = max(stamps) if stamps else None
+    breach = newest_breach if newest_breach and (newest_hold is None or newest_breach >= newest_hold) else None
+    return latest, breach
 
 # Holds: a hold VERB WITH ITS OBJECT, since the bare verb is ordinary
 # prose -- "the two retired checkpoints held", "conditions that hold" --

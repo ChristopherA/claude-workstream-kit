@@ -44,6 +44,11 @@ mk feature/stray active '' '' ''
 printf 'x\n' > "$T/.state/workstreams/feature/stray/draft.md"
 mk feature/never active '' '' "- [ ] STANDING: never re-checked\n"
 mk feature/stale paused '' '' "- [ ] STANDING: re-checked long ago -- HOLDS $OLD\n"
+# Stamped NEWEST FIRST: the latest re-check is today, so nothing fires
+# (the textually last stamp read it as 45 days old).
+mk feature/newest active '' '' "- [ ] STANDING: re-checked today, stamped newest first -- HOLDS $TODAY, HOLDS $OLD\n"
+# Re-checked today and found breached: an age alone cannot say so.
+mk feature/breach active '' '' "- [ ] STANDING: the inbox stays empty -- FAILS $TODAY: two handoffs untriaged. HOLDS $OLD\n"
 mk feature/big active '' '' ''
 mk feature/outside active '' '' ''
 mk feature/severed active '' "- L1 (2026-01-01): The gate line ends here.\n  rather than the build's counts, an insertion having landed mid-sentence. DROPPED 2026-01-02 as an example.\n- L2 (2026-01-01): A wrapped entry whose line breaks mid\n  sentence and continues lowercase, which is ordinary wrapping. APPLIED 2026-01-02 to docs/x.md.\n" ''
@@ -60,7 +65,7 @@ line() { grep "^feature/$1:" "$T/out.txt"; }
 sym() { jq -r ".workstreams[] | select(.workstream == \"feature/$1\") | [.symptoms[].symptom] | join(\"|\")" "$T/out.json"; }
 
 echo "== Sanity"
-check "eleven workstreams, one line each" '[ "$(wc -l < "$T/out.txt" | tr -d " ")" = "11" ]'
+check "thirteen workstreams, one line each" '[ "$(wc -l < "$T/out.txt" | tr -d " ")" = "13" ]'
 check "the big fixture is past 65536 bytes" '[ "$(wc -c < "$T/.state/workstreams/feature/big/workstream.md" | tr -d " ")" -gt 65536 ]'
 check "the threshold agrees with the session-start hook (both files carry 65536, and nothing else in the payload does)" \
   '[ "$(grep -rn "65536" "$KIT_DIR/.claude/hooks/session-start.sh" "$KIT_DIR/.claude/scripts" | wc -l | tr -d " ")" = "2" ] && [ "$(jq -r ".threshold_bytes" "$T/out.json")" = "65536" ]'
@@ -74,7 +79,10 @@ check "notes: notes.md beside the file" '[ "$(sym notes)" = "notes.md beside the
 check "stray: unknown file in the directory, named" '[ "$(sym stray)" = "unknown file in the directory" ] && line stray | grep -q "draft.md"'
 check "never: STANDING criteria never re-checked" '[ "$(sym never)" = "STANDING criteria never re-checked" ]'
 check "stale (PAUSED, still measured): STANDING re-check older than the interval, with the date" \
-  '[ "$(sym stale)" = "STANDING re-check older than the interval" ] && line stale | grep -q "oldest HOLDS $OLD"'
+  '[ "$(sym stale)" = "STANDING re-check older than the interval" ] && line stale | grep -q "oldest re-check $OLD"'
+check "newest: a criterion stamped newest first is read by its NEWEST date, so nothing fires" '[ "$(line newest)" = "feature/newest: quiet" ]'
+check "breach: a criterion whose newest stamp is FAILS fires as breached, with the date" \
+  '[ "$(sym breach)" = "STANDING criteria breached at the last re-check" ] && line breach | grep -q "breached at the last re-check 1, FAILS $TODAY"'
 check "outside: open task outside Backlog, with its line and ID" '[ "$(sym outside)" = "open task outside Backlog" ] && line outside | grep -q "line $(grep -n "#LV-9" "$T/.state/workstreams/feature/outside/workstream.md" | cut -d: -f1) (#LV-9)"'
 check "criterion: a Deletion Criteria line opening with a task ID is quiet, not an open task outside Backlog" '[ "$(line criterion)" = "feature/criterion: quiet" ]'
 check "severed: a continuation opening lowercase under a full stop fires with its line; ordinary wrapping (L2) does not" \

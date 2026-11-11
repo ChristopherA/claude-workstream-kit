@@ -104,9 +104,13 @@ lowercase, after any opening emphasis or square bracket, under a line
 ending a sentence, after any closing markup such as `.**` or `.)` --
 an insertion landed mid-sentence, and every count still passes), size past the hook's
 threshold, a notes.md beside the file, a file in the directory the kit
-does not know, a STANDING criterion never re-checked or last
+does not know, a STANDING criterion never re-checked, last
 re-checked longer ago than the interval (30 days unless
---interval-days says otherwise). A paused workstream is
+--interval-days says otherwise), or breached at its last re-check. A
+criterion's last re-check is its NEWEST stamp, whichever end of the
+line it sits at: `HOLDS <date>`, or a breach, `FAILS <date>` (`DOES
+NOT HOLD <date>` and `NO LONGER HOLDS <date>` read the same), and a
+breach at least as new as the newest HOLDS is a breach. A paused workstream is
 still measured: the exposed case is the one nobody reads. Prints one
 text line per workstream for the session-start hook, JSON with --json.
 It says what fires, never who should run the drain.
@@ -150,7 +154,7 @@ from workstream_state import (  # noqa: E402
     split_sentences, state_files, strip_frontmatter, workstream_id, SIZE_BYTES,
     CROSS_REF_WS_RE as _WS_RE, TASK_ID_RE,
     bare_ids, blank_fences, purpose_paragraphs_for_gloss, TASK_ID_FORM, GATE_ID_FORM,
-    CHECKBOX_HASH_RE,
+    CHECKBOX_HASH_RE, BREACH_RE, standing_state,
 )
 
 PROG = 'workstream-record.py'
@@ -521,19 +525,25 @@ def build_workstream_record(path, rel_path):
     deletion_done = sum(1 for text, _r in crit_blocks if DELETION_DONE_RE.match(text))
     wrapped_criteria = sum(len(raw) - 1 for text, raw in crit_blocks
                            if DELETION_OPEN_RE.match(text) or DELETION_DONE_RE.match(text))
-    # STANDING criteria are health conditions, never unmet; the last HOLDS
-    # date in each block is its latest re-check, and the oldest of those
-    # is what a reader needs.
+    # STANDING criteria are health conditions, never unmet. Each block's
+    # NEWEST stamp, HOLDS or a breach, is its latest re-check
+    # (workstream_state.standing_state), and the oldest of those is what a
+    # reader needs; a block whose newest stamp is a breach is listed in
+    # `standing_breaches`, since an age alone cannot say the last re-check
+    # found the condition false.
     standing_lines = [text for text, _r in crit_blocks
                       if DELETION_OPEN_RE.match(text) and 'STANDING' in text]
     holds_dates = []
     never = 0
+    breaches = []
     for text in standing_lines:
-        found = HOLDS_RE.findall(text)
-        if found:
-            holds_dates.append(found[-1])
+        latest, breach = standing_state(text)
+        if latest:
+            holds_dates.append(latest)
         else:
             never += 1
+        if breach:
+            breaches.append({"date": breach, "text": text[:160]})
 
     open_cont, done_cont = continuation_counts(lines)
 
@@ -559,6 +569,8 @@ def build_workstream_record(path, rel_path):
             "standing": len(standing_lines),
             "standing_oldest_holds": min(holds_dates) if holds_dates else None,
             "standing_never_rechecked": never,
+            "standing_breached": len(breaches),
+            "standing_breaches": breaches,
             "wrapped": wrapped_criteria,
         },
         "wrapped_lines": {"open_items": open_cont, "done_items": done_cont},
@@ -1363,13 +1375,17 @@ def fires(root, only=None, interval_days=30):
         dc = rec["deletion_criteria"]
         if dc["standing_never_rechecked"]:
             symptoms.append({"symptom": "STANDING criteria never re-checked", "detail": str(dc["standing_never_rechecked"])})
+        if dc["standing_breached"]:
+            symptoms.append({"symptom": "STANDING criteria breached at the last re-check",
+                             "detail": "%d, %s" % (dc["standing_breached"],
+                                                   ", ".join("FAILS %s" % b["date"] for b in dc["standing_breaches"]))})
         if dc["standing_oldest_holds"]:
             try:
                 oldest = datetime.date.fromisoformat(dc["standing_oldest_holds"])
                 age = (today - oldest).days
                 if age > interval_days:
                     symptoms.append({"symptom": "STANDING re-check older than the interval",
-                                     "detail": "oldest HOLDS %s, %d days" % (dc["standing_oldest_holds"], age)})
+                                     "detail": "oldest re-check %s, %d days" % (dc["standing_oldest_holds"], age)})
             except ValueError:
                 pass
         out.append({"workstream": wid, "path": rel, "symptoms": symptoms})
@@ -1567,7 +1583,18 @@ SELF_CHECKS = [
      ["- [ ] #BD-1: a task", "  - [ ] #BD-1a: an indented sub-task"],
      ["- [ ] Criterion one not yet met", "- [x] #BD-2: done"]),
     ("HOLDS_RE", lambda t: bool(HOLDS_RE.search(t)),
-     ["-- HOLDS 2026-01-01, HOLDS 2026-02-02"], ["HOLDS today", "the criterion holds for now"]),
+     ["-- HOLDS 2026-01-01, HOLDS 2026-02-02"],
+     ["HOLDS today", "the criterion holds for now", "-- NO LONGER HOLDS 2026-01-01"]),
+    ("BREACH_RE", lambda t: bool(BREACH_RE.search(t)),
+     ["-- FAILS 2026-01-01", "-- DOES NOT HOLD 2026-01-01", "-- NO LONGER HOLDS 2026-01-01"],
+     ["-- HOLDS 2026-01-01", "the intake criterion FAILS: two handoffs sit untriaged"]),
+    ("standing_state newest stamp wins, either order", lambda t: standing_state(t) == ('2026-02-02', None),
+     ["STANDING: x -- HOLDS 2026-02-02, HOLDS 2026-01-01", "STANDING: x -- HOLDS 2026-01-01, HOLDS 2026-02-02"],
+     ["STANDING: x -- FAILS 2026-02-02, HOLDS 2026-01-01"]),
+    ("standing_state breach when newest", lambda t: standing_state(t)[1] is not None,
+     ["STANDING: x -- FAILS 2026-02-02, HOLDS 2026-01-01", "STANDING: x -- HOLDS 2026-01-01. DOES NOT HOLD 2026-02-02",
+      "STANDING: x -- FAILS 2026-02-02, HOLDS 2026-02-02"],
+     ["STANDING: x -- HOLDS 2026-03-03, FAILS 2026-02-02", "STANDING: x -- HOLDS 2026-01-01"]),
     ("CHECKBOX_ID_RE", lambda t: bool(CHECKBOX_ID_RE.match(t)),
      ["- [x] #OL-3 (DONE 2026-01-01, the no-colon form)", "- [ ] #G-BD: USER CHECKPOINT",
       "- [ ] #W3-1: a digit-bearing phase code", "- [ ] #P2-6d: a deferred one"],

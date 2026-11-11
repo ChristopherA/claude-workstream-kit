@@ -164,6 +164,25 @@ sed "s/^- \[ \] STANDING: no orphaned Learnings\$/& -- HOLDS $(date +%Y-%m-%d)/"
 mv "$T/a.tmp" "$T/.state/workstreams/project/alpha/workstream.md"
 check "every STANDING line stamped: the report gives the oldest re-check's age" \
   "CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'standing: 2 (oldest re-check 0d ago)'"
+# Vary again: add an OLDER stamp after today's on one line (newest first).
+# The latest re-check is still today, so the age must not move.
+sed "s/^\(- \[ \] STANDING: no orphaned Learnings -- HOLDS $(date +%Y-%m-%d)\)\$/\1, HOLDS 2020-01-01/" \
+  "$T/.state/workstreams/project/alpha/workstream.md" > "$T/a.tmp"
+mv "$T/a.tmp" "$T/.state/workstreams/project/alpha/workstream.md"
+check "fixture: one STANDING line is stamped newest first" \
+  "grep -q '^- \\[ \\] STANDING: no orphaned Learnings -- HOLDS $(date +%Y-%m-%d), HOLDS 2020-01-01\$' \"\$T/.state/workstreams/project/alpha/workstream.md\""
+check "stamped newest first: the age is still today's, not 2020's" \
+  "CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'standing: 2 (oldest re-check 0d ago)'"
+# And a breach: the newest stamp on the other line becomes FAILS today.
+sed "s/^- \[ \] STANDING: the inbox stays empty -- HOLDS \(.*\)\$/- [ ] STANDING: the inbox stays empty -- FAILS $(date +%Y-%m-%d), HOLDS \1/" \
+  "$T/.state/workstreams/project/alpha/workstream.md" > "$T/a.tmp"
+mv "$T/a.tmp" "$T/.state/workstreams/project/alpha/workstream.md"
+check "a line whose newest stamp is FAILS is reported breached beside the age" \
+  "CLAUDE_PROJECT_DIR=\"\$T\" sh \"\$HOOK\" | grep -q 'standing: 2 (oldest re-check 0d ago, 1 breached at the last re-check)'"
+# Restore the line: the checks below read alpha as healthy.
+sed "s/^- \[ \] STANDING: the inbox stays empty -- FAILS $(date +%Y-%m-%d), HOLDS \(.*\)\$/- [ ] STANDING: the inbox stays empty -- HOLDS \1/" \
+  "$T/.state/workstreams/project/alpha/workstream.md" > "$T/a.tmp"
+mv "$T/a.tmp" "$T/.state/workstreams/project/alpha/workstream.md"
 check "bare-anchor count (7) does not appear" \
   "! grep -q 'open tasks: 7' \"\$T/out.txt\""
 check "gates counted" "grep -q 'open gates: 2' \"\$T/out.txt\""

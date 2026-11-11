@@ -70,7 +70,8 @@ count_gates() { awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} !f && /^ *
 # that holds while the workstream lives -- is never "unmet": a checkbox cannot
 # say it holds, so the count read permanently short on every never-closing
 # workstream and trained the reader to skip the line. Those are reported
-# apart, by the age of their oldest HOLDS <date> stamp.
+# apart, by the age of the oldest among their latest re-checks, and with
+# a count of those breached at it (standing_summary below).
 count_criteria() {
   awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} f && /^ *- \[ \]/ && !/STANDING/ {n++} END {print n+0}' "$1"
 }
@@ -79,15 +80,44 @@ standing_summary() {
   _lines=$(awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} f && /^ *- \[ \]/ && /STANDING/' "$1")
   [ -n "$_lines" ] || return 0
   _n=$(printf '%s\n' "$_lines" | grep -c .)
-  # The LAST HOLDS date on a line is its latest re-check.
-  _dates=$(printf '%s\n' "$_lines" | sed -n 's/.*HOLDS \([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\).*/\1/p')
-  _dated=$(printf '%s\n' "$_dates" | grep -c . || true)
-  _never=$((_n - _dated))
+  # A line's NEWEST stamp is its latest re-check, whatever order the stamps
+  # were written in (authors stamp newest-first and oldest-first alike, and
+  # the textually last one scored a line re-checked today by its oldest
+  # date). A stamp is `HOLDS <date>` or a breach -- `FAILS <date>`, `DOES
+  # NOT HOLD <date>`, `NO LONGER HOLDS <date>` -- and a line whose newest
+  # stamp is a breach, a same-day tie included, is counted breached: the
+  # reading of workstream_state.standing_state. Breach forms are blanked
+  # before HOLDS is read, so `NO LONGER HOLDS` is not also read as a hold.
+  # Prints "<never> <breached> <oldest latest re-check>".
+  _stats=$(printf '%s\n' "$_lines" | awk '
+    function newest(re,   d, best) {
+      best = ""
+      while (match(s, re)) {
+        d = substr(s, RSTART + RLENGTH - 10, 10)
+        if (d > best) best = d
+        s = substr(s, 1, RSTART - 1) " " substr(s, RSTART + RLENGTH)
+      }
+      return best
+    }
+    {
+      D = "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"
+      s = $0
+      b = newest("(FAILS|DOES NOT HOLD|NO LONGER HOLDS) " D)
+      h = newest("HOLDS " D)
+      latest = (h > b) ? h : b
+      if (latest == "") { never++; next }
+      if (oldest == "" || latest < oldest) oldest = latest
+      if (b != "" && b >= h) breached++
+    }
+    END { printf "%d %d %s\n", never, breached, oldest }')
+  set -- $_stats
+  _never=$1; _breached=$2; _oldest=${3:-}
+  _b=''
+  [ "$_breached" -gt 0 ] && _b=", $_breached breached at the last re-check"
   if [ "$_never" -gt 0 ]; then
-    printf ', standing: %s (%s never re-checked)' "$_n" "$_never"
+    printf ', standing: %s (%s never re-checked%s)' "$_n" "$_never" "$_b"
   else
-    _oldest=$(printf '%s\n' "$_dates" | sort | head -1)
-    printf ', standing: %s (oldest re-check %sd ago)' "$_n" "$(( (NOW_S - $(date_epoch "$_oldest")) / 86400 ))"
+    printf ', standing: %s (oldest re-check %sd ago%s)' "$_n" "$(( (NOW_S - $(date_epoch "$_oldest")) / 86400 ))" "$_b"
   fi
 }
 

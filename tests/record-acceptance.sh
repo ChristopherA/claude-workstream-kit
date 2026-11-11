@@ -311,7 +311,7 @@ alpha_del_standing=$(jq -r '.workstreams[] | select(.path | endswith("project/al
 alpha_del_oldest=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | .deletion_criteria.standing_oldest_holds' "$T/out.json")
 alpha_del_never=$(jq -r '.workstreams[] | select(.path | endswith("project/alpha/workstream.md")) | .deletion_criteria.standing_never_rechecked' "$T/out.json")
 check "deletion_criteria standing is 2" '[ "$alpha_del_standing" = "2" ]'
-check "standing_oldest_holds reads each line's LAST date (2026-02-02, not 2026-01-01)" '[ "$alpha_del_oldest" = "2026-02-02" ]'
+check "standing_oldest_holds reads each line's NEWEST date (2026-02-02, not 2026-01-01)" '[ "$alpha_del_oldest" = "2026-02-02" ]'
 check "standing_never_rechecked is 1" '[ "$alpha_del_never" = "1" ]'
 beta_del_oldest=$(jq -r '.workstreams[] | select(.path | endswith("feature/beta/workstream.md")) | .deletion_criteria.standing_oldest_holds' "$T/out.json")
 check "a file with no STANDING line reports standing_oldest_holds null" '[ "$beta_del_oldest" = "null" ]'
@@ -419,10 +419,35 @@ wq() { python3 "$SCRIPT" "$T/wrapped" | jq -r ".workstreams[0].deletion_criteria
 check "fixture: the STANDING marker is on the first line and every HOLDS on the continuation" \
   "grep -q '^- \\[ \\] STANDING' \"$T/wrapped/.state/workstreams/maintain/w/workstream.md\" && ! grep -q '^- .*HOLDS' \"$T/wrapped/.state/workstreams/maintain/w/workstream.md\""
 check "standing is 1, open is 1, done is 1 (the wrapped criteria score as their blocks)" '[ "$(wq "\"\\(.standing) \\(.open) \\(.done)\"")" = "1 1 1" ]'
-check "standing_oldest_holds reads the LAST date of the wrapped block (2026-02-02) and never_rechecked is 0" '[ "$(wq "\"\\(.standing_oldest_holds) \\(.standing_never_rechecked)\"")" = "2026-02-02 0" ]'
+check "standing_oldest_holds reads the NEWEST date of the wrapped block (2026-02-02) and never_rechecked is 0" '[ "$(wq "\"\\(.standing_oldest_holds) \\(.standing_never_rechecked)\"")" = "2026-02-02 0" ]'
 check "wrapped reports the two continuation lines under criteria" '[ "$(wq ".wrapped")" = "2" ]'
 check "alpha's one-line criteria report wrapped 0" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"project/alpha/workstream.md\")) | .deletion_criteria.wrapped" "$T/out.json")" = "0" ]'
+
+echo "== STANDING stamps: the newest date wins in either order, and a breach is a re-check"
+# One criterion per shape, each in its own workstream so each field reads
+# one criterion. Re-measured by writing the markers into criteria and
+# reading the deletion_criteria block, not by firing the regex.
+for c in newest:'HOLDS 2026-03-03, HOLDS 2026-01-01' oldest:'HOLDS 2026-01-01, HOLDS 2026-03-03' \
+         fails:'FAILS 2026-03-03, HOLDS 2026-01-01' notheld:'HOLDS 2026-01-01. DOES NOT HOLD 2026-03-03' \
+         nolonger:'NO LONGER HOLDS 2026-03-03' recovered:'HOLDS 2026-03-03, FAILS 2026-01-01' \
+         sameday:'FAILS 2026-03-03, HOLDS 2026-03-03'; do
+  n=${c%%:*}; stamps=${c#*:}
+  mkdir -p "$T/stamps/.state/workstreams/maintain/s-$n"
+  printf -- '## Deletion Criteria\n- [ ] STANDING: the inbox stays empty -- %s\n' "$stamps" > "$T/stamps/.state/workstreams/maintain/s-$n/workstream.md"
+done
+python3 "$SCRIPT" "$T/stamps" > "$T/stamps.json"
+sq() { jq -r ".workstreams[] | select(.path | endswith(\"maintain/s-$1/workstream.md\")) | .deletion_criteria | \"\\(.standing_oldest_holds) \\(.standing_never_rechecked) \\(.standing_breached)\"" "$T/stamps.json"; }
+check "fixture: seven STANDING criteria, one per workstream" '[ "$(jq -r ".workstreams | length" "$T/stamps.json")" = "7" ]'
+check "stamped newest first: the newer date (2026-03-03), not breached" '[ "$(sq newest)" = "2026-03-03 0 0" ]'
+check "stamped oldest first: the same answer" '[ "$(sq oldest)" = "2026-03-03 0 0" ]'
+check "FAILS newest: re-checked 2026-03-03 and breached" '[ "$(sq fails)" = "2026-03-03 0 1" ]'
+check "DOES NOT HOLD newest: re-checked and breached, not never re-checked" '[ "$(sq notheld)" = "2026-03-03 0 1" ]'
+check "NO LONGER HOLDS alone: breached, never read as a clean HOLDS" '[ "$(sq nolonger)" = "2026-03-03 0 1" ]'
+check "a HOLDS newer than the breach: recovered, not breached" '[ "$(sq recovered)" = "2026-03-03 0 0" ]'
+check "a breach and a hold on the same day read as breached" '[ "$(sq sameday)" = "2026-03-03 0 1" ]'
+check "standing_breaches names the breach date" \
+  '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"maintain/s-fails/workstream.md\")) | .deletion_criteria.standing_breaches[0].date" "$T/stamps.json")" = "2026-03-03" ]'
 
 echo "== Conformance detector: continuation lines under open items, column 0 and indented alike"
 check "gamma reports wrapped open items (2 continuations under #PX-2, 3 under #G-SK, 1 each under #G-HW and #DF-1)" '[ "$(gq ".wrapped_lines.open_items")" = "7" ]'
