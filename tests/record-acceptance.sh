@@ -468,6 +468,25 @@ check "wrapped reports the two continuation lines under criteria" '[ "$(wq ".wra
 check "alpha's one-line criteria report wrapped 0" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"project/alpha/workstream.md\")) | .deletion_criteria.wrapped" "$T/out.json")" = "0" ]'
 
+echo "== An uncoded ### heading ends the coded phase above it"
+mkdir -p "$T/uncoded/.state/workstreams/feature/u"
+printf -- '## Backlog\n### Draft (DR)\n- [ ] #DR-1: a task\n### Gates\n- [ ] #G-SK: USER CHECKPOINT -- a gate no heading declares\n- [ ] #G-DR: USER CHECKPOINT -- a gate its code declares elsewhere\n- [x] #DR-2: a done task under the uncoded heading\n### Next (PX)\n- [ ] #PX-1: a task after it\n' > "$T/uncoded/.state/workstreams/feature/u/workstream.md"
+uq() { python3 "$SCRIPT" "$T/uncoded" | jq -r ".workstreams[0] | $1"; }
+check "fixture: #G-SK sits under the uncoded Gates heading, after the DR heading" \
+  'awk "/^### Draft/{c=1} /^### Gates/{g=c} /^- \\[ \\] #G-SK/{print g}" "$T/uncoded/.state/workstreams/feature/u/workstream.md" | grep -q 1'
+check "no code/heading mismatch: neither gate is attributed to Draft" '[ "$(uq ".code_heading_mismatches | length")" = "0" ]'
+check "Gates is its own phase row, code null, with both gates and the done task" \
+  '[ "$(uq ".phases[1] | \"\\(.name) \\(.code) \\(.open_gates) \\(.done_tasks)\"")" = "Gates null 2 1" ]'
+check "Draft keeps only its own task" '[ "$(uq ".phases[0] | \"\\(.open_tasks) \\(.open_gates) \\(.done_tasks)\"")" = "1 0 0" ]'
+check "the code no heading declares is still named (SK), the declared DR is not" '[ "$(uq ".codes_without_heading | join(\",\")")" = "SK" ]'
+check "a coded heading after it attributes again (#PX-1 under Next), and nothing is outside" \
+  '[ "$(uq ".phases[2] | \"\\(.code) \\(.open_tasks)\"")" = "PX 1" ] && [ "$(uq .tasks_outside_phases)" = "0" ]'
+check "control: a task under the WRONG coded heading is still a mismatch" \
+  'mkdir -p "$T/uncoded2/.state/workstreams/feature/u" && printf -- "## Backlog\n### Draft (DR)\n- [ ] #MV-1: moved in\n" > "$T/uncoded2/.state/workstreams/feature/u/workstream.md" && [ "$(python3 "$SCRIPT" "$T/uncoded2" | jq -r ".workstreams[0].code_heading_mismatches[0].code")" = "MV" ]'
+printf -- '## Backlog\n### Done work\n- [x] #DN-1: finished\n' > "$T/uncoded/.state/workstreams/feature/u/workstream.md"
+check "fires names an uncoded completed phase by its name alone" \
+  'python3 "$SCRIPT" fires "$T/uncoded" | grep -q "completed phase Done work$"'
+
 echo "== An HTML comment under a criterion is guidance, not the criterion"
 mkdir -p "$T/tmpl/.state/workstreams/feature/t"
 TEMPLATE="$KIT_DIR/.claude/skills/workstream-create/templates/workstream.md"

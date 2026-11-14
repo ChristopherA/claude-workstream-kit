@@ -178,6 +178,9 @@ from workstream_state import (  # noqa: E402
     CHECKBOX_HASH_RE, BREACH_RE, standing_state, ENTRY_FORMS,
 )
 
+# A `###` heading under Backlog that declares no code (`### Gates`).
+UNCODED_PHASE_RE = re.compile(r'^###\s+(?!.*\([A-Za-z0-9]+(?:\s*/\s*[A-Za-z0-9]+)*\))(.+?)\s*$')
+
 PROG = 'workstream-record.py'
 
 
@@ -266,7 +269,12 @@ def phase_records(lines):
     heading it sits under, so the per-heading sum plus the outside count
     equals the total by construction and a negative is unrepresentable.
     A task whose code the heading does not declare is reported as a
-    mismatch, provenance rather than arithmetic. Each phase carries its
+    mismatch, provenance rather than arithmetic. An UNCODED `###`
+    heading (`### Gates`) is a phase of its own with `code` null: it
+    ends the coded phase above it, its lines count under it, and it
+    declares no code, so a line under it is never a mismatch and a
+    code no heading declares is still named in codes_without_heading.
+    Each phase carries its
     DONE counts beside the open ones, so a completed phase -- done above
     zero, nothing open -- is visible without a second scan."""
     backlog = extract_section(lines, r'^##\s+Backlog\s*$')
@@ -284,6 +292,13 @@ def phase_records(lines):
             declared_codes.update(codes)
             current = {"name": m.group(1), "code": m.group(2),
                        "codes": codes, "open_tasks": 0, "open_gates": 0,
+                       "done_tasks": 0, "done_gates": 0}
+            phases.append(current)
+            continue
+        m = UNCODED_PHASE_RE.match(text)
+        if m:
+            current = {"name": m.group(1), "code": None,
+                       "codes": [], "open_tasks": 0, "open_gates": 0,
                        "done_tasks": 0, "done_gates": 0}
             phases.append(current)
             continue
@@ -322,7 +337,7 @@ def phase_records(lines):
         known = [c for c in cands if c in declared_codes]
         code = (local or known or cands[-1:])[0]
         task_codes.add(code)
-        if heading is not None and not local:
+        if heading is not None and heading["codes"] and not local:
             mismatches.append({"line": line_no, "code": code,
                                "heading": heading["name"], "heading_code": heading["code"]})
     records = [{"name": p["name"], "code": p["code"],
@@ -1616,7 +1631,7 @@ def fires(root, only=None, interval_days=30):
             symptoms.append({"symptom": "undispositioned Learnings", "detail": str(n)})
         for ph in rec["phases"]:
             if (ph["done_tasks"] + ph["done_gates"]) > 0 and ph["open_tasks"] + ph["open_gates"] == 0:
-                symptoms.append({"symptom": "completed phase", "detail": "%s (%s)" % (ph["name"], ph["code"])})
+                symptoms.append({"symptom": "completed phase", "detail": "%s (%s)" % (ph["name"], ph["code"]) if ph["code"] else ph["name"]})
         severed = severed_sentences(read_lines(path))
         if severed:
             symptoms.append({"symptom": "severed sentence",
