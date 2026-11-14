@@ -123,6 +123,12 @@ check "an id glossing an id does not count" '[ "$(printf "see (#OG-2) here\n" | 
 check "a backticked home between id and gloss passes, a task id and a Decision id alike" '[ "$(printf "#EX-3 in \`project/tier\` (the split) and D12 at \`ws/tier-2026-01-01\` (the call)\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "0" ]'
 check "a backticked home with no gloss after it is still bare" '[ "$(printf "#EX-3 in \`project/tier\` waits\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
 
+echo "== A question resolved in place is not live content"
+mkdir -p "$T/oq/.state/workstreams/feature/alpha"
+printf -- '## Open Questions\n- OQ-1: ~~which form?~~ RESOLVED 2026-01-01 via #ZZ-9: the plain one, see #ZZ-7.\n- OQ-2: still open, see #ZZ-8.\n- OQ-3: open, though it quotes ~~RESOLVED~~ in a strike, see #ZZ-6.\n' > "$T/oq/.state/workstreams/feature/alpha/workstream.md"
+check "only the open questions' bare ids are listed (#ZZ-8, #ZZ-6), not the resolved one's (#ZZ-9, #ZZ-7)" \
+  '[ "$(python3 "$SCRIPT" bare-ids "$T/oq" | jq -r "[.files[].bare[].id] | sort | join(\",\")")" = "#ZZ-6,#ZZ-8" ]'
+
 echo "== Vary one input: glossing the gate in ACTIVE.md drops the count by one"
 sed -i.bak 's/#G-AL waits behind it/#G-AL (the build gate) waits behind it/' "$T/p/$A" && rm -f "$T/p/$A.bak"
 check "ACTIVE.md count is 2 after the gloss" '[ "$(python3 "$SCRIPT" bare-ids "$T/p" | jq -r ".files[] | select(.path == \"$A\") | .count")" = "2" ]'

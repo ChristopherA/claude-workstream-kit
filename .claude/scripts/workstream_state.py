@@ -336,6 +336,21 @@ def without_comments(text, raw):
     return ' '.join(HTML_COMMENT_RE.sub(' ', text).split()), kept
 
 
+RESOLVED_MARK_RE = re.compile(r"\bRESOLVED\b")
+
+
+def open_question(raw):
+    """True for an UNRESOLVED Open Question block. The rule's resolved
+    form -- `- OQ-1: ~~question~~ RESOLVED <date> via #X: answer` --
+    opens `- OQ-` like an open one, so a selector testing the opening
+    alone reads a settled question as live; the struck-ID form
+    (`- ~~OQ-1 ...~~`) never opened that way. A RESOLVED inside a
+    strike does not count."""
+    if not re.match(r"^- OQ-[0-9]+", raw[0]):
+        return False
+    return not marker_counts(blank_strikes(join_block(raw, 0)[0]), RESOLVED_MARK_RE)
+
+
 def fold_blocks(lines):
     """Group lines into blocks: a heading is its own block; a list item or
     a paragraph absorbs the non-blank lines that follow it until a blank

@@ -150,7 +150,7 @@ from workstream_state import (  # noqa: E402
     blank_strikes, disposition, extract_section, find_workstreams, fingerprint, fold_blocks,
     git, join_block, line_at, marker_counts, read_lines, section_bounds, sentence_span,
     split_sentences, strip_frontmatter, wrap, TASK_ID_FORM, GATE_ID_FORM,
-    CROSS_REF_WS_RE, workstream_id,
+    CROSS_REF_WS_RE, workstream_id, open_question, RESOLVED_MARK_RE,
 )
 
 PROG = 'workstream-rewrite.py'
@@ -704,7 +704,7 @@ def live_blocks(lines, whole):
             continue
         if cur == '## Backlog' and (TOTAL_OPEN_RE.match(r[0]) or t.startswith('**Critical path')):
             out.append((s, r))
-        elif cur == '## Open Questions' and re.match(r'^- OQ-', r[0]):
+        elif cur == '## Open Questions' and open_question(r):
             out.append((s, r))
         elif cur == '## Deletion Criteria' and DELETION_OPEN_RE.match(r[0]):
             out.append((s, r))
@@ -720,13 +720,11 @@ def block_owner(raw):
     return ("L" + m.group(1)) if m else None
 
 
-RESOLVED_MARK_RE = re.compile(r"\bRESOLVED\b")
-
-
 def resolved_question(raw):
     """True for an Open Question resolved in place -- `- OQ-1:
-    ~~question~~ RESOLVED <date> via #X: answer` -- which the
-    `- OQ-` test that selects live blocks still reads as open."""
+    ~~question~~ RESOLVED <date> via #X: answer`, or the struck-ID
+    form carrying RESOLVED. live_blocks now drops both through
+    open_question; the condenser's own filter stays as a guard."""
     if not re.match(r"^- (?:~~)?OQ-[0-9]+", raw[0]):
         return False
     return bool(marker_counts(blank_strikes(join_block(raw, 0)[0]), RESOLVED_MARK_RE))
@@ -1713,7 +1711,7 @@ def rotate(path, lines, tag, date, keeps):
                 idx = bstart - 1
                 gap = body[consumed:idx]
                 consumed = idx + len(raw)
-                if kind == 'item' and re.match(r'^- OQ-', raw[0]) or keep_by_phrase(text) or kind == 'heading':
+                if kind == 'item' and open_question(raw) or keep_by_phrase(text) or kind == 'heading':
                     new.extend(gap)
                     new.extend(raw)
                 else:

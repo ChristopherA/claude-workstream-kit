@@ -182,7 +182,7 @@ from workstream_state import (  # noqa: E402
     split_sentences, state_files, strip_frontmatter, workstream_id, SIZE_BYTES,
     CROSS_REF_WS_RE as _WS_RE, TASK_ID_RE,
     bare_ids, blank_fences, purpose_paragraphs_for_gloss, TASK_ID_FORM, GATE_ID_FORM,
-    without_comments,
+    without_comments, open_question,
     CHECKBOX_HASH_RE, BREACH_RE, standing_state, ENTRY_FORMS,
 )
 
@@ -966,7 +966,7 @@ def live_blocks(lines):
             continue
         if sec == '## Backlog' and TOTAL_OPEN_RE.match(raw[0]):
             out.append((start, raw))
-        elif sec == '## Open Questions' and re.match(r'^- OQ-[0-9]+', raw[0]):
+        elif sec == '## Open Questions' and open_question(raw):
             out.append((start, raw))
         elif sec == '## Deletion Criteria' and DELETION_OPEN_RE.match(raw[0]):
             out.append((start, raw))

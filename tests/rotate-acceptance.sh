@@ -97,6 +97,7 @@ Cited by the critical path.
 ## Open Questions
 - ~~OQ-1: Resolved question.~~ RESOLVED 2026-01-01 via #OG-1.
 - OQ-2: Still open, resolve at #OG-3.
+- OQ-3: ~~Resolved in place, the rule's form?~~ RESOLVED 2026-01-01 via #OG-1: it leaves.
 
 ## Deletion Criteria
 - [ ] kit maintenance has moved to a dedicated home
@@ -161,7 +162,7 @@ check "no false claim from a date's -03 or -02, the span (L1 to L3), the tag, or
 echo "== Dry run with --allow-stale-claims reports and writes nothing"
 OUT=$(python3 "$SCRIPT" rotate "$W" --tag ws/kit-2026-02-02 --date 2026-02-02 --keep "intake-channel note" --allow-stale-claims)
 check "dry run reports the drops and the carried counts, file unchanged" \
-  'printf "%s" "$OUT" | grep -q "^rotate: dropped decision=2, learning=2, open question=1, task=3 open=2 gates=1 standing=3" && ! printf "%s" "$OUT" | grep -q WRITTEN && cmp -s "$W" "$T/original.md"'
+  'printf "%s" "$OUT" | grep -q "^rotate: dropped decision=2, learning=2, open question=2, task=3 open=2 gates=1 standing=3" && ! printf "%s" "$OUT" | grep -q WRITTEN && cmp -s "$W" "$T/original.md"'
 
 echo "== Write"
 python3 "$RECORD" "$T" | jq '.workstreams[] | select(.path | endswith("kit/workstream.md"))' > "$T/rec-before.json"
@@ -169,8 +170,8 @@ OUT=$(python3 "$SCRIPT" rotate "$W" --tag ws/kit-2026-02-02 --write --date 2026-
 check "write reports WRITTEN" 'printf "%s" "$OUT" | grep -q WRITTEN'
 check "the Rotated line is first under Purpose" \
   '[ "$(awk "/^## Purpose/{getline; print; exit}" "$W")" = "Rotated 2026-02-02; the record before it is at ws/kit-2026-02-02." ]'
-check "removed side: the done tasks, the finished phase heading, D1, D2, L1, L2 and OQ-1 are gone" \
-  '! grep -q "#OG-1:" "$W" && ! grep -q "#OG-2:" "$W" && ! grep -q "#DP-1" "$W" && ! grep -q "^### Done phase" "$W" && ! grep -q "^### D1 " "$W" && ! grep -q "^### D2 " "$W" && ! grep -q "^- L1 " "$W" && ! grep -q "^- L2 " "$W" && ! grep -q "OQ-1" "$W"'
+check "removed side: the done tasks, the finished phase heading, D1, D2, L1, L2, OQ-1 and OQ-3 (resolved in place) are gone" \
+  '! grep -q "#OG-1:" "$W" && ! grep -q "#OG-2:" "$W" && ! grep -q "#DP-1" "$W" && ! grep -q "^### Done phase" "$W" && ! grep -q "^### D1 " "$W" && ! grep -q "^### D2 " "$W" && ! grep -q "^- L1 " "$W" && ! grep -q "^- L2 " "$W" && ! grep -q "OQ-1" "$W" && ! grep -q "OQ-3" "$W"'
 check "kept: the open task, the gate, the critical path, the kept note, D3, D47, D80, L3, OQ-2, the criteria, the Analysis section" \
   'grep -q "^- \[ \] #OG-3:" "$W" && grep -q "^- \[ \] #G-OG:" "$W" && grep -q "^\*\*Critical path" "$W" && grep -q "^\*\*The intake-channel note" "$W" && grep -q "^### D3 " "$W" && grep -q "^### D47 " "$W" && grep -q "^### D80 " "$W" && grep -q "^- L3 " "$W" && grep -q "^- OQ-2:" "$W" && grep -q "STANDING: both inboxes" "$W" && grep -q "^## Analysis" "$W" && grep -q "carried verbatim" "$W"'
 python3 "$RECORD" "$T" | jq '.workstreams[] | select(.path | endswith("kit/workstream.md"))' > "$T/rec-after.json"
