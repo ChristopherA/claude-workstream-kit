@@ -161,12 +161,17 @@ GLOSSABLE_ID_RE = re.compile(
 )
 # What may sit between an ID and its gloss: a closing code span, a
 # possessive, a home (`in type/name`, `in ws/tag`, `at ws/tag`), the home
-# plain or backticked. It is matched against the text BEFORE code spans
+# plain or backticked, and a back-reference to a home named earlier
+# (`D12 there (the call)`, `#EX-3 here (the split)`). It is matched against the text BEFORE code spans
 # are blanked, since a backticked home is a code span and would read as
 # spaces.
 GLOSS_BRIDGE_RE = re.compile(
-    r"`?(?:'s)?(?: (?:in|at) `?(?:(?:explore|feature|fix|project|maintain)/[a-z0-9.-]+|ws/[a-z0-9.-]+)`?(?:'s)?)?\s*"
+    r"`?(?:'s)?(?: (?:in|at) `?(?:(?:explore|feature|fix|project|maintain)/[a-z0-9.-]+|ws/[a-z0-9.-]+)`?(?:'s)?)?(?: (?:there|here))?\s*"
 )
+# An ID already inside parentheses cannot take a parenthetical gloss, so
+# a comma phrase before the closing parenthesis glosses it: `(D11 in
+# project/x, the split)`, `(resolve at #EX-3, the format task)`.
+COMMA_GLOSS_RE = re.compile(r',\s*([^()\n]*)\)')
 # The gloss itself: a parenthetical or a double-quoted phrase that
 # carries at least one letter, so `(#EX-3)` -- an ID glossing an ID --
 # does not count.
@@ -211,6 +216,13 @@ def purpose_paragraphs_for_gloss(lines):
     return [(s + start_no - 1, r) for s, kind, _t, r in fold_blocks(raw) if kind != 'heading']
 
 
+def inside_parens(text, pos):
+    """True when pos sits inside an open parenthesis: the nearest
+    parenthesis before it is an opening one."""
+    before = text[:pos]
+    return before.rfind('(') > before.rfind(')')
+
+
 def bare_ids(paragraphs):
     """Bare ID mentions in prose. `paragraphs` is an iterable of
     (start_line_no, lines): each paragraph is folded to one text and
@@ -220,7 +232,10 @@ def bare_ids(paragraphs):
     glossed when the canonical form follows it directly: `#EX-37 (the
     phase split question)` or `#EX-37 "the phase split question"`, with
     a home allowed in between, plain or backticked (`#EX-30 in
-    project/tier (the neutrality sort)`). Exempt: the ID a paragraph's first line DEFINES (a checkbox
+    project/tier (the neutrality sort)`), or a back-reference, `there` or
+    `here`. An ID already inside parentheses is glossed by a comma phrase
+    before the closing parenthesis that carries a word beyond IDs (`(D11
+    in project/x, the split)`). Exempt: the ID a paragraph's first line DEFINES (a checkbox
     line opening with it, a `### D<n>` heading, a `- L<n>` or `- OQ-<n>`
     item), text inside a code span, and struck spans; fenced blocks are
     blanked by the caller (blank_fences), since fence state crosses
@@ -269,6 +284,10 @@ def bare_ids(paragraphs):
             after = bridge.end() if bridge else m.end()
             if GLOSS_RE.match(clean, after):
                 continue
+            if inside_parens(clean, m.start()):
+                cm = COMMA_GLOSS_RE.match(clean, after)
+                if cm and re.search(r'[A-Za-z]', GLOSSABLE_ID_RE.sub(' ', cm.group(1))):
+                    continue
             line_idx = max(k for k, st in enumerate(starts) if st <= m.start())
             a = max(0, m.start() - 40)
             b = min(len(text), m.end() + 60)

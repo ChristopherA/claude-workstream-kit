@@ -36,7 +36,7 @@ created: <YYYY-MM-DD>
 
 ## Open Questions
 
-<!-- - OQ-1: question (resolve at #XX-N) -->
+<!-- - OQ-1: question (resolve at #XX-N, the task that decides it) -->
 
 ## Deletion Criteria
 

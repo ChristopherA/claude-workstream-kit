@@ -1995,11 +1995,14 @@ SELF_CHECKS = [
      ["#EX-37 (the phase split question) is open", '#G-OG "the kit change approval gate" stands',
       "#EX-30 in project/tier (the neutrality sort) waits", "D96 (the release decision) and D96 again",
       "#EX-30 in `project/tier` (the neutrality sort) waits", "D12 at `ws/tier-2026-01-01` (the old call) holds",
+      "D12 there (the authorization-rule call) holds", "routed (D11 in project/tier, the authoring-rule split) today",
+      "an OQ (resolve at #EX-3, the format task) stays",
       "- [ ] #EX-37: a backlog line naming #EX-3 (the heuristic)", "run `rg '#EX-3'` here",
       "#XX-N and #G-XX are metavariables"],
      ["#EX-37 is open", "#G-OG stands", "D96 and D96 again", "the (#EX-3) form glosses nothing",
       "#EX-37's split question", "- [ ] #EX-37: a backlog line naming #EX-3 bare",
-      "#EX-30 in `project/tier` waits", "D12 in `notes/tier` (a path, not a home)"]),
+      "#EX-30 in `project/tier` waits", "D12 in `notes/tier` (a path, not a home)",
+      "D12 there is the call", "(D11, #EX-3) both", "(resolve at #EX-3) stays", "D11, the split, outside parentheses"]),
 ]
 
 
