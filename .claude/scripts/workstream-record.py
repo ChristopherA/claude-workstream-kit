@@ -174,6 +174,7 @@ from workstream_state import (  # noqa: E402
     split_sentences, state_files, strip_frontmatter, workstream_id, SIZE_BYTES,
     CROSS_REF_WS_RE as _WS_RE, TASK_ID_RE,
     bare_ids, blank_fences, purpose_paragraphs_for_gloss, TASK_ID_FORM, GATE_ID_FORM,
+    without_comments,
     CHECKBOX_HASH_RE, BREACH_RE, standing_state, ENTRY_FORMS,
 )
 
@@ -628,7 +629,11 @@ def build_workstream_record(path, rel_path):
     # continuation lines read as `standing: 0, open: 2` for months, a
     # quiet wrong answer. `wrapped` counts the continuation lines so the
     # breach is visible beside the fields it would have degraded.
-    crit_blocks = [(text, raw) for _s, kind, text, raw
+    # An HTML comment folded into a criterion is template guidance, so
+    # it is dropped before scoring: the create template's STANDING
+    # example comment made its placeholder criterion score as a STANDING
+    # one, never re-checked and wrapped.
+    crit_blocks = [without_comments(text, raw) for _s, kind, text, raw
                    in fold_blocks([t for _n, t in deletion_section]) if kind == 'item']
     deletion_open = sum(1 for text, _r in crit_blocks
                         if DELETION_OPEN_RE.match(text) and 'STANDING' not in text)

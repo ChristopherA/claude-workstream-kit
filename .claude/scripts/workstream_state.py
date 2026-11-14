@@ -305,6 +305,37 @@ SIZE_BYTES = 65536
 
 # --- blocks: the paragraph-aware read ------------------------------------
 
+# An HTML comment: authoring guidance in a template, never state. A
+# whole-line comment directly under a list item folds into that item's
+# block, so a reader that scores markers drops comments first.
+HTML_COMMENT_RE = re.compile(r'<!--.*?-->', re.S)
+
+
+def without_comments(text, raw):
+    """(text, raw) for a folded block with its HTML comments removed:
+    the joined text loses every comment span, and raw loses each line
+    that lies wholly inside a comment, so a continuation count does not
+    count guidance as wrapped prose."""
+    kept = []
+    inside = False
+    for line in raw:
+        s = line.strip()
+        if inside:
+            if '-->' in s:
+                inside = False
+            continue
+        if s.startswith('<!--'):
+            if '-->' not in s:
+                inside = True
+            elif s.endswith('-->') and s.count('<!--') == 1:
+                continue
+            else:
+                kept.append(line)
+            continue
+        kept.append(line)
+    return ' '.join(HTML_COMMENT_RE.sub(' ', text).split()), kept
+
+
 def fold_blocks(lines):
     """Group lines into blocks: a heading is its own block; a list item or
     a paragraph absorbs the non-blank lines that follow it until a blank

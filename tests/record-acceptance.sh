@@ -468,6 +468,21 @@ check "wrapped reports the two continuation lines under criteria" '[ "$(wq ".wra
 check "alpha's one-line criteria report wrapped 0" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"project/alpha/workstream.md\")) | .deletion_criteria.wrapped" "$T/out.json")" = "0" ]'
 
+echo "== An HTML comment under a criterion is guidance, not the criterion"
+mkdir -p "$T/tmpl/.state/workstreams/feature/t"
+TEMPLATE="$KIT_DIR/.claude/skills/workstream-create/templates/workstream.md"
+cp "$TEMPLATE" "$T/tmpl/.state/workstreams/feature/t/workstream.md"
+tq() { python3 "$SCRIPT" "$T/tmpl" | jq -r ".workstreams[0].deletion_criteria | $1"; }
+check "fixture: the create template carries a STANDING example in a comment directly under its criterion" \
+  'grep -A1 "^- \[ \] <verifiable condition>" "$TEMPLATE" | grep -q "^<!--.*STANDING:"'
+check "the template reads one open criterion and no STANDING one" '[ "$(tq "\"\\(.open) \\(.standing) \\(.standing_never_rechecked)\"")" = "1 0 0" ]'
+check "the comment line is not counted as a wrapped criterion" '[ "$(tq .wrapped)" = "0" ]'
+check "fires names no STANDING symptom on the template" '! python3 "$SCRIPT" fires "$T/tmpl" | grep -q STANDING'
+mkdir -p "$T/tmpl2/.state/workstreams/feature/t"
+printf -- '## Deletion Criteria\n- [ ] STANDING: the inbox stays empty -- HOLDS 2026-02-02\n<!-- an aside -->\n- [ ] a real one\n<!-- a longer aside\nover two lines -->\n' > "$T/tmpl2/.state/workstreams/feature/t/workstream.md"
+check "control: a real STANDING criterion followed by a comment still scores, and a two-line comment is dropped whole" \
+  '[ "$(python3 "$SCRIPT" "$T/tmpl2" | jq -r ".workstreams[0].deletion_criteria | \"\\(.standing) \\(.standing_oldest_holds) \\(.open) \\(.wrapped)\"")" = "1 2026-02-02 1 0" ]'
+
 echo "== STANDING stamps: the newest date wins in either order, and a breach is a re-check"
 # One criterion per shape, each in its own workstream so each field reads
 # one criterion. Re-measured by writing the markers into criteria and
