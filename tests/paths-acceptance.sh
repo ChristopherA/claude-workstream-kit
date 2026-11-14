@@ -123,6 +123,23 @@ check "docs/nowhere.md on the same line stays missing with the kit named" \
 check "a project path reports resolved_in project" \
   '[ "$(q ".paths[] | select(.path == \"docs/design.md\") | .resolved_in" | sort -u)" = "project" ]'
 
+echo "== Shapes that resolve nowhere and are not missing files"
+P="$T/ws/proj"
+mkdir -p "$P/.state/workstreams/feature/s" "$P/docs" "$T/ws/other-tool/.git"
+printf 'x\n' > "$P/docs/audit-2026-01-01.md"; printf 'x\n' > "$P/docs/tooling.md"
+printf -- '## Backlog\n### Shapes (SH)\n- [ ] #SH-1: fork acme-corp/widget-tools; the 2026-07-24/25 sessions.\n- [ ] #SH-2: write `docs/audit-YYYY-MM-DD.md`; read `docs/tooling.md`.\n- [ ] #SH-3: in acme-corp/widget-tools edit `apps/forge/wrangler.jsonc`, and add `docs/new-report.md` here.\n- [ ] #SH-4: in other-tool, `src/main.c` changes.\n- [ ] #SH-5: create `newtop/sub/file.md` and `.claude/new-rule.md`.\n' > "$P/.state/workstreams/feature/s/workstream.md"
+sq() { env -u WORKSTREAM_KIT_DIR python3 "$SCRIPT" paths "$P" | jq -r "$1"; }
+check "fixture: other-tool is a sibling checkout, and no top directory apps, src or newtop exists here" \
+  '[ -d "$T/ws/other-tool/.git" ] && [ ! -e "$P/apps" ] && [ ! -e "$P/src" ] && [ ! -e "$P/newtop" ]'
+check "an owner/repository and a date range are names, not missing" \
+  '[ "$(sq "[.unverifiable[] | select(.shape == \"name\") | .path] | unique | join(\",\")")" = "2026-07-24/25,acme-corp/widget-tools" ]'
+check "a filename template is a template, and a real path beside it resolves" \
+  '[ "$(sq "[.unverifiable[] | select(.shape == \"template\") | .path] | join(\",\")")" = "docs/audit-YYYY-MM-DD.md" ] && [ "$(sq "[.paths[] | select(.exists == true) | .path] | join(\",\")")" = "docs/tooling.md" ]'
+check "a path in a block naming another repository, by owner/name or by a sibling's name, is elsewhere" \
+  '[ "$(sq "[.unverifiable[] | select(.shape == \"elsewhere\") | .path] | join(\",\")")" = "apps/forge/wrangler.jsonc,src/main.c" ]'
+check "must stay missing: a file under a directory that exists here, even beside another repository, and new paths in a block naming none" \
+  '[ "$(sq "[.missing[].path] | join(\",\")")" = "docs/new-report.md,newtop/sub/file.md,.claude/new-rule.md" ]'
+
 echo "== Exit codes"
 rc=0; python3 "$SCRIPT" paths >/dev/null 2>&1 || rc=$?
 check "paths with no root: exit 2" '[ "$rc" -eq 2 ]'

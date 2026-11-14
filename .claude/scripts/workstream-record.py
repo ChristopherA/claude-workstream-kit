@@ -85,7 +85,15 @@ kit-using project routinely names the kit's own files. A BARE name
 is listed apart under `bare`, never as missing, with `exists` null
 rather than false; `missing` holds the anchored, unstruck tokens that
 resolve nowhere and is the verdict to read -- a row's `exists` alone is
-not.
+not. Three shapes that resolve nowhere and are not missing files go
+under `unverifiable` instead, each row's `shape` saying which: `name`
+(one slash, no extension, a first segment that is no directory here --
+owner/repository, a branch or tag, a date range, a word pair),
+`template` (a placeholder such as YYYY naming a series) and
+`elsewhere` (a path whose first directory is in neither the project
+nor the kit, in a block that names another repository by owner/name
+or by a sibling checkout's directory name). A missing path whose first
+directory exists here stays in `missing`.
 
 `decay` is the status skill's critical-path decay compare: for each
 workstream, its open task count and, where a critical-path paragraph
@@ -1324,9 +1332,64 @@ def path_resolves(root, tok, kit):
     return None
 
 
+# A filename template naming a dated or numbered series:
+# `docs/audit-YYYY-MM-DD.md`, `notes/XX-review.md`.
+PLACEHOLDER_RE = re.compile(r'YYYY|(?<![A-Za-z])(?:MM|DD|XX)(?![A-Za-z])')
+# A name with one slash and no extension: owner/repository, a branch or
+# tag, a range such as 2026-07-24/25, a pair such as go/no-go.
+REPO_SHAPE_RE = re.compile(r'[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*')
+
+
+def sibling_repos(root):
+    """Names of the git checkouts beside the project root, the projects a
+    task most often names when a path lives in another repository."""
+    parent = os.path.dirname(os.path.abspath(root))
+    me = os.path.basename(os.path.abspath(root))
+    try:
+        names = os.listdir(parent)
+    except OSError:
+        return []
+    return sorted(n for n in names if n != me and len(n) > 2
+                  and os.path.exists(os.path.join(parent, n, '.git')))
+
+
+def first_dir_here(root, kit, tok):
+    first = tok.split('/', 1)[0]
+    return bool(first) and (os.path.isdir(os.path.join(root, first))
+                            or bool(kit and os.path.isdir(os.path.join(kit, first))))
+
+
+def repo_shaped(root, kit, tok):
+    return (tok.count('/') == 1 and REPO_SHAPE_RE.fullmatch(tok) is not None
+            and not tok.endswith(KNOWN_EXT) and not first_dir_here(root, kit, tok))
+
+
+def unverifiable_shape(root, kit, tok, names_other):
+    """Why a token that resolves nowhere is not a missing file: None for a
+    genuine miss, else 'template' (a placeholder naming a series),
+    'name' (one slash, no extension and a first segment that is no
+    directory here: an owner/repository, a branch or tag, a date range or
+    a word pair) or 'elsewhere' (a path whose first
+    directory is in neither the project nor the kit, in a block that
+    names another repository). A missing path whose first directory
+    exists here stays missing: it is most likely one a task will create."""
+    if tok.startswith(('/', '~')):
+        return None
+    if PLACEHOLDER_RE.search(tok):
+        return 'template'
+    if repo_shaped(root, kit, tok):
+        return 'name'
+    if names_other and not first_dir_here(root, kit, tok[2:] if tok.startswith('./') else tok):
+        return 'elsewhere'
+    return None
+
+
 def paths(root):
     entries = []
     kit = kit_dir(root)
+    siblings = sibling_repos(root)
+    sibling_re = (re.compile(r'(?<![\w/.-])(?:%s)(?![\w-])' % '|'.join(map(re.escape, siblings)))
+                  if siblings else None)
     for path, rel in find_workstreams(root):
         lines = read_lines(path)
         sections = section_of(lines)
@@ -1343,7 +1406,10 @@ def paths(root):
             m = CHECKBOX_ID_RE.match(raw[0])
             if m:
                 owner = m.group(2)
-            for off, tok in path_tokens(text):
+            toks = path_tokens(text)
+            names_other = (any(repo_shaped(root, kit, t) for _o, t in toks)
+                           or bool(sibling_re and sibling_re.search(text)))
+            for off, tok in toks:
                 where = path_resolves(root, tok, kit)
                 is_anchored = anchored(tok)
                 # A bare name resolves nowhere by construction; `false`
@@ -1355,9 +1421,13 @@ def paths(root):
                     "owning_id": owner, "path": tok, "anchored": is_anchored,
                     "exists": exists, "resolved_in": where,
                     "struck": in_strike(text, off),
+                    "shape": (unverifiable_shape(root, kit, tok, names_other)
+                              if is_anchored and where is None else None),
                 })
     return {"paths": entries,
-            "missing": [e for e in entries if e["anchored"] and not e["exists"] and not e["struck"]],
+            "missing": [e for e in entries if e["anchored"] and not e["exists"] and not e["struck"]
+                        and not e["shape"]],
+            "unverifiable": [e for e in entries if e["shape"] and not e["struck"]],
             "kit": [e for e in entries if e["resolved_in"] == 'kit'],
             "bare": [e for e in entries if not e["anchored"]]}
 
