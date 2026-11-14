@@ -193,14 +193,34 @@ def usage(msg=None):
 
 # --- record: the per-workstream fields -----------------------------------
 
+# Where a Purpose's own prose ends: a critical-path paragraph or heading
+# some workstreams keep under Purpose, whose closing sentence names tasks
+# and gates rather than a done condition.
+PURPOSE_END_RE = re.compile(r'^\s*(?:\*\*Critical path|#{1,6}\s+.*critical path)', re.I)
+# A done condition written with a qualifier: `Done for the first release
+# means ...`. A bare `done` or `means` is ordinary prose and is not read.
+DONE_MEANS_RE = re.compile(r'\b[Dd]one\b[^.;:]*?\bmeans\b')
+
+
 def purpose_fields(lines):
+    """`first`, the Purpose's first sentence, and `done`: the sentence
+    carrying `Done means`, else one where `done` leads to `means`, else
+    the last sentence of the Purpose's own prose -- the text before any
+    critical-path paragraph or heading the section holds."""
     section = extract_section(lines, r'^##\s+Purpose\s*$')
+    own = []
+    for _, text in section:
+        if PURPOSE_END_RE.match(text):
+            break
+        own.append(text)
     joined = ' '.join(text.strip() for _, text in section if text.strip())
     sentences = split_sentences(joined)
     if not sentences:
         return {"first": "", "done": ""}
     first = sentences[0]
-    done = next((s for s in sentences if 'Done means' in s), sentences[-1])
+    own_sentences = split_sentences(' '.join(t.strip() for t in own if t.strip())) or sentences
+    done = next((s for s in own_sentences if 'Done means' in s),
+                next((s for s in own_sentences if DONE_MEANS_RE.search(s)), own_sentences[-1]))
     return {"first": first, "done": done}
 
 

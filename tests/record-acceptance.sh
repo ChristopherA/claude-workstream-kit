@@ -468,6 +468,19 @@ check "wrapped reports the two continuation lines under criteria" '[ "$(wq ".wra
 check "alpha's one-line criteria report wrapped 0" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"project/alpha/workstream.md\")) | .deletion_criteria.wrapped" "$T/out.json")" = "0" ]'
 
+echo "== Purpose done: a qualified done sentence, and the critical path is not the Purpose's prose"
+mkdir -p "$T/purp/.state/workstreams/feature/p" "$T/purp2/.state/workstreams/feature/p"
+printf -- '## Purpose\nBuilds the thing. Done for the first release means the thing ships. Later releases are reviewed at the gate.\n\n**Critical path.** #DR-1 then #G-DR (the gate).\n' > "$T/purp/.state/workstreams/feature/p/workstream.md"
+printf -- '## Purpose\nBuilds the thing. It closes when the gate passes.\n\n**Critical path.** #DR-1 then #G-DR (the gate).\n' > "$T/purp2/.state/workstreams/feature/p/workstream.md"
+check "fixture: the last sentence of each Purpose section is the critical path's" \
+  'tail -1 "$T/purp/.state/workstreams/feature/p/workstream.md" | grep -q "^\*\*Critical path" && tail -1 "$T/purp2/.state/workstreams/feature/p/workstream.md" | grep -q "^\*\*Critical path"'
+check "a qualified done sentence (Done for the first release means) is the done field" \
+  '[ "$(python3 "$SCRIPT" "$T/purp" | jq -r ".workstreams[0].purpose.done")" = "Done for the first release means the thing ships." ]'
+check "with no done sentence, done is the last sentence BEFORE the critical path" \
+  '[ "$(python3 "$SCRIPT" "$T/purp2" | jq -r ".workstreams[0].purpose.done")" = "It closes when the gate passes." ]'
+check "first is still the Purpose's first sentence" \
+  '[ "$(python3 "$SCRIPT" "$T/purp2" | jq -r ".workstreams[0].purpose.first")" = "Builds the thing." ]'
+
 echo "== An uncoded ### heading ends the coded phase above it"
 mkdir -p "$T/uncoded/.state/workstreams/feature/u"
 printf -- '## Backlog\n### Draft (DR)\n- [ ] #DR-1: a task\n### Gates\n- [ ] #G-SK: USER CHECKPOINT -- a gate no heading declares\n- [ ] #G-DR: USER CHECKPOINT -- a gate its code declares elsewhere\n- [x] #DR-2: a done task under the uncoded heading\n### Next (PX)\n- [ ] #PX-1: a task after it\n' > "$T/uncoded/.state/workstreams/feature/u/workstream.md"
