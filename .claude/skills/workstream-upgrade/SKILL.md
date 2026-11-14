@@ -10,8 +10,9 @@ description: >-
   "upgrade the kit", "update the workstream kit".
   WHEN NOT: a first install (run install.sh from the checkout, README,
   Install); upgrading the kit's own checkout (that is a git pull there);
-  porting a local payload edit back into the kit (report it as an issue
-  on the kit repository first, README, Reporting a gap).
+  porting a local payload edit back into the kit (report it first as
+  your user- or project-level instructions direct, else as an issue on
+  the kit repository, README, Reporting a gap).
 ---
 
 # Workstream Upgrade
@@ -60,6 +61,6 @@ Several projects in one pass do this per project -- stash, apply, commit, restor
 
 ## Move 7 — Restore the stash
 
-`git stash pop`, then `git status --short` to confirm the work came back. A conflict here is a finding rather than a nuisance: the stashed work touched a file the upgrade also changed, which is a locally edited payload file that never reached the kit. Resolve it, then route the edit to the kit as an issue rather than re-applying it in place, or the same conflict returns at every upgrade.
+`git stash pop`, then `git status --short` to confirm the work came back. A conflict here is a finding rather than a nuisance: the stashed work touched a file the upgrade also changed, which is a locally edited payload file that never reached the kit. Resolve it, then route the edit to the kit the way your user- or project-level instructions direct, or as an issue on the kit repository when they name no route, rather than re-applying it in place, or the same conflict returns at every upgrade.
 
 The session-start hook and the skills are read at the next session start and the next invocation, so a session that upgraded itself keeps running on the old text until then; say so.
