@@ -160,9 +160,12 @@ GLOSSABLE_ID_RE = re.compile(
     r'|\bD[0-9]+\b|\bL[0-9]+\b|\bOQ-[0-9]+\b'
 )
 # What may sit between an ID and its gloss: a closing code span, a
-# possessive, a home (`in type/name`, `in ws/tag`, `at ws/tag`).
+# possessive, a home (`in type/name`, `in ws/tag`, `at ws/tag`), the home
+# plain or backticked. It is matched against the text BEFORE code spans
+# are blanked, since a backticked home is a code span and would read as
+# spaces.
 GLOSS_BRIDGE_RE = re.compile(
-    r"`?(?:'s)?(?: (?:in|at) (?:(?:explore|feature|fix|project|maintain)/[a-z0-9.-]+|ws/[a-z0-9.-]+)`?(?:'s)?)?\s*"
+    r"`?(?:'s)?(?: (?:in|at) `?(?:(?:explore|feature|fix|project|maintain)/[a-z0-9.-]+|ws/[a-z0-9.-]+)`?(?:'s)?)?\s*"
 )
 # The gloss itself: a parenthetical or a double-quoted phrase that
 # carries at least one letter, so `(#EX-3)` -- an ID glossing an ID --
@@ -216,8 +219,8 @@ def bare_ids(paragraphs):
     -- a later mention in the same paragraph inherits. A mention is
     glossed when the canonical form follows it directly: `#EX-37 (the
     phase split question)` or `#EX-37 "the phase split question"`, with
-    a home allowed in between (`#EX-30 in project/tier (the neutrality
-    sort)`). Exempt: the ID a paragraph's first line DEFINES (a checkbox
+    a home allowed in between, plain or backticked (`#EX-30 in
+    project/tier (the neutrality sort)`). Exempt: the ID a paragraph's first line DEFINES (a checkbox
     line opening with it, a `### D<n>` heading, a `- L<n>` or `- OQ-<n>`
     item), text inside a code span, and struck spans; fenced blocks are
     blanked by the caller (blank_fences), since fence state crosses
@@ -262,7 +265,7 @@ def bare_ids(paragraphs):
             seen.add(ident)
             if ident == defined:
                 continue
-            bridge = GLOSS_BRIDGE_RE.match(clean, m.end())
+            bridge = GLOSS_BRIDGE_RE.match(text, m.end())
             after = bridge.end() if bridge else m.end()
             if GLOSS_RE.match(clean, after):
                 continue

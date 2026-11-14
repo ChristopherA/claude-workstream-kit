@@ -120,6 +120,8 @@ check "--stdin reads a draft: the quoted form passes, the bare id is listed" \
 check "--stdin --text prints nothing on a glossed draft" '[ -z "$(printf "#OG-1 (the first) stands.\n" | python3 "$SCRIPT" bare-ids --stdin --text)" ]'
 check "a fenced block is exempt" '[ "$(printf "text\n\`\`\`\n- [ ] #OG-1: quoted line naming #OG-2\n\`\`\`\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "0" ]'
 check "an id glossing an id does not count" '[ "$(printf "see (#OG-2) here\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
+check "a backticked home between id and gloss passes, a task id and a Decision id alike" '[ "$(printf "#EX-3 in \`project/tier\` (the split) and D12 at \`ws/tier-2026-01-01\` (the call)\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "0" ]'
+check "a backticked home with no gloss after it is still bare" '[ "$(printf "#EX-3 in \`project/tier\` waits\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
 
 echo "== Vary one input: glossing the gate in ACTIVE.md drops the count by one"
 sed -i.bak 's/#G-AL waits behind it/#G-AL (the build gate) waits behind it/' "$T/p/$A" && rm -f "$T/p/$A.bak"
