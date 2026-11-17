@@ -1,6 +1,6 @@
 # Workstream Conventions
 
-This project tracks multi-session work as **workstreams**: durable state in git-versioned files under `.state/`. Formats and constraints: `.claude/rules/workstreams-rule.md`. The kit's files under `.claude/` — this block, the rule, the workstream skills, the hooks, the agents — are installed artifacts of claude-workstream-kit: a change one of them needs is reported upstream as an issue on that repository the same session, and a local edit is expected to be overwritten by the next install.
+This project tracks multi-session work as **workstreams**: durable state in git-versioned files under `.state/`. Formats and constraints: `.claude/rules/workstreams-rule.md`. The kit's files under `.claude/` — this block, the rule, the workstream skills, the hooks, the agents — are installed artifacts of claude-workstream-kit: a change one of them needs is reported the same session as your user or project instructions direct, else as an issue on that repository; a local edit is overwritten by the next install.
 
 ## Session resume
 
@@ -12,7 +12,7 @@ At session start the hook prints `ACTIVE.md` plus a one-line status of the activ
 
 ## Working
 
-- **Interactive or autonomous** — both are supported. For autonomous sessions, `/workstream-work` derives a `/goal` condition from the active backlog phase and states the session boundaries.
+- **Interactive or autonomous**: for autonomous sessions, `/workstream-work` derives a `/goal` condition from the active backlog phase and states the session boundaries.
 - **One tracker per tier**: the workstream.md Backlog is the durable cross-session tracker; use native Tasks or plan mode for within-session steps. Never mirror one into the other.
 - **Grounded claims**: a task is "done" only with citable evidence — a commit, a passing command, a count; no evidence, no checked checkbox. The checkbox is authoritative for the task and never for the world: an unchecked box says nobody ticked it, not that the thing did not happen, so an external not-done — printed, booked, mailed, installed, upgraded — gets the world checked before it is reported; the checked box has the mirror exposure: a note about a system the repo does not contain — a login, a remote list's membership, a third party's published state — was true when written and silently stops being, while repo-internal evidence — a commit, a passing test, a file that exists — does not rot, so read where a note's evidence lives before trusting it. A task's PREMISE is a third claim, and nothing marks one the way a checkbox marks a task: a statement about the tree that enters a backlog from a conversation is a hypothesis with a citation owed, and a false premise costs more than a false done — it sends someone to build what already exists. Which check a claim wants is picked from the kind of claim it is, per the section of that name in `workstreams-rule.md`.
 - **Delegate where reading beats a command**: scout (read-only verification and inventories), worker (bounded packets), verifier (fresh-context check) — defined in `.claude/agents/`. Counts and grep-shaped records are derived by command in main context.
