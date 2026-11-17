@@ -43,6 +43,10 @@
 #   learnings, follow-on paragraphs: an entry's indented paragraphs
 #     after a blank line stayed verbatim under the condensed line,
 #     unreported, and a marker written only there went unread.
+#   learnings, anaphora outside the word list: a kept sentence
+#     opening on `And` or `Each`, or saying `all three`, after the
+#     sentence it leaned on was dropped, condensed with skipped=0;
+#     `this workstream` was read as pointing back.
 #
 # Each check names the old behaviour it rules out, so the suite fails
 # on 0.11.2 and passes on the fix. REWRITE_SCRIPT overrides the script
@@ -168,7 +172,7 @@ A local D4 the foreign D4 must not be read as.
 - L3 (2026-01-01): Confirm the log reads %G? as G before any push, since an empty signature exits 0. A middle sentence that goes. APPLIED 2026-01-10 to \`rules/sign.md\`.
 - L4 (2026-01-01): Prefer a probe, e.g. the record script, over a hand count. A middle sentence that goes. APPLIED 2026-01-10 to \`f.md\`.
 - L5 (2026-01-01): A plain insight. A middle sentence that goes. APPLIED 2026-01-10 to \`g.md\`.
-- L6 (2026-01-01): A clear starts a session but not a process. A middle sentence of evidence that goes. Anything that loads a plugin mid-session needs a relaunch first -- integration target: \`docs/tools.md\`. QUEUED 2026-01-03: the #BD-4 task line now names it. APPLIED 2026-01-04: \`docs/tools.md\` corrected on the way: the remedy is not only a relaunch, because \`/reload\` activates pending changes in the running session. VERIFIED 2026-01-04: it does; the session served the new version after \`/reload\` with no relaunch.
+- L6 (2026-01-01): A clear starts a session but not a process. A middle sentence of evidence that goes. Integration target: \`docs/tools.md\`, since anything that loads a plugin mid-session needs a relaunch first. QUEUED 2026-01-03: the #BD-4 task line now names it. APPLIED 2026-01-04: \`docs/tools.md\` corrected on the way: the remedy is not only a relaunch, because \`/reload\` activates pending changes in the running session. VERIFIED 2026-01-04: it does; the session served the new version after \`/reload\` with no relaunch.
 - L7 (2026-01-01): A reload can stand in for a relaunch. The reload command activates pending changes. A middle sentence that goes. VERIFIED 2026-01-04: it does; the new version was served.
 - L8 (2026-01-01): The probe misreads a stale cache. The cache notes belong with the probe's own notes. It goes in the probe's notes -- integration target: \`h.md\`. APPLIED 2026-01-10 to \`h.md\`.
 - L9 (2026-01-01): The handoff reached its inbox. A sentence naming the docs-site inbox that goes. VERIFIED 2026-01-04: received there that day and triaged.
@@ -427,6 +431,69 @@ cp "$TW" "$T/tail-after1.md"
 rc=0; python3 "$SCRIPT" learnings "$TW" --write >"$T/tail2.txt" 2>&1 || rc=$?
 check "a second run is a no-op: NO CHANGE, byte-identical" \
   "[ \"\$rc\" -eq 0 ] && grep -qx 'NO CHANGE' \"\$T/tail2.txt\" && cmp -s \"\$TW\" \"\$T/tail-after1.md\""
+
+echo "== learnings: anaphora outside the word list"
+# Three shapes condensed with skipped=0 while a kept sentence leaned on
+# a dropped one: a count (`all three`), a connective (`And`), a
+# distributive subject (`Each`). A kept sentence after a dropped one now
+# stands only when it opens on a disposition marker or an integration
+# target, and a count that refers back holds the entry anywhere.
+mkdir -p "$T/ana/.state/workstreams/maintain/q"
+AW="$T/ana/.state/workstreams/maintain/q/workstream.md"
+cat > "$AW" <<'FIX'
+---
+name: q
+type: maintain
+status: active
+created: 2026-01-01
+---
+## Purpose
+A fixture.
+
+## Backlog
+### Work (BD)
+- [ ] #BD-1: a task
+
+## Learnings
+- L1 (2026-01-01): The checker misreads names in three shapes. The
+  first two are a bare name and a quoted one. APPLIED 2026-01-02 to
+  docs/x.md with all three shapes.
+- L2 (2026-01-01): The rewrite loses meaning in two ways. A middle
+  sentence names the first way. And the second keeps every hash --
+  integration target: docs/y.md. APPLIED 2026-01-02 to docs/y.md.
+- L3 (2026-01-01): Two instruments misread the build. The middle
+  sentence names the request log and the cache. Each was caught by a
+  second reading -- integration target: docs/z.md. APPLIED 2026-01-02
+  to docs/z.md.
+- L4 (2026-01-01): The control insight. A middle sentence the
+  condenser would drop. APPLIED 2026-01-02 to docs/v.md.
+- L5 (2026-01-01): The dashed-target insight. A middle sentence the
+  condenser would drop. -- integration target: docs/u.md. APPLIED
+  2026-01-02 there in full.
+- L6 (2026-01-01): The self-referring insight. A middle sentence the
+  condenser would drop. Integration target: this workstream, at #BD-1,
+  whose line now carries the check. APPLIED 2026-01-02.
+- L7 (2026-01-01): The standalone-target insight. A middle sentence
+  the condenser would drop. Anything that loads a plugin mid-session
+  needs a relaunch -- integration target: docs/t.md. APPLIED
+  2026-01-02 to docs/t.md.
+FIX
+rc=0; python3 "$SCRIPT" learnings "$AW" --write >"$T/ana.txt" 2>&1 || rc=$?
+aentry() { awk -v id="$1" 'index($0, "- " id " ") == 1 {on=1; print; next} on && (/^- / || /^#/ || /^$/) {exit} on {print}' "$AW" | tr '\n' ' ' | tr -s ' '; }
+check "L1, whose kept marker sentence says 'all three' after the sentence naming two is dropped, is left whole and reported" \
+  "[ \"\$rc\" -eq 0 ] && aentry L1 | grep -qF 'The first two are' && grep -E '^SKIPPED L1:' \"\$T/ana.txt\" | grep -qF \"('all three')\""
+check "L2, whose kept marker sentence opens on 'And' after a dropped one, is left whole and reported" \
+  "aentry L2 | grep -qF 'A middle sentence names the first way.' && grep -E '^SKIPPED L2:' \"\$T/ana.txt\" | grep -qF 'opens on neither'"
+check "L3, whose kept marker sentence opens on 'Each' after a dropped one, is left whole and reported" \
+  "aentry L3 | grep -qF 'the request log and the cache' && grep -q '^SKIPPED L3:' \"\$T/ana.txt\""
+check "L4, a marker sentence after a dropped one, still condenses (the control)" \
+  "! aentry L4 | grep -q 'middle sentence' && grep -q '^L4 ' \"\$T/ana.txt\""
+check "L5, an integration target opened by a dash after a dropped one, still condenses" \
+  "! aentry L5 | grep -q 'middle sentence' && aentry L5 | grep -qF -- '-- integration target: docs/u.md.'"
+check "L6, whose target names 'this workstream', its own home, condenses (it was read as pointing back)" \
+  "! aentry L6 | grep -q 'middle sentence' && aentry L6 | grep -qF 'Integration target: this workstream, at #BD-1'"
+check "L7, a target sentence that opens on its own subject after a dropped one, is held too: the inverted rule's cost, a whole entry rather than a lost antecedent" \
+  "aentry L7 | grep -q 'middle sentence' && grep -q '^SKIPPED L7:' \"\$T/ana.txt\""
 
 echo "== the extract skill"
 check "Move 3 names the cites step and --keep beside the records command" \

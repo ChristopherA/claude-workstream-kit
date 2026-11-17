@@ -81,10 +81,12 @@ it carries, terminal or deferred, each in its place, re-wrapped; a sentence neve
 before a lower-case word; a deferred or undispositioned
 entry is byte-identical after, and so is a terminal one already that
 short or one with an EXTENDED written after its last terminal marker.
+An entry is read whole, its indented follow-on paragraphs included.
 A terminal entry is also left whole, and reported `SKIPPED L<n>`, when
-a kept sentence points back (`that task`, `there`, or `it` as its
-subject) at one the condensation drops, or when some text cites it
-for its note;
+a kept sentence after a dropped one opens on neither a disposition
+marker nor an integration target, or points back (`that task`,
+`there`, `it` as its subject, a count such as `all three`) at one the
+condensation drops, or when some text cites it for its note;
 `--keep L<n>` leaves any entry whole.
 
 `rotate`: the extract skill's Move 3b -- keep only what is live (the
@@ -1343,6 +1345,23 @@ BACKREF_RE = re.compile(
 IT_SUBJECT_RE = re.compile(
     r"^[*_]*(?:(?:" + "|".join(re.escape(m) for m in TERMINAL_MARKERS + DEFERRED_MARKERS + ADDENDUM_MARKERS)
     + r")[*_]*(?:\s+(?:on\s+)?20[0-9]{2}-[0-9]{2}-[0-9]{2}\b)?[*_]*[:,]?\s+)?(it(?:'s)?)\b", re.I)
+# A kept sentence whose predecessor is dropped stands alone only when it
+# opens on what it is kept FOR -- a disposition marker or an integration
+# target. A word list of anaphors kept missing the next one: a count
+# (`all three`), a connective (`And`), a distributive subject (`Each
+# was caught`) each condensed with `skipped=0`, so the test is inverted.
+KEPT_OPENER_RE = re.compile(
+    r"^[-*_ (]*(?:(?:" + "|".join(re.escape(m) for m in TERMINAL_MARKERS + DEFERRED_MARKERS + ADDENDUM_MARKERS)
+    + r")\b|(?:integration\s+)?targets?\b)", re.I)
+# A count that refers back names its members only in the dropped text,
+# even inside a sentence the opener test lets stand.
+COUNT_BACKREF_RE = re.compile(
+    r"\b(?:all (?:two|three|four|five|six|seven|eight|nine|ten)|both|the (?:two|three|four|five)"
+    r"|each of (?:them|these|those)|either|neither|the former|the latter|the rest|the others?)\b", re.I)
+# `this workstream` and `this project` name the file's own home, not a
+# sentence before: an integration target reading `this workstream, at
+# #G-XX` routes somewhere real.
+SELF_REF_RE = re.compile(r"\bthis\s+(?:workstream|project|repository|repo)\b", re.I)
 
 
 def condense_learning(text):
@@ -1383,8 +1402,9 @@ def condense_learning_why(text):
     target is kept too, in its place: a real entry's disposition read
     `APPLIED 2026-09-22.` alone, and the target sentence -- which in
     another entry was also the insight itself -- was the only record of
-    where it went. A kept sentence after the statement that points back
-    (`that task`, `there`) at a sentence the condensation would drop
+    where it went. A kept sentence after a dropped one must open on a
+    disposition marker or an integration target, and one that points
+    back (`that task`, `there`, `all three`) at a sentence the condensation would drop
     leaves the entry whole: a target reading `Integration target: that
     task.` routed to nothing."""
     if disposition(text) != 'terminal':
@@ -1410,13 +1430,18 @@ def condense_learning_why(text):
     keep.update(i for i, x in enumerate(sentences) if TARGET_RE.search(x) and not ADDENDUM_RE.match(x))
     keep |= markers
     for i in sorted(keep):
-        if i in lead or i == 0:
+        if i in lead or i == 0 or (i - 1) in keep:
             continue
-        ref = BACKREF_RE.search(sentences[i]) or IT_SUBJECT_RE.match(sentences[i])
-        if ref and (i - 1) not in keep:
+        x = sentences[i]
+        ref = (BACKREF_RE.search(SELF_REF_RE.sub('', x)) or IT_SUBJECT_RE.match(x)
+               or COUNT_BACKREF_RE.search(x))
+        if ref:
             word = ref.group(ref.lastindex or 0)
             return None, ("a kept sentence points back (%r) at one the condensation drops: %s"
-                          % (word, sentences[i][:80]))
+                          % (word, x[:80]))
+        if not KEPT_OPENER_RE.match(x):
+            return None, ("a kept sentence after a dropped one opens on neither a disposition marker"
+                          " nor an integration target: %s" % x[:80])
     condensed = ' '.join(sentences[i] for i in sorted(keep))
     if condensed == body or len(condensed) >= len(body):
         return None, None
