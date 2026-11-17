@@ -40,6 +40,9 @@
 #     task`, `there`, `it does;`) left a routing to nothing; a sentence
 #     was cut at an unquoted `%G? ` or an `e.g. `; only the latest
 #     marker's sentence was kept, losing the earlier ones.
+#   learnings, follow-on paragraphs: an entry's indented paragraphs
+#     after a blank line stayed verbatim under the condensed line,
+#     unreported, and a marker written only there went unread.
 #
 # Each check names the old behaviour it rules out, so the suite fails
 # on 0.11.2 and passes on the fix. REWRITE_SCRIPT overrides the script
@@ -357,6 +360,73 @@ check "fixture: L1 runs APPLIED then QUEUED, L2 APPLIED then EXTENDED, L3 APPLIE
   "grep -q 'APPLIED 2026-01-02 to #BD-1 and #BD-2. QUEUED 2026-01-03' \"\$LW\" && grep -q 'APPLIED 2026-01-02 to docs/x.md. EXTENDED' \"\$LW\""
 check "L1 (terminal, then QUEUED) and L2 (terminal, then EXTENDED) are not offered; L3, the control, is" \
   "[ \"\$rc\" -eq 0 ] && grep -q '^learnings_condensed=1 ' \"\$T/last.txt\" && grep -q '^L3 ' \"\$T/last.txt\" && ! grep -qE '^L[12] ' \"\$T/last.txt\""
+
+echo "== learnings: follow-on paragraphs"
+# A Learning written as several indented paragraphs had its first
+# paragraph condensed and the rest left verbatim under it, the report
+# saying nothing. The whole entry is now read: its follow-on paragraphs
+# condense with it, or it is left whole and reported.
+mkdir -p "$T/tail/.state/workstreams/maintain/q"
+TW="$T/tail/.state/workstreams/maintain/q/workstream.md"
+cat > "$TW" <<'FIX'
+---
+name: q
+type: maintain
+status: active
+created: 2026-01-01
+---
+## Purpose
+A fixture.
+
+## Backlog
+### Work (BD)
+- [ ] #BD-1: a task
+
+## Learnings
+- L1 (2026-01-01): The first insight, stated once. A middle sentence
+  the condenser would drop. APPLIED 2026-01-02 to docs/x.md.
+
+  A spent follow-on paragraph that the disposition makes unnecessary,
+  kept under the entry by an earlier condensation.
+- L2 (2026-01-01): The second insight, whose marker sits below. A
+  middle sentence the condenser would drop.
+
+  APPLIED 2026-01-02 to docs/y.md, in the follow-on paragraph.
+- L3 (2026-01-01): The third insight. A middle sentence the condenser
+  would drop. APPLIED 2026-01-02 to docs/z.md.
+
+  EXTENDED 2026-01-03: a further case in a follow-on paragraph, still
+  owed to a file.
+- L4 (2026-01-01): The fourth insight. A middle sentence the condenser
+  would drop. APPLIED 2026-01-02 to docs/w.md.
+
+  ```
+  a fenced block a re-wrap would break
+  ```
+- L5 (2026-01-01): The control insight. A middle sentence the condenser
+  would drop. APPLIED 2026-01-02 to docs/v.md.
+
+A flush-left paragraph that belongs to the section, not to L5.
+FIX
+cp "$TW" "$T/tail-original.md"
+rc=0; python3 "$SCRIPT" learnings "$TW" --write >"$T/tail.txt" 2>&1 || rc=$?
+tentry() { awk -v id="$1" 'index($0, "- " id " ") == 1 {on=1; print; next} on && (/^- / || /^#/) {exit} on {print}' "$TW" | tr '\n' ' ' | tr -s ' '; }
+check "the run exits 0 and reports follow_on_paragraphs=2 (L1's and L2's)" \
+  "[ \"\$rc\" -eq 0 ] && grep -q '^learnings_condensed=3 .*follow_on_paragraphs=2\$' \"\$T/tail.txt\""
+check "L1's spent follow-on paragraph leaves with the condensation (it stayed verbatim under the condensed line)" \
+  "! grep -q 'spent follow-on paragraph' \"\$TW\" && tentry L1 | grep -qF 'The first insight, stated once. APPLIED 2026-01-02 to docs/x.md.'"
+check "L2's marker, written only in the follow-on paragraph, is read and kept (the entry scored as undispositioned)" \
+  "tentry L2 | grep -qF 'The second insight, whose marker sits below. APPLIED 2026-01-02 to docs/y.md' && ! tentry L2 | grep -q 'middle sentence'"
+check "L3, EXTENDED in a follow-on paragraph after its terminal marker, is left whole" \
+  "tentry L3 | grep -q 'middle sentence' && tentry L3 | grep -qF 'EXTENDED 2026-01-03'"
+check "L4, whose follow-on paragraph holds a fenced block, is left whole and reported" \
+  "tentry L4 | grep -q 'middle sentence' && grep -q 'a fenced block a re-wrap would break' \"\$TW\" && grep -q '^SKIPPED L4: a follow-on paragraph holds a code block' \"\$T/tail.txt\""
+check "L5 condenses and the flush-left paragraph after it stays (the control)" \
+  "! tentry L5 | grep -q 'middle sentence' && grep -qx 'A flush-left paragraph that belongs to the section, not to L5.' \"\$TW\""
+cp "$TW" "$T/tail-after1.md"
+rc=0; python3 "$SCRIPT" learnings "$TW" --write >"$T/tail2.txt" 2>&1 || rc=$?
+check "a second run is a no-op: NO CHANGE, byte-identical" \
+  "[ \"\$rc\" -eq 0 ] && grep -qx 'NO CHANGE' \"\$T/tail2.txt\" && cmp -s \"\$TW\" \"\$T/tail-after1.md\""
 
 echo "== the extract skill"
 check "Move 3 names the cites step and --keep beside the records command" \

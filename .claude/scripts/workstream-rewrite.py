@@ -1447,6 +1447,32 @@ def learning_loss(before, after):
     return None
 
 
+FENCE_RE = re.compile(r'^\s*(?:```|~~~|\|)')
+
+
+def learning_tail(section, blocks, i, consumed):
+    """The follow-on paragraphs of the Learning whose block ends at
+    `consumed`: every INDENTED paragraph after it that only blank lines
+    separate from it, up to the next entry, heading or flush-left line.
+    `fold_blocks` ends a block at a blank line, and a run that condensed
+    the first paragraph alone left an entry's spent paragraphs verbatim
+    under the condensed line with nothing in the report. Returns
+    (tail_blocks, stop, next_index)."""
+    tail = []
+    stop = consumed
+    j = i
+    while j < len(blocks):
+        nb = blocks[j]
+        gap = section[stop:nb[0] - 1]
+        if (not gap or any(g.strip() for g in gap) or nb[1] == 'heading'
+                or not nb[3][0][:1].isspace() or LEARNING_RE.match(nb[3][0].lstrip())):
+            break
+        tail.append(nb)
+        stop = nb[0] - 1 + len(nb[3])
+        j += 1
+    return tail, stop, j
+
+
 def condense_learnings(lines, keep=(), held=None):
     bounds = section_bounds(lines, "Learnings")
     if bounds is None:
@@ -1459,16 +1485,30 @@ def condense_learnings(lines, keep=(), held=None):
     saved = 0
     skipped = 0
     kept = 0
+    follow_on = 0
     entries = []
     blocks = fold_blocks(section)
     consumed = 0
-    for bstart, kind, text, raw in blocks:
+    i = 0
+    while i < len(blocks):
+        bstart, kind, text, raw = blocks[i]
+        i += 1
         idx = bstart - 1
         out.extend(section[consumed:idx])
         consumed = idx + len(raw)
         if kind == 'item' and LEARNING_RE.match(raw[0]):
             lid = "L" + LEARNING_RE.match(raw[0]).group(1)
-            new, why = condense_learning_why(text)
+            tail, stop, i = learning_tail(section, blocks, i, consumed)
+            if tail:
+                raw = section[idx:stop]
+                consumed = stop
+                text = ' '.join([text] + [t[2] for t in tail])
+            if tail and any(FENCE_RE.match(l) for t in tail for l in t[3]):
+                new, why = None, None
+                if disposition(text) == 'terminal':
+                    why = "a follow-on paragraph holds a code block or table, which a re-wrap would break"
+            else:
+                new, why = condense_learning_why(text)
             if new is not None and lid in keep:
                 entries.append("KEPT %s: --keep" % lid)
                 kept += 1
@@ -1488,6 +1528,7 @@ def condense_learnings(lines, keep=(), held=None):
                 after_b = sum(len(l) + 1 for l in wrapped)
                 saved += before_b - after_b
                 condensed += 1
+                follow_on += len(tail)
                 lm = LEARNING_RE.match(raw[0])
                 entries.append(entry_line("L" + lm.group(1), before_b, after_b, wrapped[0]))
                 out.extend(wrapped)
@@ -1498,8 +1539,8 @@ def condense_learnings(lines, keep=(), held=None):
     after = sum(1 for l in out if LEARNING_RE.match(l))
     if before != after:
         raise Refusal("Learnings count changed %d->%d" % (before, after))
-    report = "learnings_condensed=%d bytes_saved=%d learnings=%d skipped=%d kept=%d" % (
-        condensed, saved, after, skipped, kept)
+    report = "learnings_condensed=%d bytes_saved=%d learnings=%d skipped=%d kept=%d follow_on_paragraphs=%d" % (
+        condensed, saved, after, skipped, kept, follow_on)
     return lines[:start + 1] + out + lines[end:], report, entries
 
 
