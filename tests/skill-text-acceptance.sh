@@ -8,10 +8,14 @@
 #   handoff, Create step 7: a correction to an item in flight was a
 #     shell append onto a file the receiver had triaged minutes earlier,
 #     which silently created a fresh file holding only the correction.
+#   workstream-work, independent gate items: an empty multi-select was
+#     the consent signal, and a question absent from the result reads
+#     the same as one answered with nothing selected.
 set -eu
 
 KIT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 HANDOFF="$KIT_DIR/.claude/skills/handoff/SKILL.md"
+WORK="$KIT_DIR/.claude/skills/workstream-work/SKILL.md"
 RESULT=0
 check() { if eval "$2"; then echo "PASS: $1"; else echo "FAIL: $1"; RESULT=1; fi; }
 
@@ -26,6 +30,16 @@ check "a file already gone makes the correction a new handoff citing the filing 
   'printf "%s" "$STEP7" | grep -q "new handoff citing the filing and receive commits"'
 check "it steers the edit away from a shell append" \
   'printf "%s" "$STEP7" | grep -q "fails on a missing file" && printf "%s" "$STEP7" | grep -qF "(\`>>\`)"'
+
+echo "== workstream-work: the consent signal for independent gate items"
+INDEP=$(grep -F 'INDEPENDENT items get one message' "$WORK" || true)
+check "the independent-items passage is found" '[ -n "$INDEP" ]'
+check "it asks one single-select first, take all as recommended or discuss some first" \
+  'printf "%s" "$INDEP" | grep -q "one single-select first" && printf "%s" "$INDEP" | grep -q "take all as recommended, or discuss some first"'
+check "a multi-select is asked only on discuss" 'printf "%s" "$INDEP" | grep -q "multi-select of which to discuss only on discuss"'
+check "an empty answer is not consent, and a missing question is re-asked" \
+  'printf "%s" "$INDEP" | grep -q "never an empty answer" && printf "%s" "$INDEP" | grep -q "A question missing from the result is re-asked"'
+check "the old empty-multi-select consent wording is gone" '! printf "%s" "$INDEP" | grep -q "a single multi-select asking which"'
 
 echo
 if [ "$RESULT" -eq 0 ]; then echo "SKILL-TEXT ACCEPTANCE: ALL CHECKS PASS"; else echo "SKILL-TEXT ACCEPTANCE: FAILURES ABOVE"; fi
