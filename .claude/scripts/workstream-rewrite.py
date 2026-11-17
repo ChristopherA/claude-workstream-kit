@@ -19,7 +19,7 @@ live in workstream-record.py. Standard library only.
 Usage:
   workstream-rewrite.py records   <workstream.md> [--write] [--date YYYY-MM-DD] [--keep <#ID>]...
   workstream-rewrite.py decisions <workstream.md> --decisions D1,D4-D9 --release <tag>
-                                  [--write] [--date YYYY-MM-DD]
+                                  [--write] [--date YYYY-MM-DD] [--keep D<n>]...
   workstream-rewrite.py learnings <workstream.md> [--write] [--date YYYY-MM-DD] [--keep L<n>]...
   workstream-rewrite.py rotate    <workstream.md> --tag ws/<name>-<date> [--write]
                                   [--date YYYY-MM-DD] [--keep <phrase>]...
@@ -70,7 +70,10 @@ numeric order. A Decision already one paragraph long is byte-identical
 after. --release must be a tag or a commit the repository holding the
 file resolves, refused otherwise; the line reads `Shipped in` for a
 tag and `Landed at` for a commit, since a project workstream's
-Decisions land in commits rather than releases.
+Decisions land in commits rather than releases. A named Decision that
+live content cites -- the same reading `records` gives a record -- is
+left whole and reported `SKIPPED D<n>: cited by live content at
+<file>:<line>`; `--keep D<n>` leaves any named Decision whole.
 
 `learnings`: every Learning the record scores terminal (a disposition
 marker at sentence start with a date in its sentence, or struck
@@ -1175,19 +1178,39 @@ def resolve_release(path, value):
     raise Refusal("--release %s is neither a tag nor a commit this repository resolves" % value)
 
 
-def condense_decisions(lines, wanted, release, mark, kind='tag'):
+def condense_decisions(lines, wanted, release, mark, kind='tag', held=None, keep=()):
+    """Condense each wanted Decision. One that LIVE content cites -- an
+    open task, gate line, the critical path, an open criterion or an
+    unresolved Open Question in this file, or another workstream file's
+    live content homed here -- is left whole and reported, as `records`
+    leaves a record: a drain named 31 Decisions shipped by its build
+    tag, and 12 of them were still cited by open work, some by open
+    gates, whose reader would have had to fetch the tag for the detail.
+    `--keep D<n>` leaves any Decision whole."""
     start, end, preamble, blocks = decision_blocks(lines)
+    held = held or {}
     present = {n for n, _ in blocks}
     missing = sorted(wanted - present)
     if missing:
         raise Refusal("no Decision heading for %s" % ", ".join("D%d" % n for n in missing))
     condensed = 0
     saved = 0
+    skipped = 0
+    kept = 0
     entries = []
     new_blocks = []
     for n, bl in blocks:
         bl = strip_blank(bl)
-        if n in wanted and not any(GUARD_RE.search(l) for l in bl):
+        did = "D%d" % n
+        if n in wanted and did in keep:
+            entries.append("KEPT %s: --keep" % did)
+            kept += 1
+        elif n in wanted and did in held and not any(GUARD_RE.search(l) for l in bl):
+            where, sentence, _how = held[did]
+            entries.append("SKIPPED %s: cited by live content at %s: %s -- re-point that citation, or "
+                           "--keep it" % (did, where, sentence))
+            skipped += 1
+        elif n in wanted and not any(GUARD_RE.search(l) for l in bl):
             head = bl[0]
             rest = bl[1:]
             while rest and rest[0].strip() == "":
@@ -1222,7 +1245,8 @@ def condense_decisions(lines, wanted, release, mark, kind='tag'):
             rebuilt.append("")
         rebuilt.extend(bl)
     rebuilt.append("")
-    report = "decisions_condensed=%d bytes_saved=%d reordered=%s" % (condensed, saved, "yes" if reordered else "no")
+    report = "decisions_condensed=%d bytes_saved=%d reordered=%s skipped=%d kept=%d" % (
+        condensed, saved, "yes" if reordered else "no", skipped, kept)
     return lines[:start + 1] + rebuilt + lines[end:], report, entries
 
 
@@ -1246,7 +1270,14 @@ def run_condense(path, do_tasks, decisions, release, date, dry, keep=()):
             entries.extend(ents)
         if decisions is not None:
             kind, release = resolve_release(path, release)
-            lines, r, ents = condense_decisions(lines, parse_decisions(decisions), release, mark, kind)
+            wanted = parse_decisions(decisions)
+            dkeep = {k for k in keep if re.fullmatch(r"D[0-9]+", k)}
+            dctx = condense_context(path, lines)
+            cited = note_citations(dctx.root, dctx.path, lines, {"D%d" % n for n in wanted} - dkeep, live=True)
+            held = {k: v for k, v in cited.items() if v[2] == 'live'}
+            for k in sorted(dkeep - {"D%d" % n for n in wanted}):
+                entries.append("KEPT %s: not among --decisions, nothing to keep" % k)
+            lines, r, ents = condense_decisions(lines, wanted, release, mark, kind, held, dkeep)
             report.append(r)
             entries.extend(ents)
     except Refusal as e:
@@ -1267,13 +1298,17 @@ def cmd_records(args):
 
 
 def cmd_decisions(args):
-    rest, o = parse_options(args, flags=('--write',), values=('--date', '--decisions', '--release'))
+    rest, o = parse_options(args, flags=('--write',), values=('--date', '--decisions', '--release'),
+                            multi=('--keep',))
     if len(rest) != 1:
         usage("decisions takes exactly one workstream.md")
     if o['--decisions'] is None or o['--release'] is None:
         usage("decisions needs --decisions and --release")
+    for k in o['--keep']:
+        if not re.fullmatch(r"D[0-9]+", k):
+            usage("--keep %r is not a Decision ID (D<n>)" % k)
     return run_condense(rest[0], False, o['--decisions'], o['--release'],
-                        o['--date'] or datetime.date.today().isoformat(), not o['--write'])
+                        o['--date'] or datetime.date.today().isoformat(), not o['--write'], o['--keep'])
 
 
 # --- learnings: terminal entries condense to statement plus disposition -----

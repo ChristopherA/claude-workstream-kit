@@ -47,6 +47,8 @@
 #     opening on `And` or `Each`, or saying `all three`, after the
 #     sentence it leaned on was dropped, condensed with skipped=0;
 #     `this workstream` was read as pointing back.
+#   decisions, live citations: every named Decision condensed, those
+#     an open gate or open task still cited included.
 #
 # Each check names the old behaviour it rules out, so the suite fails
 # on 0.11.2 and passes on the fix. REWRITE_SCRIPT overrides the script
@@ -494,6 +496,82 @@ check "L6, whose target names 'this workstream', its own home, condenses (it was
   "! aentry L6 | grep -q 'middle sentence' && aentry L6 | grep -qF 'Integration target: this workstream, at #BD-1'"
 check "L7, a target sentence that opens on its own subject after a dropped one, is held too: the inverted rule's cost, a whole entry rather than a lost antecedent" \
   "aentry L7 | grep -q 'middle sentence' && grep -q '^SKIPPED L7:' \"\$T/ana.txt\""
+
+echo "== decisions: live citations"
+# `decisions` condensed every Decision named with no citation check: a
+# drain named 31 shipped Decisions and 12 were still cited by open work,
+# some by open gates. A Decision live content cites is now left whole
+# and reported, as `records` leaves a record; `--keep D<n>` holds any.
+mkdir -p "$T/dec/.state/workstreams/maintain/q" "$T/dec/.state/workstreams/feature/other"
+DW="$T/dec/.state/workstreams/maintain/q/workstream.md"
+cat > "$DW" <<'FIX'
+---
+name: q
+type: maintain
+status: active
+created: 2026-01-01
+---
+## Purpose
+A fixture.
+
+## Backlog
+### Work (BD)
+- [ ] #BD-1: an open task
+- [ ] #G-BD: USER CHECKPOINT -- approve the batch D1 (the batch plan) scoped
+
+## Decisions
+### D1 (2026-01-01): The batch plan
+First paragraph of the plan.
+
+A second paragraph of detail the open gate still reads.
+
+### D2 (2026-01-01): The shared format
+First paragraph of the format.
+
+A second paragraph of detail another workstream's open task reads.
+
+### D3 (2026-01-01): A spent choice
+First paragraph of the spent choice.
+
+A second paragraph only a closed Decision mentions.
+
+### D4 (2026-01-01): Another spent choice
+First paragraph, and D3 is named here with no note word.
+
+A second paragraph nobody cites.
+
+### D5 (2026-01-01): An open question's subject
+First paragraph.
+
+A second paragraph the open question reads.
+
+## Open Questions
+- OQ-1: Does D5 (the open question's subject) still hold? (resolve at #BD-1)
+
+## Deletion Criteria
+- [ ] the batch ships
+FIX
+printf -- '---\nname: other\ntype: feature\nstatus: active\ncreated: 2026-01-01\n---\n## Purpose\nAnother.\n\n## Backlog\n### Build (BT)\n- [ ] #BT-1: build to D2 in maintain/q (the shared format)\n' > "$T/dec/.state/workstreams/feature/other/workstream.md"
+( cd "$T/dec" && git init -q -b main && git config user.email t@example.invalid && git config user.name T \
+  && git config commit.gpgsign false && git config tag.gpgsign false && git add -A && git commit -q -m fixture && git tag v0.1.0 )
+cp "$DW" "$T/dec-original.md"
+rc=0; python3 "$SCRIPT" decisions "$DW" --decisions D1-D5 --release v0.1.0 >"$T/dec.txt" 2>&1 || rc=$?
+check "the dry run exits 0 and reports decisions_condensed=2 skipped=3" \
+  "[ \"\$rc\" -eq 0 ] && grep -q '^decisions_condensed=2 .*skipped=3 kept=0' \"\$T/dec.txt\" && cmp -s \"\$DW\" \"\$T/dec-original.md\""
+check "D1, cited by an open gate, is SKIPPED as cited by live content at its line" \
+  "grep -E '^SKIPPED D1: cited by live content at [^ ]*workstream.md:[0-9]+' \"\$T/dec.txt\" | grep -q 'G-BD'"
+check "D2, cited by another workstream's open task homed here, is SKIPPED with that file named" \
+  "grep -q '^SKIPPED D2: cited by live content at .state/workstreams/feature/other/workstream.md:' \"\$T/dec.txt\""
+check "D5, cited by an unresolved Open Question, is SKIPPED" "grep -q '^SKIPPED D5: cited by live content' \"\$T/dec.txt\""
+check "D3, named only by a closed Decision with no note word, and D4, cited by nothing, condense" \
+  "grep -q '^D3 ' \"\$T/dec.txt\" && grep -q '^D4 ' \"\$T/dec.txt\""
+rc=0; python3 "$SCRIPT" decisions "$DW" --decisions D1-D5 --release v0.1.0 --keep D4 --keep D9 --write >"$T/dec2.txt" 2>&1 || rc=$?
+check "--keep D4 leaves D4 whole and reports KEPT; --keep D9, not named, is reported and holds nothing" \
+  "[ \"\$rc\" -eq 0 ] && grep -qx 'KEPT D4: --keep' \"\$T/dec2.txt\" && grep -q '^KEPT D9: not among --decisions' \"\$T/dec2.txt\" && grep -qF 'A second paragraph nobody cites.' \"\$DW\""
+check "after the write, the cited Decisions keep their detail and D3 lost its second paragraph" \
+  "grep -qF 'the open gate still reads' \"\$DW\" && grep -qF \"another workstream's open task reads\" \"\$DW\" && grep -qF 'the open question reads' \"\$DW\" && ! grep -qF 'only a closed Decision mentions' \"\$DW\""
+rc=0; python3 "$SCRIPT" decisions "$DW" --decisions D1 --release v0.1.0 --keep '#BD-1' >/dev/null 2>&1 || rc=$?
+check "--keep with a task ID is refused: exit 2" '[ "$rc" -eq 2 ]'
 
 echo "== the extract skill"
 check "Move 3 names the cites step and --keep beside the records command" \
