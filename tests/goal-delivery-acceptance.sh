@@ -7,6 +7,8 @@
 # block that reaches the model as text, so no hook is armed; typed after
 # `/goal`, the stored condition begins with a second `/goal`.
 #
+# It also checks the referent shapes the skill lists beside it.
+#
 # This guards the skill's instruction text, not the model's behaviour.
 # Every negative check first asserts that the text it reads was found, so
 # a moved or renamed bullet fails loudly instead of passing as clean.
@@ -37,6 +39,20 @@ check "the reference's clipboard sentence is found" '[ -n "$NOTE" ]'
 check "it says the text carries no /goal prefix" 'printf "%s" "$NOTE" | grep -qF "without a \`/goal\` prefix"'
 check "it names both ways a prefixed paste fails" \
   'printf "%s" "$NOTE" | grep -q "arms no hook" && printf "%s" "$NOTE" | grep -q "second \`/goal\`"'
+
+echo "== The referent shapes a correct in-session act falsifies"
+# Three shapes looped a hook until /goal clear: a gated action asserted
+# undone, a mid-task unit read as a ceiling once the user said proceed,
+# and conduct quantified over a class that a harmless read falsified.
+for f in "$SKILL" "$FAIL"; do
+  n=$(basename "$f")
+  check "$n lists a gated action asserted undone, fixed by 'auto-passes no user gate' alone" \
+    'grep -i "gated action asserted undone" "$f" | grep -qF "auto-passes no user gate"'
+  check "$n lists a mid-task unit stated as a ceiling, fixed as a floor or by /goal clear" \
+    'grep -i "mid-task unit stated as a ceiling" "$f" | grep -q "floor" && grep -i "mid-task unit stated as a ceiling" "$f" | grep -qF "/goal clear"'
+  check "$n lists conduct quantified over a class, scoped to changes with read-only queries outside it" \
+    'grep -i "conduct quantified over a class" "$f" | grep -q "scope it to changes" && grep -i "conduct quantified over a class" "$f" | grep -q "read-only queries"'
+done
 
 echo
 if [ "$RESULT" -eq 0 ]; then echo "GOAL-DELIVERY ACCEPTANCE: ALL CHECKS PASS"; else echo "GOAL-DELIVERY ACCEPTANCE: FAILURES ABOVE"; fi
