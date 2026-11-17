@@ -165,6 +165,16 @@ classify_direction() {
 #
 # Prints repo-relative paths, one per line; empty when the target is not a git
 # repo, which is a target with nothing to track rather than a defect.
+BYTECODE_IGNORE_COMMENT='# Python bytecode under .claude/ is never committed (claude-workstream-kit install.sh).'
+
+# True when the target is a git repository whose ignores do NOT cover Python
+# bytecode under .claude/. --no-index asks the patterns alone, so a stray
+# tracked .pyc does not answer for them.
+bytecode_unignored() {
+  git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1 || return 1
+  ! git -C "$TARGET" check-ignore -q --no-index .claude/scripts/__pycache__/x.cpython-3.pyc 2>/dev/null
+}
+
 ignored_payload_paths() {
   if ! git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1; then
     return 0
@@ -252,6 +262,12 @@ if [ "$DRY_RUN" -eq 1 ]; then
     sed 's/^/        /' "$ign_list"
   fi
   rm -f "$ign_list"
+
+  # Bytecode ignore (append-once).
+  if bytecode_unignored; then
+    echo "  + .claude/.gitignore  (would ignore Python bytecode: the target's ignores do not cover it under .claude/)"
+    drift=1
+  fi
 
   # CLAUDE.md marker block.
   tcm="$TARGET/.claude/CLAUDE.md"
@@ -504,6 +520,17 @@ else
   echo "  ACTION REQUIRED: install jq and re-run, or add this statusLine"
   echo "  command to .claude/settings.json manually:"
   printf '    %s\n' "$SL_CMD"
+fi
+
+# --- bytecode ignore: .claude/.gitignore (append once, never rewrite) --------
+# A check that compiles a kit script writes __pycache__/ beside it, and the
+# upgrade skill stages all of .claude/, so in a target whose own ignores do not
+# cover bytecode it lands in the upgrade commit. One line closes that for every
+# writer; a target that already ignores bytecode is left as it is.
+if bytecode_unignored; then
+  [ -f "$TARGET/.claude/.gitignore" ] || printf '%s\n' "$BYTECODE_IGNORE_COMMENT" > "$TARGET/.claude/.gitignore"
+  printf '%s\n' '__pycache__/' >> "$TARGET/.claude/.gitignore"
+  echo "  added __pycache__/ to .claude/.gitignore (commit it with the payload)"
 fi
 
 # --- .state/ seed (never overwrite existing state) --------------------------

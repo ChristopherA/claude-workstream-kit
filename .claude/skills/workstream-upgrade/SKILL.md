@@ -55,7 +55,7 @@ Several projects in one pass do this per project -- stash, apply, commit, restor
 
 - Show `git status --short` and the diff to `.claude/`.
 - `git add -A -- .claude` first: a release that adds a skill leaves new files untracked, and a pathspec commit skips untracked files.
-- Commit ONLY what the kit owns: the `.claude/` payload directories, the kit block in `CLAUDE.md`, `settings.json`, the two stamp files, and any seed file the installer staged (it prints each as `staged .state/...`). With the stash in place the tree should hold nothing else; anything beyond that is shown to the user, not committed around.
+- Commit ONLY what the kit owns: the `.claude/` payload directories, the kit block in `CLAUDE.md`, `settings.json`, `.claude/.gitignore` when the installer reports adding to it, the two stamp files, and any seed file the installer staged (it prints each as `staged .state/...`). With the stash in place the tree should hold nothing else; anything beyond that is shown to the user, not committed around.
 - Message: `Upgrade claude-workstream-kit to <version> (<source sha>)`, in the repository's own commit conventions.
 - Do not push; that is a separate decision.
 
