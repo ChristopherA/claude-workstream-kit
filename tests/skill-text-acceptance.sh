@@ -11,6 +11,9 @@
 #   workstream-work, independent gate items: an empty multi-select was
 #     the consent signal, and a question absent from the result reads
 #     the same as one answered with nothing selected.
+#   workstream-work, the intake re-list: the hook reports the inbox
+#     once, and a goal was drafted without three handoffs that landed
+#     after it ran.
 set -eu
 
 KIT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -40,6 +43,16 @@ check "a multi-select is asked only on discuss" 'printf "%s" "$INDEP" | grep -q 
 check "an empty answer is not consent, and a missing question is re-asked" \
   'printf "%s" "$INDEP" | grep -q "never an empty answer" && printf "%s" "$INDEP" | grep -q "A question missing from the result is re-asked"'
 check "the old empty-multi-select consent wording is gone" '! printf "%s" "$INDEP" | grep -q "a single multi-select asking which"'
+
+echo "== workstream-work: the intake is re-listed before a goal and a gate"
+RELIST=$(grep -F '**Re-list the intake first.**' "$WORK" || true)
+GATE=$(grep -F -- '- `#G-` checkpoints:' "$WORK" || true)
+check "the re-list paragraph and the gate bullet are found" '[ -n "$RELIST" ] && [ -n "$GATE" ]'
+check "the re-list sits in the goal section, before Scope" \
+  'awk "/^## Derive the goal condition/{on=1} on && /Re-list the intake first/{r=NR} on && /^\\*\\*Scope\\./{s=NR; exit} END{exit !(r && s && r < s)}" "$WORK"'
+check "it lists the inbox again and the other channels the critical path names" \
+  'printf "%s" "$RELIST" | grep -qF "list \`.state/handoffs/\` again" && printf "%s" "$RELIST" | grep -q "critical path names"'
+check "the gate bullet re-lists the intake before it stops" 'printf "%s" "$GATE" | grep -q "re-list the intake, then STOP"'
 
 echo
 if [ "$RESULT" -eq 0 ]; then echo "SKILL-TEXT ACCEPTANCE: ALL CHECKS PASS"; else echo "SKILL-TEXT ACCEPTANCE: FAILURES ABOVE"; fi
