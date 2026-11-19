@@ -59,7 +59,11 @@ note by`. `--keep <#ID>` leaves any record whole
 opening with its status word or date, naming its commit and a
 backticked command or a count -- is left whole and reported SKIPPED,
 and with no commit leading a note, every lead clause carrying a
-command or a count is kept, as an issue's is. A multi-line record in no recognised shape is left as it is
+command or a count is kept, as an issue's is. A record dated before
+its colon (`- [x] #ID (2026-01-02): ...`, any parenthetical) keeps the
+parenthetical verbatim, its date dating a note that names none; any
+other line the record script reads as done is reported `SKIPPED <ID>:
+unrecognised record form`. A multi-line record in no recognised shape is left as it is
 and reported `SKIPPED <ID>: <reason>`, never guessed at. Note
 paragraphs an earlier run left under a condensed record are counted
 as orphaned_note_lines and left in place.
@@ -232,7 +236,12 @@ def finish(path, text, new, dry, report, extra_lines=()):
 
 # --- records and decisions: the two shipped moves ------------------------
 
-DONE_RE = re.compile(r"^( *- \[x\] )(#" + TASK_ID_FORM + "|#" + GATE_ID_FORM + r")(: ?)(.*)$")
+# A completed record: the ID, then an optional parenthetical before the
+# colon -- `#XX-3 (2026-01-02):`, `#G-XX (CLEARED 2026-01-02):` -- which
+# is carried verbatim as part of the separator and never condensed. Any
+# other line the record script reads as done (DONE_LINE_RE) is reported
+# SKIPPED as an unrecognised form rather than passed over in silence.
+DONE_RE = re.compile(r"^( *- \[x\] )(#" + TASK_ID_FORM + "|#" + GATE_ID_FORM + r")((?: \([^()]*\))?: ?)(.*)$")
 DATE_RE = re.compile(r"\b(20[0-9]{2}-[0-9]{2}-[0-9]{2})\b")
 SHA_RE = re.compile(r"\b(?=[0-9]*[a-f])[0-9a-f]{7,40}\b")  # a hash the note names verbatim, any repo; never a bare number
 STATUS_WORDS = ('DONE', 'DECIDED', 'RETIRED', 'SUPERSEDED', 'CLOSED', 'SHIPPED', 'ABSORBED',
@@ -635,7 +644,7 @@ def note_evidence(note, ctx):
     return made, handles + [k for k in kept if k not in handles], unresolved, unmade
 
 
-def condensed_note(note, ctx, mark):
+def condensed_note(note, ctx, mark, fallback_date=None):
     """(text, notes) -- the completion-note form for one note's text:
     the status word and date of its own sentence, with the pointer its
     closing verb carries; its Decision citations; the commits that lead
@@ -643,11 +652,14 @@ def condensed_note(note, ctx, mark):
     the report annotations for what it named and did not list.
     Everything is read from the NOTE alone -- never from the
     description beside it, whose asides and dates are not the record's
-    evidence."""
+    evidence. A dated record's `(<date>)` before the colon is its
+    fallback_date, used only when the note itself carries none."""
     dates = DATE_RE.findall(note)
     decs, absent, foreign = decisions_cited(note, ctx)
     shas, kept, unresolved, unmade = note_evidence(note, ctx)
     mark_word, date = status_and_date(note, dates)
+    if date == "n.d." and fallback_date:
+        date = fallback_date
     head = "%s %s" % (mark_word, date)
     ptr = pointer_of(note)
     if ptr:
@@ -954,6 +966,7 @@ def condense_record(raw, mark, ctx, tail=""):
     rest verbatim under the condensed line, attributed to nothing."""
     m = DONE_RE.match(raw[0])
     prefix, tid, sep, body = m.groups()
+    sep_date = (DATE_RE.findall(sep) or [None])[-1]
     cont = raw[1:]
     more = (" " + tail) if tail else ""
     if body.startswith("*("):
@@ -969,7 +982,7 @@ def condense_record(raw, mark, ctx, tail=""):
             rest = (" " + rest) if rest else ""
         if not more and at_the_form(note):
             return None, None, AT_THE_FORM
-        note_text, absent = condensed_note(note + more, ctx, mark)
+        note_text, absent = condensed_note(note + more, ctx, mark, sep_date)
         first = "%s%s%s*(%s)*%s" % (prefix, tid, sep, note_text, rest)
         new = [first] + cont[k:]
         if rest.strip() not in first or cont[k:] != new[1:]:
@@ -998,14 +1011,19 @@ def condense_record(raw, mark, ctx, tail=""):
         indent = note_lines[0][:len(note_lines[0]) - len(note_lines[0].lstrip())]
         if not more and at_the_form(note):
             return None, None, AT_THE_FORM
-        note_text, absent = condensed_note(note + more, ctx, mark)
+        note_text, absent = condensed_note(note + more, ctx, mark, sep_date)
         line = indent + wrap_open + note_text + wrap_close
         return desc + [line], line, absent
     if not (STATUS_RE.search(body) or DATE_RE.search(body)):
+        # Read in the body alone: a dated record's parenthetical can be
+        # its whole note (`(done <date>, site <hash>)`), and a date there
+        # would license cutting a body that is all description.
         return None, None, "a one-line record with no status word or date to condense"
     head = first_sentence(body)
-    note_text, absent = condensed_note(body + more, ctx, mark)
-    line = "%s%s: %s %s" % (prefix, tid, head, note_text)
+    note_text, absent = condensed_note(body + more, ctx, mark, sep_date)
+    # The separator is carried verbatim: a dated record's `(<date>)` is
+    # part of it, and a rebuilt `: ` dropped the date.
+    line = "%s%s%s %s %s" % (prefix, tid, sep.rstrip(), head, note_text)
     if head not in line:
         raise Refusal("%s: the description's first sentence would not survive the condensation" % tid)
     return [line], line, absent
@@ -1047,6 +1065,12 @@ def condense_range(lines, start, end, mark, ctx):
         out.extend(region[consumed:idx])
         consumed = idx + len(raw)
         if kind != 'item' or not DONE_RE.match(raw[0]):
+            if kind == 'item' and DONE_LINE_RE.match(raw[0]):
+                # Done to the record script, unreadable here: a report
+                # that skipped it in silence read clean.
+                m = re.match(r"^ *- \[[xX]\] (#[^\s:(]+)", raw[0])
+                entries.append("SKIPPED %s: unrecognised record form" % (m.group(1) if m else raw[0].strip()[:40]))
+                skipped += 1
             out.extend(raw)
             continue
         # The record's blank-separated tail.

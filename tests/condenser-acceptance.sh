@@ -330,6 +330,55 @@ rc=0; python3 "$SCRIPT" records "$W" --keep '#BD-16' --write --date 2026-06-06 >
 check "a second records run is a no-op: exit 0, NO CHANGE, byte-identical" \
   "[ \"\$rc\" -eq 0 ] && grep -qx 'NO CHANGE' \"$T/out2.txt\" && cmp -s \"$W\" \"$T/after-records.md\""
 
+echo "== records: dated record forms"
+# On 0.11.5 a record dated between its ID and the colon -- `#XX-3
+# (2026-01-02): ...` -- matched no record pattern, so records passed it
+# over and reported clean while the record script read it as done. The
+# parenthetical is carried verbatim, its date standing in for a note
+# that names none; a body that is all description stays whole, since
+# the parenthetical can be the whole note; and any other line the
+# record script reads as done is reported, never passed over.
+mkdir -p .state/workstreams/maintain/dt
+DTW="$T/.state/workstreams/maintain/dt/workstream.md"
+cat > "$DTW" <<FIX
+---
+name: dt
+type: maintain
+status: active
+---
+## Purpose
+A fixture carrying the dated record forms.
+
+## Backlog
+### Dated (DT)
+- [x] #DT-1 (2026-01-07): Build the dated thing.
+      DONE at $SHORT: the dated build landed and its check passed. $P
+- [x] #DT-2 (2026-01-08): A one-line dated record. DONE 2026-01-08 at $SHORT: the one-line build landed. $P $P
+- [x] #G-DT (2026-01-09): USER CHECKPOINT decided. APPROVED 2026-01-09 at $SHORT: the gate passed. $P $P
+- [x] #DT-3 (done 2026-01-09, site $SHORT): A body that is all description and carries no marker. $P $P
+- [x] #7: A legacy-numbered record the ID grammar does not take. $P $P
+FIX
+cp "$DTW" "$T/dt-original.md"
+dtblock() { awk -v id="$1" 'index($0, "- [x] " id " (") == 1 || index($0, "- [x] " id ":") == 1 {on=1; print; next} on && /^- / {exit} on && /^#/ {exit} on {print}' "$DTW"; }
+rc=0; python3 "$SCRIPT" records "$DTW" --write --date 2026-05-05 >"$T/dt.txt" 2>&1 || rc=$?
+check "records exits 0 and writes the dated fixture" "[ \"\$rc\" -eq 0 ] && grep -q WRITTEN \"$T/dt.txt\""
+check "#DT-1, dated before the colon with its note below, condenses, its parenthetical kept and its note dated from it" \
+  "dtblock '#DT-1' | head -1 | grep -qxF -- '- [x] #DT-1 (2026-01-07): Build the dated thing.' && dtblock '#DT-1' | grep -q \"DONE 2026-01-07; commits $SHORT. Condensed 2026-05-05\""
+check "#DT-2, a dated one-line record, condenses with its parenthetical and first sentence kept" \
+  "dtblock '#DT-2' | grep -qF -- '- [x] #DT-2 (2026-01-08): A one-line dated record. DONE 2026-01-08' && dtblock '#DT-2' | grep -q 'Condensed 2026-05-05'"
+check "#G-DT, a dated gate record, condenses the same way" \
+  "dtblock '#G-DT' | grep -qF -- '- [x] #G-DT (2026-01-09): USER CHECKPOINT decided. APPROVED 2026-01-09' && dtblock '#G-DT' | grep -q 'Condensed 2026-05-05'"
+check "#DT-3, whose note is its parenthetical and whose body carries no marker, is byte-identical and reported" \
+  "grep -qF -- '- [x] #DT-3 (done 2026-01-09, site $SHORT): A body that is all description' \"$DTW\" && grep -q '^SKIPPED #DT-3: a one-line record with no status word or date' \"$T/dt.txt\""
+check "#7, done to the record script but outside the ID grammar, is byte-identical and reported as an unrecognised record form" \
+  "grep -qF -- '- [x] #7: A legacy-numbered record' \"$DTW\" && grep -qx 'SKIPPED #7: unrecognised record form' \"$T/dt.txt\""
+check "the summary counts both skips, so the report does not read clean" "grep -q '^condensed=3 .* skipped=2 ' \"$T/dt.txt\""
+cp "$DTW" "$T/dt-after.md"
+rc=0; python3 "$SCRIPT" records "$DTW" --write --date 2026-06-06 >"$T/dt2.txt" 2>&1 || rc=$?
+check "a second records run over the dated fixture is a no-op" \
+  "[ \"\$rc\" -eq 0 ] && grep -qx 'NO CHANGE' \"$T/dt2.txt\" && cmp -s \"$DTW\" \"$T/dt-after.md\""
+command rm -rf .state/workstreams/maintain/dt
+
 echo "== learnings"
 cp "$T/original.md" "$W"
 rc=0; python3 "$SCRIPT" learnings "$W" --write >"$T/learn.txt" 2>&1 || rc=$?
