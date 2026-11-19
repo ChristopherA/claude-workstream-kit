@@ -24,7 +24,8 @@ Usage:
   workstream-rewrite.py rotate    <workstream.md> --tag ws/<name>-<date> [--write]
                                   [--date YYYY-MM-DD] [--keep <phrase>]...
                                   [--allow-stale-claims]
-  workstream-rewrite.py archive   <workstream.md> --phases CODE[,CODE...] [--write]
+  workstream-rewrite.py archive   <workstream.md> [--phases CODE[,CODE...]]
+                                  [--headings <heading>]... [--write]
 
 `records`: every `- [x]` record in the live Backlog, and under
 ## Archive when that section exists, whose BLOCK -- the task line, its
@@ -134,7 +135,15 @@ several codes moves when any is named), read between `## Backlog` and
 the next `## ` heading, so a `### D3 (...)` heading past it is never a
 phase, and running from its heading to the next `### ` or higher,
 moves to the end of `## Archive` in file order, the section created at
-the end of the file when absent. A block holding any open checkbox
+the end of the file when absent. `--headings <heading>`, repeatable,
+selects a block by its heading instead, for a code declared by several
+headings of which only some are complete: the text after `### `
+(given with or without the `### `), matched exactly against every
+`### ` heading under `## Backlog`, coded or not. A text matching none
+refuses the run and names it, unless an `## Archive` heading reads
+the same, which reports `ALREADY ARCHIVED heading line <n>:
+<heading>`; a text matching more than one refuses and names each
+line. The two options combine, a block named by both moving once. A block holding any open checkbox
 line, indented or not, refuses the run and names each line (its first
 160 characters); a code no Backlog heading declares refuses the run
 and names the code, unless an `## Archive` heading already declares
@@ -2199,22 +2208,32 @@ PHASE_CODE_RE = re.compile(r'[A-Za-z0-9]+')
 BLOCK_END_RE = re.compile(r'^#{1,3}\s')
 
 
-def phase_blocks(lines, bounds):
-    """[(start, end, heading, codes)] for every `### ... (<CODE>)` block
-    inside bounds, the 0-based (start, end) of a `## ` section. A block
-    runs from its heading to the next heading of level 3 or above, or to
-    the section's end, so a `### D3 (...)` past the next `## ` is never
-    read as a phase."""
+def heading_blocks(lines, bounds):
+    """[(start, end, heading, codes)] for every `### ` block inside
+    bounds, the 0-based (start, end) of a `## ` section, coded or not
+    (codes is [] for a heading declaring none). A block runs from its
+    heading to the next heading of level 3 or above, or to the section's
+    end, so a `### D3 (...)` past the next `## ` is never read."""
     start, end = bounds
     heads = [i for i in range(start + 1, end) if BLOCK_END_RE.match(lines[i])]
     out = []
     for n, h in enumerate(heads):
-        m = PHASE_HEADING_RE.match(lines[h])
-        if not m:
+        if not lines[h].startswith('### '):
             continue
+        m = PHASE_HEADING_RE.match(lines[h])
         stop = heads[n + 1] if n + 1 < len(heads) else end
-        out.append((h, stop, lines[h], [c.strip() for c in m.group(2).split('/')]))
+        out.append((h, stop, lines[h], [c.strip() for c in m.group(2).split('/')] if m else []))
     return out
+
+
+def phase_blocks(lines, bounds):
+    """The heading_blocks whose heading declares a phase code."""
+    return [b for b in heading_blocks(lines, bounds) if b[3]]
+
+
+def heading_text(h):
+    """A --headings value or a heading line, as the text after `### `."""
+    return h[4:].strip() if h.startswith('### ') else h.strip()
 
 
 def multiset(items):
@@ -2224,9 +2243,10 @@ def multiset(items):
     return counts
 
 
-def archive(lines, codes):
-    """(new_lines, report, entries, created): the named phases' blocks
-    moved from the Backlog to the end of ## Archive, in file order."""
+def archive(lines, codes, headings=()):
+    """(new_lines, report, entries, created): the blocks of the named
+    phases and of the named headings moved from the Backlog to the end
+    of ## Archive, in file order, each once."""
     backlog = section_bounds(lines, 'Backlog')
     if backlog is None:
         raise Refusal("no ## Backlog section")
@@ -2241,6 +2261,24 @@ def archive(lines, codes):
     missing = [c for c in unmoved if c not in archived]
     if missing:
         raise Refusal("no phase heading under ## Backlog declares %s" % ", ".join(missing))
+    live_all = heading_blocks(lines, backlog)
+    done_all = heading_blocks(lines, arch) if arch else []
+    archived_heads = []
+    for want in headings:
+        t = heading_text(want)
+        hits = [b for b in live_all if heading_text(b[2]) == t]
+        if len(hits) > 1:
+            raise Refusal("\"%s\" matches %d headings under ## Backlog; name one heading exactly\n%s" % (
+                t, len(hits), "\n".join("  line %d: %s" % (b[0] + 1, b[2][:160]) for b in hits)))
+        if hits:
+            if hits[0] not in moving:
+                moving.append(hits[0])
+            continue
+        prior = [b for b in done_all if heading_text(b[2]) == t]
+        if not prior:
+            raise Refusal("no ### heading under ## Backlog reads \"%s\"" % t)
+        archived_heads.append(prior[0])
+    moving.sort(key=lambda b: b[0])
     open_lines = [(i, lines[i]) for s, e, _h, _c in moving for i in range(s, e)
                   if DELETION_OPEN_RE.match(lines[i])]
     if open_lines:
@@ -2263,6 +2301,9 @@ def archive(lines, codes):
     for c in archived:
         b = next(b for b in done if c in b[3])
         entries.append("ALREADY ARCHIVED %s line %d: %s" % (c, b[0] + 1, b[2]))
+    for b in archived_heads:
+        entries.append("ALREADY ARCHIVED heading line %d: %s" % (b[0] + 1, b[2]))
+    archived = archived + archived_heads
     if not moving:
         return lines, "archive: 0 phase block(s) to move, %d already archived" % len(archived), entries, False
     taken = set()
@@ -2293,13 +2334,19 @@ def archive(lines, codes):
 
 
 def cmd_archive(args):
-    rest, o = parse_options(args, flags=('--write',), values=('--phases',))
+    rest, o = parse_options(args, flags=('--write',), values=('--phases',), multi=('--headings',))
     if len(rest) != 1:
         usage("archive takes exactly one workstream.md")
-    if not o['--phases']:
-        usage("archive needs --phases CODE[,CODE...]")
+    if not o['--phases'] and not o['--headings']:
+        usage("archive needs --phases CODE[,CODE...] or --headings <heading>")
+    headings = []
+    for h in o['--headings']:
+        if not heading_text(h):
+            usage("--headings needs a heading's text")
+        if heading_text(h) not in headings:
+            headings.append(heading_text(h))
     codes = []
-    for c in o['--phases'].split(','):
+    for c in o['--phases'].split(',') if o['--phases'] else []:
         c = c.strip()
         if not PHASE_CODE_RE.fullmatch(c):
             usage("--phases %r is not a comma-separated list of phase codes" % o['--phases'])
@@ -2309,7 +2356,7 @@ def cmd_archive(args):
     text = load(path)
     old_lines = text.split('\n')
     try:
-        new_lines, report, entries, created = archive(old_lines, codes)
+        new_lines, report, entries, created = archive(old_lines, codes, headings)
     except Refusal as e:
         head, _sep, lines = str(e).partition('\n')
         sys.stderr.write("%s: %s in %s\n" % (PROG, head, path))

@@ -10,7 +10,10 @@
 # declares refuses; a phase-shaped Decision heading past the Backlog is
 # never read as a phase; an ID the task grammar cannot parse is reported
 # and still moves; a second run with the same codes reports them as
-# already archived and changes nothing; usage. The multisets are read
+# already archived and changes nothing; --headings moves one of two
+# headings declaring the same code, refuses a text matching none or
+# two, refuses an open line, and reports a second run as already
+# archived; usage. The multisets are read
 # here with grep, not with the script's own patterns, so the check does
 # not share the code it checks.
 set -eu
@@ -177,9 +180,56 @@ rc=0; python3 "$SCRIPT" archive "$W2" --phases QC --write >"$T/o.txt" 2>"$T/e.tx
 check "exit 1, naming QC as declared by no Backlog heading, file unchanged" \
   '[ "$rc" -eq 1 ] && grep -q "no phase heading under ## Backlog declares QC" "$T/e.txt" && cmp -s "$W2" "$T/before.md"'
 
+echo "== Selection by heading: a code declared by two headings"
+W3="$T/.state/workstreams/maintain/fx/three.md"
+cat > "$W3" <<'FIX'
+## Backlog
+### 1. Part one (QD) -- all done
+- [x] #QD-1: done
+- [x] #QD-2: done
+
+### 2. Part two (QD) -- still live
+- [ ] #QD-3: open
+
+### Twin (QE)
+- [x] #QE-1: done
+
+### Twin (QE)
+- [x] #QE-2: done
+
+## Decisions
+### D1 (2026-01-01): A call
+Reasoning.
+FIX
+cp "$W3" "$T/before.md"
+check "fixture: QD is declared by two headings, one holding an open line" \
+  '[ "$(grep -c "^### .*(QD)" "$W3")" -eq 2 ] && grep -q "^- \[ \] #QD-3" "$W3"'
+rc=0; python3 "$SCRIPT" archive "$W3" --phases QD >/dev/null 2>"$T/e.txt" || rc=$?
+check "--phases QD refuses on the open line of the second heading" '[ "$rc" -eq 1 ] && grep -q "#QD-3" "$T/e.txt" && cmp -s "$W3" "$T/before.md"'
+rc=0; python3 "$SCRIPT" archive "$W3" --headings "1. Part one (QD) -- all done" --write >"$T/o.txt" 2>"$T/e.txt" || rc=$?
+check "--headings moves only the named heading, exit 0, WRITTEN" \
+  '[ "$rc" -eq 0 ] && [ "$(tail -1 "$T/o.txt")" = WRITTEN ] && grep -q "^MOVE line 2-4 .*### 1. Part one (QD) -- all done" "$T/o.txt" && section Archive "$W3" | grep -q "^- \[x\] #QD-2: done$" && section Backlog "$W3" | grep -q "^### 2. Part two (QD) -- still live$" && ! section Backlog "$W3" | grep -q "#QD-1"'
+check "the multisets hold and the Decisions are unchanged" \
+  'same_multisets "$T/before.md" "$W3" && section Decisions "$T/before.md" > "$T/s1" && section Decisions "$W3" > "$T/s2" && cmp -s "$T/s1" "$T/s2"'
+cp "$W3" "$T/before.md"
+rc=0; python3 "$SCRIPT" archive "$W3" --headings "### 1. Part one (QD) -- all done" --write >"$T/o.txt" 2>"$T/e.txt" || rc=$?
+check "a second run, the ### form accepted: ALREADY ARCHIVED, NO CHANGE" \
+  '[ "$rc" -eq 0 ] && grep -q "^ALREADY ARCHIVED heading line [0-9]*: ### 1. Part one (QD) -- all done$" "$T/o.txt" && [ "$(tail -1 "$T/o.txt")" = "NO CHANGE" ] && cmp -s "$W3" "$T/before.md"'
+rc=0; python3 "$SCRIPT" archive "$W3" --headings "2. Part two (QD) -- still live" --write >/dev/null 2>"$T/e.txt" || rc=$?
+check "a named heading holding an open line refuses, naming the line" \
+  '[ "$rc" -eq 1 ] && grep -q "line [0-9]*: - \[ \] #QD-3" "$T/e.txt" && cmp -s "$W3" "$T/before.md"'
+rc=0; python3 "$SCRIPT" archive "$W3" --headings "Part one" --write >/dev/null 2>"$T/e.txt" || rc=$?
+check "a heading text matching no Backlog heading exactly refuses, naming it" \
+  '[ "$rc" -eq 1 ] && grep -q "no ### heading under ## Backlog reads \"Part one\"" "$T/e.txt" && cmp -s "$W3" "$T/before.md"'
+t1=$(grep -n '^### Twin (QE)$' "$W3" | sed -n 1p | cut -d: -f1)
+t2=$(grep -n '^### Twin (QE)$' "$W3" | sed -n 2p | cut -d: -f1)
+rc=0; python3 "$SCRIPT" archive "$W3" --headings "Twin (QE)" --write >/dev/null 2>"$T/e.txt" || rc=$?
+check "a heading text matching two Backlog headings refuses, naming both lines" \
+  '[ "$rc" -eq 1 ] && [ -n "$t1" ] && [ -n "$t2" ] && grep -q "\"Twin (QE)\" matches 2 headings under ## Backlog" "$T/e.txt" && grep -q "line $t1: ### Twin" "$T/e.txt" && grep -q "line $t2: ### Twin" "$T/e.txt" && cmp -s "$W3" "$T/before.md"'
+
 echo "== Usage"
 rc=0; python3 "$SCRIPT" archive "$W2" >/dev/null 2>"$T/e.txt" || rc=$?
-check "archive without --phases: exit 2, naming --phases" '[ "$rc" -eq 2 ] && grep -q "archive needs --phases" "$T/e.txt"'
+check "archive without --phases or --headings: exit 2, naming both" '[ "$rc" -eq 2 ] && grep -q "archive needs --phases CODE\[,CODE...\] or --headings" "$T/e.txt"'
 
 echo
 if [ "$RESULT" -eq 0 ]; then echo "ARCHIVE ACCEPTANCE: ALL CHECKS PASS"; else echo "ARCHIVE ACCEPTANCE: FAILURES ABOVE"; fi
