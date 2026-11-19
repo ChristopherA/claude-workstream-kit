@@ -66,7 +66,7 @@
 ^tests/decay-acceptance\.sh:[0-9]+:.*\.state/workstreams/(maintain/kit|feature/plain)\b
 ^tests/git-acceptance\.sh:[0-9]+:.*#A-[0-9]+\b
 ^tests/git-acceptance\.sh:[0-9]+:.*\.state/workstreams/feature/a\b
-^tests/fires-acceptance\.sh:[0-9]+:.*#(G-DN|(LV|DN)-[0-9]+)\b
+^tests/fires-acceptance\.sh:[0-9]+:.*#(G-DN|(LV|DN|CL)-[0-9]+)\b
 ^tests/fires-acceptance\.sh:[0-9]+:.*\$T/\.state/workstreams/
 ^tests/learnings-acceptance\.sh:[0-9]+:.*#(BD|BT)-[0-9]+[a-z]?\b
 ^tests/rewrite-acceptance\.sh:[0-9]+:.*#(G-BD|BD-[0-9]+[a-z]?)\b
