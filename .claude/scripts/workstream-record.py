@@ -176,7 +176,7 @@ from workstream_state import (  # noqa: E402
     ANY_HEADING_RE, CHECKBOX_ID_RE, CHECKBOX_RE, CROSS_REF_TAG_RE, CROSS_REF_WS_RE,
     DECISION_HEADING_RE, DELETION_DONE_RE, DELETION_OPEN_RE, DONE_GATE_RE, DONE_LINE_RE,
     GATE_LINE_RE, HOLDS_RE, HOLD_RE, ID_RE, LEARNING_RE, LIST_ITEM_RE, PHASE_HEADING_RE,
-    SATISFIED_MARK_RE, TASK_CODE_RE, TOP_HEADING_RE, TOTAL_OPEN_RE,
+    SATISFIED_MARK_RE, TASK_CODE_RE, TOP_HEADING_RE, TOTAL_OPEN_RE, with_learning_tails,
     blank_strikes, disposition, extract_section, marker_counts, TERMINAL_RE, find_workstreams, fold_blocks, in_strike,
     git, join_block, line_at, negated, read_lines, require_root, section_of, sentence_span,
     split_sentences, state_files, strip_frontmatter, workstream_id, SIZE_BYTES,
@@ -517,7 +517,7 @@ def learnings_field(lines, blocks):
     undispositioned = []
     flagged = []
     count = 0
-    for start, kind, text, raw in blocks:
+    for start, kind, text, raw in with_learning_tails(lines, blocks):
         if kind == 'item' and LEARNING_RE.match(raw[0]) and start in learnings_lines:
             count += 1
             d = disposition(text)

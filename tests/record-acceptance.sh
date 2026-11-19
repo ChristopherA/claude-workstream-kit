@@ -634,6 +634,45 @@ check "the criterion is planted under Deletion Criteria" '[ "$(tail -1 "$DW" | c
 check "open_total stays 6 with the criterion added" '[ "$(dq ".open_total")" = "6" ]'
 check "and still equals the per-heading sum" '[ "$(dq " | [.phases[] | .open_tasks + .open_gates] | add")" = "6" ]'
 
+echo "== A Learning is scored WHOLE: a marker in an indented follow-on paragraph counts"
+# fold_blocks ends a block at a blank line; on 0.11.5 an entry whose only
+# terminal marker sat in a follow-on paragraph was scored undispositioned
+# and fires reported it. The open entry beside it must stay open, so a
+# follow-on paragraph that carries no marker disposes of nothing.
+mkdir -p "$T/tail/.state/workstreams/maintain/t"
+TL="$T/tail/.state/workstreams/maintain/t/workstream.md"
+cat > "$TL" <<'EOF'
+---
+name: t
+type: maintain
+status: active
+---
+## Purpose
+A fixture.
+
+## Backlog
+### Build (TB)
+- [ ] #TB-1: an open task
+
+## Learnings
+- L1 (2026-01-01): The first insight. APPLIED 2026-01-02 to docs/x.md.
+- L2 (2026-01-01): The second insight. A middle sentence.
+
+  APPLIED 2026-01-02 to docs/y.md.
+- L3 (2026-01-01): The third insight, still open.
+
+  A follow-on paragraph naming no marker.
+
+## Deletion Criteria
+- [ ] A condition.
+EOF
+check "the fixture holds L2's marker on an indented line after a blank one" \
+  'grep -B1 "^  APPLIED 2026-01-02 to docs/y.md" "$TL" | head -1 | grep -q "^$"'
+check "record scores L1 and L2 terminal and L3 alone undispositioned" \
+  '[ "$(python3 "$SCRIPT" record "$T/tail" | jq -c ".workstreams[0].learnings | [.count, .terminal, (.undispositioned | map(.[0:6]))]")" = "[3,2,[\"- L3 (\"]]" ]'
+check "fires counts one undispositioned Learning, not two" \
+  'python3 "$SCRIPT" fires "$T/tail" | grep -q "undispositioned Learnings.*1" && ! python3 "$SCRIPT" fires "$T/tail" | grep -q "undispositioned Learnings.*2"'
+
 echo "== Missing .state exits 2 (not merely non-zero)"
 mkdir -p "$T/nostate-root"
 check "the nostate fixture genuinely has no .state directory" '[ ! -d "$T/nostate-root/.state" ]'

@@ -254,6 +254,55 @@ check "a genuine count in the same file still refuses (exit 1), and only that se
   '[ "$rc" -eq 1 ] && grep -q "STALE CLAIM.*2 Learnings remain" "$T/ord-o.txt" && ! grep -q "STALE CLAIM.*Criterion" "$T/ord-o.txt"'
 cd "$T"
 
+echo "== A Learning leaves WHOLE: its follow-on paragraphs go with it, and a marker in one counts"
+# fold_blocks ends a block at a blank line. On 0.11.5 a terminal entry
+# with an indented follow-on paragraph left that paragraph behind under
+# the numbering note, and an entry whose only marker sat in a follow-on
+# paragraph was read as open and kept.
+mkdir -p "$T/tail" && cd "$T/tail"
+git init -q -b main && git config user.email fixture@example.invalid && git config user.name Fixture
+git config commit.gpgsign false && git config tag.gpgsign false && git config tag.forceSignAnnotated false
+mkdir -p .state/workstreams/maintain/t
+TW=.state/workstreams/maintain/t/workstream.md
+cat > "$TW" <<'FIX'
+---
+name: t
+type: maintain
+status: active
+---
+## Purpose
+A fixture whose Learnings run to several paragraphs.
+
+## Backlog
+### Build (TB)
+- [ ] #TB-1: an open task
+
+## Learnings
+- L1 (2026-01-01): First insight. APPLIED 2026-01-02 to docs/a.md.
+
+  A follow-on paragraph about the first.
+- L2 (2026-01-01): Second insight. A middle sentence.
+
+  APPLIED 2026-01-02 to docs/b.md.
+- L3 (2026-01-01): Third insight, still open.
+
+  A follow-on paragraph about the third.
+
+## Deletion Criteria
+- [ ] A condition.
+FIX
+git add -A && git commit -q -m fixture && git tag -a ws/t-2026-02-02 -m rotation
+check "the fixture holds both follow-on paragraphs and the marker on its own line" \
+  'grep -q "^  A follow-on paragraph about the first" "$TW" && grep -q "^  APPLIED 2026-01-02 to docs/b.md" "$TW"'
+rc=0; python3 "$SCRIPT" rotate "$TW" --tag ws/t-2026-02-02 --date 2026-02-02 --write >"$T/tail-o.txt" 2>"$T/tail-e.txt" || rc=$?
+check "the rotation writes and drops two Learnings, L1 and L2" \
+  '[ "$rc" -eq 0 ] && grep -q "^rotate: dropped learning=2 " "$T/tail-o.txt"'
+check "removed side: L1, L2, L1's follow-on paragraph and L2's marker paragraph are gone" \
+  '! grep -q "^- L[12] " "$TW" && ! grep -q "about the first" "$TW" && ! grep -q "docs/b.md" "$TW"'
+check "kept side: L3 and its own follow-on paragraph stay, in order" \
+  'grep -A2 "^- L3 " "$TW" | grep -q "about the third"'
+cd "$T"
+
 echo "== Another workstream's own IDs under the same numbers do not refuse the rotation"
 # IDs are per-workstream. On 0.11.1 a match on the bare ID in any other
 # state file refused the run, so a workstream whose D1 was leaving was

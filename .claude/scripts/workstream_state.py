@@ -407,6 +407,49 @@ def fold_blocks(lines):
     return blocks
 
 
+def learning_tail(lines, blocks, i, consumed):
+    """The follow-on paragraphs of the Learning whose block ends at
+    `consumed` (a 0-based index into `lines`, the list `blocks` was
+    folded from): every INDENTED paragraph after it that only blank
+    lines separate from it, up to the next entry, heading or flush-left
+    line. `fold_blocks` ends a block at a blank line, so a reader that
+    stops there scores an entry by its first paragraph alone: a marker
+    in a follow-on paragraph went unseen, and a rotation moved the
+    entry and left its paragraphs behind. Returns (tail_blocks, stop,
+    next_index)."""
+    tail = []
+    stop = consumed
+    j = i
+    while j < len(blocks):
+        nb = blocks[j]
+        gap = lines[stop:nb[0] - 1]
+        if (not gap or any(g.strip() for g in gap) or nb[1] == 'heading'
+                or not nb[3][0][:1].isspace() or LEARNING_RE.match(nb[3][0].lstrip())):
+            break
+        tail.append(nb)
+        stop = nb[0] - 1 + len(nb[3])
+        j += 1
+    return tail, stop, j
+
+
+def with_learning_tails(lines, blocks):
+    """`blocks` (folded from `lines`) with each Learning's follow-on
+    paragraphs absorbed into its block: the text joined, the raw lines
+    the whole span, blank separators included. Every reader that scores
+    or moves a Learning reads it whole through this."""
+    out = []
+    i = 0
+    while i < len(blocks):
+        b = blocks[i]
+        i += 1
+        if b[1] == 'item' and LEARNING_RE.match(b[3][0]):
+            tail, stop, i = learning_tail(lines, blocks, i, b[0] - 1 + len(b[3]))
+            if tail:
+                b = (b[0], 'item', ' '.join([b[2]] + [t[2] for t in tail]), lines[b[0] - 1:stop])
+        out.append(b)
+    return out
+
+
 def extract_section(lines, header_regex):
     """Lines (1-indexed via enumerate) between a heading matching
     header_regex and the next top-level '## ' heading (exclusive of both),

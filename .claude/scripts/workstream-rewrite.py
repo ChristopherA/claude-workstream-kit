@@ -116,7 +116,9 @@ critical-path sentence states about a section that was true before
 and is false after is reported with both figures and refuses the run
 unless --allow-stale-claims; and the open count, gate count, STANDING
 count and open IDs are asserted identical. The tag must exist. A file
-with wrapped open lines is refused as non-conforming.
+with wrapped open lines is refused as non-conforming. A Learning is
+read whole, its indented follow-on paragraphs included, so it leaves
+or stays as one.
 
 Exit 0 on success (a dry run included), 1 on a refusal or a failed
 check, 2 on usage or an unreadable file. Prints a report, then WRITTEN
@@ -156,6 +158,7 @@ from workstream_state import (  # noqa: E402
     git, join_block, line_at, marker_counts, read_lines, section_bounds, sentence_span,
     split_sentences, strip_frontmatter, wrap, TASK_ID_FORM, GATE_ID_FORM,
     CROSS_REF_WS_RE, workstream_id, open_question, RESOLVED_MARK_RE,
+    learning_tail, with_learning_tails,
 )
 
 PROG = 'workstream-rewrite.py'
@@ -1510,29 +1513,6 @@ def learning_loss(before, after):
 FENCE_RE = re.compile(r'^\s*(?:```|~~~|\|)')
 
 
-def learning_tail(section, blocks, i, consumed):
-    """The follow-on paragraphs of the Learning whose block ends at
-    `consumed`: every INDENTED paragraph after it that only blank lines
-    separate from it, up to the next entry, heading or flush-left line.
-    `fold_blocks` ends a block at a blank line, and a run that condensed
-    the first paragraph alone left an entry's spent paragraphs verbatim
-    under the condensed line with nothing in the report. Returns
-    (tail_blocks, stop, next_index)."""
-    tail = []
-    stop = consumed
-    j = i
-    while j < len(blocks):
-        nb = blocks[j]
-        gap = section[stop:nb[0] - 1]
-        if (not gap or any(g.strip() for g in gap) or nb[1] == 'heading'
-                or not nb[3][0][:1].isspace() or LEARNING_RE.match(nb[3][0].lstrip())):
-            break
-        tail.append(nb)
-        stop = nb[0] - 1 + len(nb[3])
-        j += 1
-    return tail, stop, j
-
-
 def condense_learnings(lines, keep=(), held=None):
     bounds = section_bounds(lines, "Learnings")
     if bounds is None:
@@ -1689,7 +1669,7 @@ def section_counts(lines):
     learn_lines = {no for no, _t in extract_section(lines, r'^##\s+Learnings\s*$')}
     learn = 0
     terminal = 0
-    for s, k, t, r in fold_blocks(lines):
+    for s, k, t, r in with_learning_tails(lines, fold_blocks(lines)):
         if k == 'item' and LEARNING_RE.match(r[0]) and s in learn_lines:
             learn += 1
             if disposition(t) == 'terminal':
@@ -1822,7 +1802,7 @@ def rotate(path, lines, tag, date, keeps):
             live_text.extend(rebuilt[heading])
         elif heading == '## Learnings':
             new = []
-            blocks = fold_blocks(body)
+            blocks = with_learning_tails(body, fold_blocks(body))
             consumed = 0
             leaving_nos = []
             all_nos = []
