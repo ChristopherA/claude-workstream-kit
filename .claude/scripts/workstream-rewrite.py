@@ -56,7 +56,9 @@ file's closed content (ticked criteria, Decisions, records), an Open
 Question resolved in place (`RESOLVED <date> via #ID`) and ACTIVE.md
 hold a record only when they cite it FOR ITS NOTE (`see #ID
 completion note`, a note word near the ID), reported `cited as its
-note by`. `--keep <#ID>` leaves any record whole
+note by`; a hold that only a record this run condenses gave is
+released, the record condensed in the same run and reported
+`RELEASED <ID>`, so a second run is a no-op. `--keep <#ID>` leaves any record whole
 (`KEPT`). A note already at the completion-note form -- one sentence,
 opening with its status word or date, naming its commit and a
 backticked command or a count -- is left whole and reported SKIPPED,
@@ -1329,7 +1331,25 @@ def run_condense(path, do_tasks, decisions, release, date, dry, keep=()):
             ctx.held = note_citations(ctx.root, ctx.path, lines, done - ctx.keep, live=True)
             for k in sorted(ctx.keep - done):
                 entries.append("KEPT %s: no completed record with this ID, nothing to keep" % k)
-            lines, r, ents = condense_records(lines, mark, ctx)
+            # A record held only by another record's note loses its hold
+            # when this run condenses that note, so a second run used to
+            # condense what the first held, and a reviewer of the first
+            # dry run approved less than the drain wrote. Narrow the held
+            # set to what the condensed output still cites, and condense
+            # the input again, until it stops changing: the first run
+            # writes what a second would.
+            first = dict(ctx.held)
+            for _round in range(10):
+                out, r, ents = condense_records(lines, mark, ctx)
+                still = note_citations(ctx.root, ctx.path, out, set(ctx.held), live=True)
+                narrowed = {k: v for k, v in ctx.held.items() if k in still}
+                if len(narrowed) == len(ctx.held):
+                    break
+                ctx.held = narrowed
+            for k in sorted(set(first) - set(ctx.held)):
+                where, sentence, _how = first[k]
+                entries.append("RELEASED %s: held only by %s, a note this run condenses: %s" % (k, where, sentence[:120]))
+            lines = out
             report.append(r)
             entries.extend(ents)
         if decisions is not None:

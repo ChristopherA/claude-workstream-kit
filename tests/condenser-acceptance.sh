@@ -669,6 +669,47 @@ check "after the write, the cited Decisions keep their detail and D3 lost its se
 rc=0; python3 "$SCRIPT" decisions "$DW" --decisions D1 --release v0.1.0 --keep '#BD-1' >/dev/null 2>&1 || rc=$?
 check "--keep with a task ID is refused: exit 2" '[ "$rc" -eq 2 ]'
 
+echo "== records: a record held only by a note the same run condenses"
+# On 0.11.5 the held set was read once, before the run: a record cited
+# as its note only by ANOTHER record's note was held, the citing note
+# condensed, and a second run then condensed the record the first had
+# held, so a second pass changed the file. The run now narrows the held
+# set to what its own output still cites and condenses again until it
+# stops changing. A record an OPEN task cites stays held on every pass.
+W340="$T/fx340.md"
+cat > "$W340" <<'FIX'
+---
+name: fx
+type: maintain
+status: active
+---
+## Purpose
+A fixture.
+
+## Backlog
+### Done (QF)
+- [x] #QF-1: the citing record
+  DONE 2026-01-01: built the citing thing in one pass over the fixture files. The run took most of a day because the fixture tree had to be rebuilt twice before the counts agreed with each other and with the census. The figure it rests on is in the #QF-2 completion note, measured the day after on a fresh clone, and nothing here restates it. Each step was logged as it ran, the logs read once at the end, and the reading found nothing the counts had not already shown, so the logs were not kept.
+- [x] #QF-2: the cited record
+  DONE 2026-01-02: measured the cited figure on a fresh clone of the fixture tree. Forty-one files carried the old form and none the new one, counted twice by two different methods that agreed on every file. The method and the counts are kept here because another note points at them for its own claim. Each step was logged as it ran, the logs read once at the end, and the reading found nothing the counts had not already shown, so the logs were not kept.
+- [x] #QF-3: the record an open task cites
+  DONE 2026-01-03: measured the second figure on a fresh clone of the fixture tree. Seventeen files carried the old form, counted twice by two different methods that agreed on every file. The method and the counts are kept here because an open task builds on them. Each step was logged as it ran, the logs read once at the end, and the reading found nothing the counts had not already shown, so the logs were not kept.
+- [ ] #QF-4: build on the figure in the #QF-3 completion note
+
+## Decisions
+### D1 (2026-01-01): A call
+Reasoning.
+FIX
+rc=0; python3 "$SCRIPT" records "$W340" --write --date 2026-02-02 >"$T/r340-1.txt" 2>&1 || rc=$?
+check "the first run condenses the citing record and the one it alone held, reporting RELEASED" \
+  "[ \"\$rc\" -eq 0 ] && grep -q '^RELEASED #QF-2: held only by' \"$T/r340-1.txt\" && grep -q '^#QF-1 ' \"$T/r340-1.txt\" && grep -q '^#QF-2 ' \"$T/r340-1.txt\""
+check "the record an open task cites stays whole" \
+  "grep -q '^SKIPPED #QF-3: cited by live content' \"$T/r340-1.txt\" && grep -qF 'Seventeen files carried the old form' \"$W340\" && ! grep -q '^RELEASED #QF-3' \"$T/r340-1.txt\""
+cp "$W340" "$T/fx340-after.md"
+rc=0; python3 "$SCRIPT" records "$W340" --write --date 2026-03-03 >"$T/r340-2.txt" 2>&1 || rc=$?
+check "a second run is a no-op: NO CHANGE, byte-identical" \
+  "[ \"\$rc\" -eq 0 ] && grep -qx 'NO CHANGE' \"$T/r340-2.txt\" && cmp -s \"$W340\" \"$T/fx340-after.md\""
+
 echo "== the extract skill"
 check "Move 3 names the cites step and --keep beside the records command" \
   "awk '/^## Move 3 /{on=1;next} /^## /{on=0} on' \"$SKILL\" | grep -q 'cites' && awk '/^## Move 3 /{on=1;next} /^## /{on=0} on' \"$SKILL\" | grep -q -- '--keep'"
