@@ -24,6 +24,7 @@ Usage:
   workstream-rewrite.py rotate    <workstream.md> --tag ws/<name>-<date> [--write]
                                   [--date YYYY-MM-DD] [--keep <phrase>]...
                                   [--allow-stale-claims]
+  workstream-rewrite.py archive   <workstream.md> --phases CODE[,CODE...] [--write]
 
 `records`: every `- [x]` record in the live Backlog, and under
 ## Archive when that section exists, whose BLOCK -- the task line, its
@@ -126,6 +127,29 @@ with wrapped open lines is refused as non-conforming. A Learning is
 read whole, its indented follow-on paragraphs included, so it leaves
 or stays as one.
 
+`archive`: the extract skill's Move 3 relocation. Every `### ...
+(<CODE>)` block whose heading declares a --phases code (a code
+declared by several headings moves them all; a heading declaring
+several codes moves when any is named), read between `## Backlog` and
+the next `## ` heading, so a `### D3 (...)` heading past it is never a
+phase, and running from its heading to the next `### ` or higher,
+moves to the end of `## Archive` in file order, the section created at
+the end of the file when absent. A block holding any open checkbox
+line, indented or not, refuses the run and names each line (its first
+160 characters); a code no Backlog heading declares refuses the run
+and names the code, unless an `## Archive` heading already declares
+it, which reports `ALREADY ARCHIVED <code>`, so a second run prints NO
+CHANGE. Before writing, the heading-line multiset (the new `##
+Archive` heading excluded), the checkbox ID-and-state multiset and the
+non-blank-line multiset are asserted identical; the sequence the
+fingerprint reads is not, since a move reorders it. A moved checkbox
+whose ID the task-ID grammar cannot parse (`#P8-V`) is reported
+`UNPARSABLE <ID> line <n>` and still moves: the ID leaves the Backlog
+and stops being flagged there, by `workstream-record.py`'s
+unparsable_ids or anything else that reads only the Backlog, so the
+report is where it stays visible. Each moved block is reported `MOVE
+line <a>-<b> (<n> checkbox line(s)): <heading>`.
+
 Exit 0 on success (a dry run included), 1 on a refusal or a failed
 check, 2 on usage or an unreadable file. Prints a report, then WRITTEN
 or NO CHANGE (a dry run with changes prints the report alone). The
@@ -157,7 +181,7 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from workstream_state import (  # noqa: E402
-    ANY_HEADING_RE, CHECKBOX_ID_RE, CHECKBOX_RE, LIST_ITEM_RE, ADDENDUM_RE, DECISION_HEADING_RE, DELETION_OPEN_RE, DONE_LINE_RE,
+    ANY_HEADING_RE, CHECKBOX_ID_RE, CHECKBOX_HASH_RE, CHECKBOX_RE, LIST_ITEM_RE, ADDENDUM_RE, DECISION_HEADING_RE, DELETION_OPEN_RE, DONE_LINE_RE,
     DEFERRED_RE, TERMINAL_MARKERS, DEFERRED_MARKERS, ADDENDUM_MARKERS,
     GATE_LINE_RE, LEARNING_RE, PHASE_HEADING_RE, TERMINAL_RE, TOTAL_OPEN_RE, STRIKE_RE,
     blank_strikes, disposition, extract_section, find_workstreams, fingerprint, fold_blocks,
@@ -2169,6 +2193,156 @@ def cmd_rotate(args):
     return 0
 
 
+# --- archive: Move 3's relocation of completed phases ------------------------
+
+PHASE_CODE_RE = re.compile(r'[A-Za-z0-9]+')
+BLOCK_END_RE = re.compile(r'^#{1,3}\s')
+
+
+def phase_blocks(lines, bounds):
+    """[(start, end, heading, codes)] for every `### ... (<CODE>)` block
+    inside bounds, the 0-based (start, end) of a `## ` section. A block
+    runs from its heading to the next heading of level 3 or above, or to
+    the section's end, so a `### D3 (...)` past the next `## ` is never
+    read as a phase."""
+    start, end = bounds
+    heads = [i for i in range(start + 1, end) if BLOCK_END_RE.match(lines[i])]
+    out = []
+    for n, h in enumerate(heads):
+        m = PHASE_HEADING_RE.match(lines[h])
+        if not m:
+            continue
+        stop = heads[n + 1] if n + 1 < len(heads) else end
+        out.append((h, stop, lines[h], [c.strip() for c in m.group(2).split('/')]))
+    return out
+
+
+def multiset(items):
+    counts = {}
+    for k in items:
+        counts[k] = counts.get(k, 0) + 1
+    return counts
+
+
+def archive(lines, codes):
+    """(new_lines, report, entries, created): the named phases' blocks
+    moved from the Backlog to the end of ## Archive, in file order."""
+    backlog = section_bounds(lines, 'Backlog')
+    if backlog is None:
+        raise Refusal("no ## Backlog section")
+    if sum(1 for l in lines if l == '## Archive') > 1:
+        raise Refusal("more than one ## Archive section")
+    arch = section_bounds(lines, 'Archive')
+    live = phase_blocks(lines, backlog)
+    done = phase_blocks(lines, arch) if arch else []
+    moving = [b for b in live if any(c in codes for c in b[3])]
+    unmoved = [c for c in codes if not any(c in b[3] for b in live)]
+    archived = [c for c in unmoved if any(c in b[3] for b in done)]
+    missing = [c for c in unmoved if c not in archived]
+    if missing:
+        raise Refusal("no phase heading under ## Backlog declares %s" % ", ".join(missing))
+    open_lines = [(i, lines[i]) for s, e, _h, _c in moving for i in range(s, e)
+                  if DELETION_OPEN_RE.match(lines[i])]
+    if open_lines:
+        raise Refusal("%d open line(s) in a phase to archive, and a partly-archived phase hides work\n%s" % (
+            len(open_lines), "\n".join("  line %d: %s" % (i + 1, t[:160]) for i, t in open_lines)))
+    entries = []
+    unparsable = 0
+    for s, e, h, _c in moving:
+        boxes = sum(1 for i in range(s, e) if CHECKBOX_RE.match(lines[i]))
+        last = e
+        while last > s + 1 and not lines[last - 1].strip():
+            last -= 1
+        entries.append("MOVE line %d-%d (%d checkbox line(s)): %s" % (s + 1, last, boxes, h))
+        for i in range(s, e):
+            m = None if CHECKBOX_ID_RE.match(lines[i]) else CHECKBOX_HASH_RE.match(lines[i])
+            if m:
+                unparsable += 1
+                entries.append("UNPARSABLE %s line %d: leaves the Backlog, where it stops being flagged" % (
+                    m.group(1), i + 1))
+    for c in archived:
+        b = next(b for b in done if c in b[3])
+        entries.append("ALREADY ARCHIVED %s line %d: %s" % (c, b[0] + 1, b[2]))
+    if not moving:
+        return lines, "archive: 0 phase block(s) to move, %d already archived" % len(archived), entries, False
+    taken = set()
+    payload = []
+    for s, e, _h, _c in moving:
+        taken.update(range(s, e))
+        chunk = lines[s:e]
+        while chunk and chunk[-1].strip() == '':
+            chunk.pop()
+        payload += [''] + chunk
+    rest = [l for i, l in enumerate(lines) if i not in taken]
+    arch = section_bounds(rest, 'Archive')
+    created = arch is None
+    if created:
+        k = len(rest)
+        while k > 0 and rest[k - 1].strip() == '':
+            k -= 1
+        new = rest[:k] + ['', '## Archive'] + payload + rest[k:]
+    else:
+        k = arch[1]
+        while k > arch[0] + 1 and rest[k - 1].strip() == '':
+            k -= 1
+        tail = rest[k:]
+        new = rest[:k] + payload + ([''] if tail and tail[0].strip() else []) + tail
+    report = "archive: %d phase block(s) to ## Archive (%s), %d already archived, %d unparsable ID(s)" % (
+        len(moving), 'created' if created else 'appended', len(archived), unparsable)
+    return new, report, entries, created
+
+
+def cmd_archive(args):
+    rest, o = parse_options(args, flags=('--write',), values=('--phases',))
+    if len(rest) != 1:
+        usage("archive takes exactly one workstream.md")
+    if not o['--phases']:
+        usage("archive needs --phases CODE[,CODE...]")
+    codes = []
+    for c in o['--phases'].split(','):
+        c = c.strip()
+        if not PHASE_CODE_RE.fullmatch(c):
+            usage("--phases %r is not a comma-separated list of phase codes" % o['--phases'])
+        if c not in codes:
+            codes.append(c)
+    path = rest[0]
+    text = load(path)
+    old_lines = text.split('\n')
+    try:
+        new_lines, report, entries, created = archive(old_lines, codes)
+    except Refusal as e:
+        head, _sep, lines = str(e).partition('\n')
+        sys.stderr.write("%s: %s in %s\n" % (PROG, head, path))
+        if lines:
+            sys.stderr.write(lines + "\n")
+        return 1
+    # A move reorders the checkboxes, so the MULTISET form is asserted
+    # rather than the sequence `fingerprint` reads. The new heading is the
+    # one line a move adds and is taken out before comparing.
+    after = list(new_lines)
+    if created:
+        after.remove('## Archive')
+    for name, pick in (
+            ('heading', lambda ls: [l for l in ls if ANY_HEADING_RE.match(l)]),
+            ('checkbox ID-and-state', lambda ls: [(m.group(1).lower(), m.group(2))
+                                                  for l in ls for m in [CHECKBOX_ID_RE.match(l)] if m]),
+            ('non-blank line', lambda ls: [l for l in ls if l.strip()])):
+        if multiset(pick(old_lines)) != multiset(pick(after)):
+            sys.stderr.write("%s: %s multiset changed; refusing to write\n" % (PROG, name))
+            return 1
+    new = '\n'.join(new_lines)
+    print("%s; bytes %d->%d" % (report, len(text.encode('utf-8')), len(new.encode('utf-8'))))
+    for l in entries:
+        print(l)
+    if new == text:
+        print("NO CHANGE")
+    elif o['--write']:
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(new)
+        print("WRITTEN")
+    return 0
+
+
 # --- dispatch ---------------------------------------------------------------
 
 COMMANDS = {
@@ -2176,6 +2350,7 @@ COMMANDS = {
     'decisions': cmd_decisions,
     'learnings': cmd_learnings,
     'rotate': cmd_rotate,
+    'archive': cmd_archive,
 }
 
 
