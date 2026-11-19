@@ -546,6 +546,53 @@ check "L6, whose target names 'this workstream', its own home, condenses (it was
 check "L7, a target sentence that opens on its own subject after a dropped one, is held too: the inverted rule's cost, a whole entry rather than a lost antecedent" \
   "aentry L7 | grep -q 'middle sentence' && grep -q '^SKIPPED L7:' \"\$T/ana.txt\""
 
+echo "== learnings: the sentence that names where the finding lives"
+# On 0.11.5 an entry whose kept sentences named no file or commit lost
+# the one dropped sentence that did, with skipped=0: `... recorded as V8
+# in reference/validation-report.md` was the only record of where the
+# finding went. Such an entry is left whole and reported. An entry
+# whose kept sentences already name a file still condenses, and so
+# does one whose dropped sentence names only a branch or a workstream.
+mkdir -p "$T/loc/.state/workstreams/maintain/q"
+LW="$T/loc/.state/workstreams/maintain/q/workstream.md"
+cat > "$LW" <<'FIX'
+---
+name: q
+type: maintain
+status: active
+created: 2026-01-01
+---
+## Purpose
+A fixture.
+
+## Backlog
+### Work (BD)
+- [ ] #BD-1: a task
+
+## Learnings
+- L1 (2026-01-01): Some register may hide inside the tutorial
+  concepts. RESOLVED 2026-01-02 at #BD-1 (the corpus check): no
+  register is hiding. The concepts read as neutral documentation,
+  recorded as V8 in `reference/validation-report.md`.
+- L2 (2026-01-01): The same shape with its target named. A middle
+  sentence naming `notes/old.md`. APPLIED 2026-01-02 to `docs/a.md`.
+- L3 (2026-01-01): A finding about branches. A middle sentence on
+  origin/main and maintain/other. RESOLVED 2026-01-02 at #BD-1:
+  nothing more to do.
+- L4 (2026-01-01): A finding kept by commit. The fix landed at
+  abc1234 in the other repository. RESOLVED 2026-01-02 at #BD-1: done.
+FIX
+rc=0; python3 "$SCRIPT" learnings "$LW" --write >"$T/loc.txt" 2>&1 || rc=$?
+lentry() { awk -v id="$1" 'index($0, "- " id " ") == 1 {on=1; print; next} on && (/^- / || /^#/ || /^$/) {exit} on {print}' "$LW" | tr '\n' ' ' | tr -s ' '; }
+check "L1, whose dropped sentence alone names the file the finding is in, is left whole and reported" \
+  "[ \"\$rc\" -eq 0 ] && lentry L1 | grep -qF 'reference/validation-report.md' && grep -E '^SKIPPED L1:' \"\$T/loc.txt\" | grep -qF 'names where the finding lives (reference/validation-report.md)'"
+check "L4, whose dropped sentence alone names a commit, is left whole and reported" \
+  "lentry L4 | grep -qF 'abc1234' && grep -E '^SKIPPED L4:' \"\$T/loc.txt\" | grep -qF '(abc1234)'"
+check "L2, whose kept marker names its own file, still condenses (the control)" \
+  "! lentry L2 | grep -q 'middle sentence' && grep -q '^L2 ' \"\$T/loc.txt\""
+check "L3, whose dropped sentence names only a branch and a workstream, still condenses" \
+  "! lentry L3 | grep -q 'middle sentence' && grep -q '^L3 ' \"\$T/loc.txt\""
+
 echo "== decisions: live citations"
 # `decisions` condensed every Decision named with no citation check: a
 # drain named 31 shipped Decisions and 12 were still cited by open work,

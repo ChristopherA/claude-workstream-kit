@@ -93,8 +93,10 @@ A terminal entry is also left whole, and reported `SKIPPED L<n>`, when
 a kept sentence after a dropped one opens on neither a disposition
 marker nor an integration target, or points back (`that task`,
 `there`, `it` as its subject, a count such as `all three`) at one the
-condensation drops, or when some text cites it for its note;
-`--keep L<n>` leaves any entry whole.
+condensation drops, when no kept sentence names a file or commit and
+a dropped one does (the only record of where the finding lives), or
+when some text cites it for its note; `--keep L<n>` leaves any entry
+whole.
 
 `rotate`: the extract skill's Move 3b -- keep only what is live (the
 frontmatter and Purpose; open Backlog lines under their headings with
@@ -1420,6 +1422,16 @@ KEPT_OPENER_RE = re.compile(
 COUNT_BACKREF_RE = re.compile(
     r"\b(?:all (?:two|three|four|five|six|seven|eight|nine|ten)|both|the (?:two|three|four|five)"
     r"|each of (?:them|these|those)|either|neither|the former|the latter|the rest|the others?)\b", re.I)
+# Where a finding lives: a file -- a name with an extension, or a
+# backticked directory ending in `/` -- a commit-shaped hash (a digit
+# and a letter), a URL. When the kept sentences name none and a dropped
+# one does, that sentence was the only record of where the insight
+# went: `... recorded as V8 in `reference/x.md`.` condensed away with
+# skipped=0. A branch, a workstream name or a slash command is not one.
+LOCATION_RE = re.compile(
+    r"`[^`\s]+/`"
+    r"|(?<![\w/.-])[\w./~-]*[\w-]\.(?:md|py|sh|json|txt|ya?ml|toml|html|js|ts|css|csv)\b"
+    r"|\b(?=[0-9a-f]*[0-9])(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b|https?://\S+")
 # `this workstream` and `this project` name the file's own home, not a
 # sentence before: an integration target reading `this workstream, at
 # #G-XX` routes somewhere real.
@@ -1507,6 +1519,12 @@ def condense_learning_why(text):
     condensed = ' '.join(sentences[i] for i in sorted(keep))
     if condensed == body or len(condensed) >= len(body):
         return None, None
+    if not LOCATION_RE.search(condensed):
+        for i, x in enumerate(sentences):
+            loc = None if i in keep else LOCATION_RE.search(x)
+            if loc:
+                return None, ("a dropped sentence names where the finding lives (%s) and no kept one"
+                              " names a file or commit: %s" % (loc.group(0)[:60], x[:80]))
     return '- ' + prefix + ' ' + condensed, None
 
 
