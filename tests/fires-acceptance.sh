@@ -161,6 +161,48 @@ check "the fixture holds five severed continuations and seven clean ones" \
 check "markup: exactly the five severed lines fire, none of the clean ones" \
   '[ "$(python3 "$SCRIPT" fires "$M" --json | jq -r ".workstreams[0].symptoms[] | select(.symptom == \"severed sentence\") | .detail")" = "$expect" ]'
 
+echo "== A closing workstream's size is carried to its tag, not drained"
+# On 0.11.5 the size symptom and the hook's SIZE line sent a workstream
+# whose remaining work was its Completion phase into a drain, which thins
+# the record its closure tag keeps. Closing reads: not maintain, the CL
+# phase open, and nothing else open or every non-STANDING criterion met.
+C="$T/closing"
+mkc() { # <type/name> <extra backlog> <criteria>
+  mkdir -p "$C/.state/workstreams/$1"
+  {
+    printf -- '---\nname: %s\ntype: %s\nstatus: active\n---\n## Purpose\nA fixture.\n\n## Backlog\n' "${1#*/}" "${1%/*}"
+    printf '%b' "$2"
+    printf -- '### Completion (CL)\n- [ ] #CL-1: Disposition all Learnings\n- [ ] #CL-2: Verify deletion criteria\n\n## Deletion Criteria\n'
+    printf '%b' "$3"
+    head -c 70000 /dev/zero | tr '\0' 'x'
+    printf '\n'
+  } > "$C/.state/workstreams/$1/workstream.md"
+}
+mkc feature/clonly '### Live (LV)\n- [x] #LV-1: done\n\n' '- [ ] A condition not yet met.\n'
+mkc feature/clcrit '### Live (LV)\n- [ ] #LV-1: an unrelated open item\n\n' '- [x] A condition met.\n- [ ] STANDING: a health condition. HOLDS 2026-01-01.\n'
+mkc feature/plain '### Live (LV)\n- [ ] #LV-1: an open task\n\n' '- [x] A condition met.\n- [ ] A condition not yet met.\n'
+mkc maintain/never '### Live (LV)\n- [ ] #LV-1: an open task\n\n' '- [x] STANDING: a health condition. HOLDS 2026-01-01.\n'
+cline() { python3 "$SCRIPT" fires "$C" | grep "^$1:"; }
+check "the four fixtures are past the size line and carry an open CL phase" \
+  '[ "$(for f in "$C"/.state/workstreams/*/*/workstream.md; do [ "$(wc -c < "$f")" -gt 65536 ] && grep -q "^- \[ \] #CL-1" "$f" && echo y; done | grep -c y)" = 4 ]'
+check "clonly (only Completion open): size says carry it to the closure tag" \
+  'cline feature/clonly | grep -q "closing (only its Completion phase is open): carry the size to the closure tag"'
+check "clcrit (an unrelated item open, every non-STANDING criterion met): closing too" \
+  'cline feature/clcrit | grep -q "closing (every deletion criterion is met)"'
+check "plain (an unmet criterion): the size advice is unchanged" \
+  'cline feature/plain | grep -q "size [0-9]*KB past 64KB" && ! cline feature/plain | grep -q closing'
+check "never (maintain, a ticked STANDING criterion): never closing" \
+  'cline maintain/never | grep -q "size [0-9]*KB past 64KB" && ! cline maintain/never | grep -q closing'
+HOOK="$KIT_DIR/.claude/hooks/session-start.sh"
+for w in feature/clcrit feature/plain maintain/never; do
+  printf -- '---\nworkstream: %s\ntask: none\n---\n## Now\nx\n' "$w" > "$C/.state/ACTIVE.md"
+  CLAUDE_PROJECT_DIR="$C" sh "$HOOK" </dev/null 2>/dev/null | grep '^SIZE: ' > "$C/size-$(basename "$w").txt" || true
+done
+check "the hook's SIZE line for clcrit says the workstream is closing and not to drain" \
+  'grep -q "the workstream is closing. Carry the size to its closure tag" "$C/size-clcrit.txt" && ! grep -q "Drain it" "$C/size-clcrit.txt"'
+check "the hook's SIZE line for plain and for the maintain workstream still says drain" \
+  'grep -q "Drain it with /workstream-extract" "$C/size-plain.txt" && grep -q "Drain it with /workstream-extract" "$C/size-never.txt"'
+
 echo
 if [ "$RESULT" -eq 0 ]; then echo "FIRES ACCEPTANCE: ALL CHECKS PASS"; else echo "FIRES ACCEPTANCE: FAILURES ABOVE"; fi
 exit "$RESULT"

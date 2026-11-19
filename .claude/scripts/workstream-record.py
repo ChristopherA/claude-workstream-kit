@@ -735,7 +735,32 @@ def build_workstream_record(path, rel_path):
         "wrapped_lines": {"open_items": open_cont, "done_items": done_cont},
         "size_bytes": size_bytes,
         "composition": composition(lines),
+        "closing": closing_signal(lines, phases, total_open, deletion_open,
+                                  sum(1 for text, _r in crit_blocks
+                                      if DELETION_DONE_RE.match(text) and 'STANDING' not in text)),
     }
+
+
+def closing_signal(lines, phases, total_open, deletion_open, deletion_done):
+    """Why the workstream reads as CLOSING, or None: it is not a
+    `maintain` workstream, which never closes; its Completion (CL) phase
+    has an open task; and either nothing outside it is open, or it has
+    deletion criteria that are not STANDING and every one is met. The size
+    advice turns on it: a drain thins the record the closure tag will
+    hold, and two drains of one closing workstream each reached `carry
+    the size to closure` by judgment alone after the SIZE line said to
+    drain."""
+    if any(re.match(r'^type:\s*maintain\s*$', l) for l in lines[:12]):
+        return None
+    cl_open = sum(p["open_tasks"] + p["open_gates"] for p in phases
+                  if p["code"] and "CL" in [c.strip() for c in p["code"].split('/')])
+    if not cl_open:
+        return None
+    if total_open == cl_open:
+        return "only its Completion phase is open"
+    if deletion_open == 0 and deletion_done > 0:
+        return "every deletion criterion is met"
+    return None
 
 
 def build_active_record(path, rel_path):
@@ -1739,7 +1764,12 @@ def fires(root, only=None, interval_days=30):
                              "detail": ", ".join("line %d (%s)" % (e["line"], e["token"])
                                                  for e in rec["unparsable_ids"])})
         if rec["size_bytes"] > SIZE_BYTES:
-            symptoms.append({"symptom": "size", "detail": "%dKB past %dKB" % (rec["size_bytes"] // 1024, SIZE_BYTES // 1024)})
+            detail = "%dKB past %dKB" % (rec["size_bytes"] // 1024, SIZE_BYTES // 1024)
+            if rec["closing"]:
+                # Closing: the tag keeps the full record, so the size is
+                # carried to it rather than drained away first.
+                detail += "; closing (%s): carry the size to the closure tag with /workstream-close, do not drain" % rec["closing"]
+            symptoms.append({"symptom": "size", "detail": detail})
         d = os.path.dirname(path)
         names = sorted(os.listdir(d))
         if 'notes.md' in names:

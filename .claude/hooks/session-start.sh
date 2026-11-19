@@ -176,7 +176,18 @@ if [ -n "${WS:-}" ] && [ "$WS" != "none" ]; then
     # understates reading cost. Warn on bytes, well before a single read fails.
     WS_BYTES=$(file_bytes "$WS_FILE")
     if [ "$WS_BYTES" -gt "$SIZE_BYTES" ]; then
-      echo "SIZE: workstream.md is $((WS_BYTES / 1024))KB -- past comfortable single-read size. Drain it with /workstream-extract, or split the workstream (/workstream-review) if what grew is live scope."
+      # A CLOSING workstream -- not `maintain`, its Completion (CL) phase open,
+      # and nothing else open or every non-STANDING criterion met -- carries its size
+      # to the closure tag: a drain first thins the record the tag keeps.
+      # The same reading as `workstream-record.py record`'s `closing`.
+      CL_OPEN=$(awk '/^## Backlog/ {b=1; next} /^## / {b=0} b && /^### / {cl = ($0 ~ /\(([A-Z0-9]+ *\/ *)*CL( *\/ *[A-Z0-9]+)*\)/)} b && cl && /^ *- \[ \] #/ {n++} END {print n+0}' "$WS_FILE")
+      CRIT_DONE=$(awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} f && /^ *- \[[xX]\]/ && !/STANDING/ {n++} END {print n+0}' "$WS_FILE")
+      WS_TYPE=$(frontmatter_value "$WS_FILE" type)
+      if [ "$WS_TYPE" != maintain ] && [ "$CL_OPEN" -gt 0 ] && { [ "$OPEN" -eq "$CL_OPEN" ] || { [ "$CRIT" -eq 0 ] && [ "$CRIT_DONE" -gt 0 ]; }; }; then
+        echo "SIZE: workstream.md is $((WS_BYTES / 1024))KB -- past comfortable single-read size, and the workstream is closing. Carry the size to its closure tag with /workstream-close; do not drain first, since the tag keeps the full record."
+      else
+        echo "SIZE: workstream.md is $((WS_BYTES / 1024))KB -- past comfortable single-read size. Drain it with /workstream-extract, or split the workstream (/workstream-review) if what grew is live scope."
+      fi
     fi
 
     # Staleness: ACTIVE.md last changed well before the repo's last commit
