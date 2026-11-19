@@ -55,7 +55,9 @@ homed with the home missing, homed with the home lacking it, or
 unhomed; and every HOMED reference in Learnings, Decisions and resolved
 Open Questions, whose bare IDs are frozen provenance but whose homes
 are claims (those rows carry `section`). A home written BESIDE the ID
--- `in type/name`, `at ws/<tag>`, or inside its gloss -- is tried first;
+-- `in type/name`, `at ws/<tag>`, or inside its gloss -- or directly
+before it -- `type/name L2`, `type/name Learning L2` and the run after
+it (`... and its L8`) -- is tried first;
 otherwise an ID the file defines is defined here, and ACTIVE.md's own
 file is the workstream its `workstream:` line names; otherwise each
 home in the sentence is tried, nearest first. An ID with no home of its
@@ -1093,6 +1095,31 @@ def adjacent_home(text, end):
     return (name, 'tag' if name.startswith('ws/') else 'workstream')
 
 
+# A home written directly BEFORE the ID binds it as one written beside
+# it does: `maintain/x L2`, `maintain/x Learning L2`, and the run that
+# follows (`maintain/x Learning L2 (the check) and its L8`). Tried only
+# after the homes written after the ID, a missing home before it lost to
+# a later one in the same sentence, so the class was right and the home
+# it named was another workstream's.
+_REF_TOKEN = r'(?:#?[A-Z][A-Z0-9]*-[0-9]+[a-z]?|#G-[A-Z0-9]+|D[0-9]+|L[0-9]+|OQ-[0-9]+)'
+PRECEDING_HOME_RE = re.compile(
+    r'(?<![\w./-])(?P<h>(?:explore|feature|fix|project|maintain)/[a-z0-9-]+(?:\.[a-z0-9-]+)*'
+    r'|ws/[a-z0-9-]+(?:\.[a-z0-9-]+)*)`?'
+    r'(?:\s+(?:Learnings?|Decisions?|tasks?|Open Questions?))?\s+'
+    r'(?:' + _REF_TOKEN + r'(?:\s*\([^()]*\))?(?:\s*,\s*(?:and\s+)?|\s+and\s+)(?:its\s+)?)*`?$')
+
+
+def preceding_home(text, start):
+    """The home written directly before the ID starting at `start`, in
+    its sentence, or None."""
+    s, _e = sentence_span(text, start)
+    m = PRECEDING_HOME_RE.search(text, s, start)
+    if not m:
+        return None
+    name = m.group('h')
+    return (name, 'tag' if name.startswith('ws/') else 'workstream')
+
+
 def frozen_blocks(lines):
     """(start_no, raw) for the sections refs reads for HOMED references
     only: Learnings, Decisions, and Open Questions already resolved. Their
@@ -1181,7 +1208,7 @@ def refs(root):
             # home that sits beside ANOTHER ID was written for that ID.
             beside = {}
             for m in REF_RE.finditer(blanked):
-                a = adjacent_home(blanked, m.end())
+                a = adjacent_home(blanked, m.end()) or preceding_home(blanked, m.start())
                 if a:
                     beside.setdefault(a, set()).add(m.group(0))
             for m in REF_RE.finditer(blanked):
@@ -1190,7 +1217,7 @@ def refs(root):
                     continue
                 entry = {"file": rel, "line": line_at(starts, m.start()), "id": ref,
                          "home": None, "context": text[max(0, m.start() - 60):m.end() + 60]}
-                adj = adjacent_home(blanked, m.end())
+                adj = adjacent_home(blanked, m.end()) or preceding_home(blanked, m.start())
                 if homed_only:
                     if adj is None:
                         if ref in homed_in_block:

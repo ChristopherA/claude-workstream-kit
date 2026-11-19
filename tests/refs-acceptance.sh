@@ -243,6 +243,43 @@ check "an ID whose only home was written beside another ID is unhomed, not home-
 check "a bare ID in a Decision stays frozen provenance: #ZZ-7 is in no class" \
   '[ "$(q "[.classes[][] | select(.id == \"#ZZ-7\")] | length")" = "0" ]'
 
+echo "== A home written before the ID binds it"
+# On 0.11.5 a home written BEFORE an ID -- `maintain/absent L2`, or with a
+# noun of the ID's kind between, `maintain/absent Learning L2` -- was
+# tried only after every home written after the ID, so a missing one lost
+# to a later home in the same sentence: the class was right and the home
+# it named was another workstream's. Its run (`... and its L8`) binds too,
+# and one that exists still resolves there.
+P="$T/pre"
+mkdir -p "$P/.state/workstreams/maintain/beta" "$P/.state/workstreams/project/gamma" "$P/.state/workstreams/feature/live"
+printf -- '---\nname: beta\ntype: maintain\nstatus: active\n---\n## Purpose\nx\n\n## Backlog\n### Live (LV)\n- [ ] #LV-9: x\n\n## Learnings\n- L2 (2026-01-01): the beta entry.\n' > "$P/.state/workstreams/maintain/beta/workstream.md"
+printf -- '---\nname: gamma\ntype: project\nstatus: active\n---\n## Purpose\nx\n\n## Backlog\n### Live (LV)\n- [ ] #LV-8: x\n' > "$P/.state/workstreams/project/gamma/workstream.md"
+cat > "$P/.state/workstreams/feature/live/workstream.md" <<'FIX'
+---
+name: live
+type: feature
+status: active
+---
+## Purpose
+x
+
+## Backlog
+### Live (LV)
+- [ ] #LV-1: cites maintain/absent Learning L2 (the paths check) and its L8 (the condensing loss), seen at project/gamma.
+- [ ] #LV-2: cites maintain/absent L2 (the bare form), seen at project/gamma.
+- [ ] #LV-3: cites maintain/beta Learning L2 (the beta entry), seen at project/gamma.
+FIX
+printf -- '---\nworkstream: feature/live\ntask: none\n---\n## Now\nx\n' > "$P/.state/ACTIVE.md"
+python3 "$SCRIPT" refs "$P" > "$T/pre.json"
+pq() { jq -r "[.classes.$1[] | select(.id == \"$2\" and .line == $3) | .home] | join(\",\")" "$T/pre.json"; }
+check "the fixture's later home, project/gamma, exists, so a wrong binding to it would resolve nothing for L2" \
+  '[ -f "$P/.state/workstreams/project/gamma/workstream.md" ] && ! grep -q "L2" "$P/.state/workstreams/project/gamma/workstream.md"'
+check "Learning L2 after maintain/absent is home-missing at maintain/absent, not at project/gamma" \
+  '[ "$(pq homed_home_missing L2 11)" = "maintain/absent" ]'
+check "its L8, in the same run, binds to maintain/absent too" '[ "$(pq homed_home_missing L8 11)" = "maintain/absent" ]'
+check "the bare form, maintain/absent L2, binds the same way" '[ "$(pq homed_home_missing L2 12)" = "maintain/absent" ]'
+check "the control: maintain/beta Learning L2, a home that exists, resolves there" '[ "$(pq homed_resolved L2 13)" = "maintain/beta" ]'
+
 echo "== Exit codes"
 rc=0; python3 "$SCRIPT" refs >/dev/null 2>&1 || rc=$?
 check "refs with no root: exit 2" '[ "$rc" -eq 2 ]'
