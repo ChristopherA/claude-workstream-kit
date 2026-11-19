@@ -41,7 +41,7 @@ The exposed case is the workstream nobody is reading — paused, idle, or merely
 Two matcher details decide whether this is usable:
 
 - Treat any word boundary after the ID as a definition, not just a colon. A backlog that writes its completed tasks as `- [x] #XX-N (dated note in parentheses)` is conforming, and a matcher demanding `#XX-N:` scores every one of them as undefined.
-- Require the ID to contain a digit, or every metavariable in the prose -- `#XX-N`, `#RS-N`, `#SW-n` -- is reported as a dangling reference.
+- Require the ID to contain a digit, or every metavariable in the prose -- `#XX-N`, `#QS-N`, `#QW-n` -- is reported as a dangling reference.
 
 Without both, most of what the check reports is false and the report gets ignored, which is worse than not running it; with both, nearly every undefined-here reference is legitimately homed and the true defects are few. **Report classes, never a count**: "one reference names a home that does not contain it" is actionable, and "26 unresolved IDs" is noise that will be dismissed on sight.
 

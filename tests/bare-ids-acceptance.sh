@@ -116,16 +116,16 @@ echo "== --text and --stdin"
 python3 "$SCRIPT" bare-ids "$T/p" --text > "$T/out.txt"
 check "--text prints one line per file with the distinct ids" 'grep -q "^\.state/ACTIVE\.md: 3 bare id mention(s): #G-AL, D3, #AL-2$" "$T/out.txt"'
 check "--stdin reads a draft: the quoted form passes, the bare id is listed" \
-  '[ "$(printf "#G-OG \"the kit gate\" stands; #OG-1 too.\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
-check "--stdin --text prints nothing on a glossed draft" '[ -z "$(printf "#OG-1 (the first) stands.\n" | python3 "$SCRIPT" bare-ids --stdin --text)" ]'
-check "a fenced block is exempt" '[ "$(printf "text\n\`\`\`\n- [ ] #OG-1: quoted line naming #OG-2\n\`\`\`\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "0" ]'
-check "an id glossing an id does not count" '[ "$(printf "see (#OG-2) here\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
-check "a backticked home between id and gloss passes, a task id and a Decision id alike" '[ "$(printf "#EX-3 in \`project/tier\` (the split) and D12 at \`ws/tier-2026-01-01\` (the call)\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "0" ]'
-check "an id inside parentheses is glossed by a comma phrase there, with or without a home" '[ "$(printf "routed (D11 in project/tier, the split) and (resolve at #EX-3, the format task)\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "0" ]'
-check "inside parentheses, no comma gloss or a comma before only an id is still bare" '[ "$(printf "(resolve at #EX-3) and (D11, #EX-4) here\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r "[.files[].bare[].id] | join(\",\")")" = "#EX-3,D11,#EX-4" ]'
+  '[ "$(printf "#G-QG \"the kit gate\" stands; #QG-1 too.\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
+check "--stdin --text prints nothing on a glossed draft" '[ -z "$(printf "#QG-1 (the first) stands.\n" | python3 "$SCRIPT" bare-ids --stdin --text)" ]'
+check "a fenced block is exempt" '[ "$(printf "text\n\`\`\`\n- [ ] #QG-1: quoted line naming #QG-2\n\`\`\`\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "0" ]'
+check "an id glossing an id does not count" '[ "$(printf "see (#QG-2) here\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
+check "a backticked home between id and gloss passes, a task id and a Decision id alike" '[ "$(printf "#QX-3 in \`project/tier\` (the split) and D12 at \`ws/tier-2026-01-01\` (the call)\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "0" ]'
+check "an id inside parentheses is glossed by a comma phrase there, with or without a home" '[ "$(printf "routed (D11 in project/tier, the split) and (resolve at #QX-3, the format task)\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "0" ]'
+check "inside parentheses, no comma gloss or a comma before only an id is still bare" '[ "$(printf "(resolve at #QX-3) and (D11, #QX-4) here\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r "[.files[].bare[].id] | join(\",\")")" = "#QX-3,D11,#QX-4" ]'
 check "a comma phrase OUTSIDE parentheses does not gloss" '[ "$(printf "D11, the split, is decided\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
-check "a back-reference (there, here) between id and gloss passes, and without a gloss is bare" '[ "$(printf "D12 there (the call) and #EX-3 here (the split)\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "0" ] && [ "$(printf "D12 there is the call\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
-check "a backticked home with no gloss after it is still bare" '[ "$(printf "#EX-3 in \`project/tier\` waits\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
+check "a back-reference (there, here) between id and gloss passes, and without a gloss is bare" '[ "$(printf "D12 there (the call) and #QX-3 here (the split)\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "0" ] && [ "$(printf "D12 there is the call\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
+check "a backticked home with no gloss after it is still bare" '[ "$(printf "#QX-3 in \`project/tier\` waits\n" | python3 "$SCRIPT" bare-ids --stdin | jq -r .total)" = "1" ]'
 
 echo "== A question resolved in place is not live content"
 mkdir -p "$T/oq/.state/workstreams/feature/alpha"

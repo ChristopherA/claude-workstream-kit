@@ -4,7 +4,7 @@ gate, Decision, Learning or Open Question ID with no gloss.
 
 The workstreams rule says an ID is a pointer, not a name, and that
 every mention outside its own backlog line carries a few words saying
-what it is, in the canonical form `#EX-37 (the phase split question)`.
+what it is, in the canonical form `#QX-37 (the phase split question)`.
 Prose asked for that for months and kept slipping; this hook is the
 check that fails. It reads the turn's assistant text from the
 transcript, runs the same detector the record script's `bare-ids`
@@ -88,7 +88,7 @@ def main():
     reason = (
         "Your last message mentions %d id(s) with no gloss: %s. The workstreams rule "
         "makes every id outside its own backlog line carry a few words saying what it is, "
-        "in the form `#EX-37 (the phase split question)`, at its first mention in each "
+        "in the form `#QX-37 (the phase split question)`, at its first mention in each "
         "paragraph. Send the message again with each of these glossed; nothing else "
         "needs to change." % (len(ids), ", ".join(ids))
     )

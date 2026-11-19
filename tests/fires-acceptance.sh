@@ -56,7 +56,7 @@ printf -- '\n## Decisions\n- [ ] #LV-9: appended after the Backlog ended\n' >> "
 # A Deletion Criteria line that OPENS with a task ID is a criterion, not
 # an open task outside the Backlog (a fresh workstream's criteria fired
 # the symptom within the hour of it shipping).
-mk feature/criterion active '' '' "- [ ] #EX-30 in project/other names this workstream as its home, verified at closure\n- [ ] STANDING: healthy -- HOLDS $TODAY\n"
+mk feature/criterion active '' '' "- [ ] #QX-30 in project/other names this workstream as its home, verified at closure\n- [ ] STANDING: healthy -- HOLDS $TODAY\n"
 head -c 70000 /dev/zero | tr '\0' 'x' >> "$T/.state/workstreams/feature/big/workstream.md"
 
 python3 "$SCRIPT" fires "$T" > "$T/out.txt"

@@ -66,7 +66,7 @@ Live exercises reference resolution.
 
 ## Backlog
 **Critical path.** The order runs #LV-1 then the split, and the tag
-push waits for #SW-4, which no home is named for.
+push waits for #QW-4, which no home is named for.
 
 ### Live (LV) -- the heading carries a suffix, as real files do
 - [ ] #LV-1: the first task, reasoning in D17 in ws/old, written
@@ -121,7 +121,7 @@ task: "#LV-1 - the first task"
 
 ## Blockers
 The three estate gates -- #G-TR in project/workspace-config-migration
-(the triage map), #G-EX in project/user-config-stewardship (the live
+(the triage map), #G-QX in project/user-config-stewardship (the live
 tier result) -- are presented in the gaps of the build chain; L45 in
 ws/old holds the goal-authoring rule.
 FIX
@@ -157,7 +157,7 @@ check "#OL-3 in the same sentence resolves at ws/old, not the nearer feature/oth
 check "neither ID of the two-home sentence is reported as home-lacking" '[ "$(q "[.classes.homed_home_lacks[] | select(.id == \"#OT-1\" or .id == \"#OL-3\")] | length")" = "0" ]'
 check "a two-home entry lists both candidates" '[ "$(q "[.classes.homed_resolved[] | select(.id == \"#OT-1\" and has(\"candidates\")) | .candidates | join(\",\")] | .[0]")" = "ws/old,feature/other" ]'
 check "a one-home entry carries no candidates field" '[ "$(q "[.classes.homed_resolved[] | select(.id == \"D17\") | has(\"candidates\")] | .[0]")" = "false" ]'
-check "#SW-4 in the critical-path paragraph is unhomed" '[ "$(cls unhomed \#SW-4)" = "live null" ]'
+check "#QW-4 in the critical-path paragraph is unhomed" '[ "$(cls unhomed \#QW-4)" = "live null" ]'
 check "L2 in the STANDING criterion is unhomed" '[ "$(cls unhomed L2)" = "live null" ]'
 check "the metavariable #XX-N and the literal #G-XX appear in no class" \
   '[ "$(q "[.classes[][] | select(.id == \"#XX-N\" or .id == \"#G-XX\")] | length")" = "0" ]'

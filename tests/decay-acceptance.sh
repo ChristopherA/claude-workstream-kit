@@ -32,7 +32,7 @@ git config commit.gpgsign false
 mkdir -p .state/workstreams/maintain/kit .state/workstreams/feature/plain
 W=.state/workstreams/maintain/kit/workstream.md
 
-# Commit 1 (00:00): the paragraph, one task minted before it (#OG-1),
+# Commit 1 (00:00): the paragraph, one task minted before it (#QG-1),
 # and the gate. The paragraph is lifted 2026-09-05 from
 # maintain/claude-workstream-kit in the project that built this
 # sub-command.
@@ -44,14 +44,14 @@ status: active
 ---
 ## Backlog
 **Critical path.** Order only, by design (D80): status and
-measurements live on the #G-OG gate line, which every gate updates.
-OG evaluations queue, #OG-1 first -> #G-OG (each item decided or
+measurements live on the #G-QG gate line, which every gate updates.
+QG evaluations queue, #QG-1 first -> #G-QG (each item decided or
 deferred) -> build of the approved items -> release -> AD re-install
 of the consumers -> the next queue.
 
-### Observed Kit Gaps (OG) -- the heading carries a suffix, as real files do
-- [ ] #OG-1: the first evaluation, minted with the paragraph
-- [ ] #G-OG: USER CHECKPOINT -- approve any kit change
+### Observed Kit Gaps (QG) -- the heading carries a suffix, as real files do
+- [ ] #QG-1: the first evaluation, minted with the paragraph
+- [ ] #G-QG: USER CHECKPOINT -- approve any kit change
 FIX
 # queue: the same paragraph with NO task named (the order-only shape,
 # D80 in the workstream it was lifted from): a task minted after it is
@@ -65,13 +65,13 @@ type: maintain
 status: active
 ---
 ## Backlog
-**Critical path.** Order only, by design: OG evaluations queue ->
-#G-OG (each item decided or deferred) -> build -> release -> the
+**Critical path.** Order only, by design: QG evaluations queue ->
+#G-QG (each item decided or deferred) -> build -> release -> the
 next queue.
 
-### Observed Kit Gaps (OG)
-- [ ] #OG-1: the first evaluation, minted with the paragraph
-- [ ] #G-OG: USER CHECKPOINT -- approve any kit change
+### Observed Kit Gaps (QG)
+- [ ] #QG-1: the first evaluation, minted with the paragraph
+- [ ] #G-QG: USER CHECKPOINT -- approve any kit change
 FIX
 cat > .state/workstreams/feature/plain/workstream.md <<'FIX'
 ---
@@ -82,26 +82,26 @@ status: active
 ## Backlog
 - [ ] #PL-1: a task in a workstream with no critical path
 FIX
-commit_at "$DAY" "paragraph and OG-1"
+commit_at "$DAY" "paragraph and QG-1"
 
 # Commit 2 (03:00, same day): the paragraph's last line is edited, so its
 # newest timestamp moves to 03:00.
 sed -i.bak 's/consumers -> the next queue\./consumers -> the next queue, then triage./' "$W" && rm -f "$W.bak"
 commit_at "$((DAY + 3 * 3600))" "edit the paragraph"
 
-# Commit 3 (05:00, same day): #OG-2 minted, wrapped against the
-# convention, with an indented sub-task #OG-2a.
+# Commit 3 (05:00, same day): #QG-2 minted, wrapped against the
+# convention, with an indented sub-task #QG-2a.
 cat >> "$W" <<'FIX'
-- [ ] #OG-2: the second evaluation, minted two hours after the
+- [ ] #QG-2: the second evaluation, minted two hours after the
 paragraph's last edit, wrapped against the convention
-  - [ ] #OG-2a: an indented sub-task minted with it
+  - [ ] #QG-2a: an indented sub-task minted with it
 FIX
-printf -- '- [ ] #OG-2: minted after the order-only paragraph\n' >> "$Q"
-commit_at "$((DAY + 5 * 3600))" "mint OG-2"
+printf -- '- [ ] #QG-2: minted after the order-only paragraph\n' >> "$Q"
+commit_at "$((DAY + 5 * 3600))" "mint QG-2"
 
-# Commit 4 (next day): #OG-1 re-worded; its mint stays at commit 1.
+# Commit 4 (next day): #QG-1 re-worded; its mint stays at commit 1.
 sed -i.bak 's/the first evaluation, minted with the paragraph/the first evaluation, re-worded a day later/' "$W" && rm -f "$W.bak"
-commit_at "$((DAY + 86400))" "reword OG-1"
+commit_at "$((DAY + 86400))" "reword QG-1"
 
 python3 "$SCRIPT" decay "$T" > "$T/out.json"
 q() { jq -r ".workstreams[] | select(.path | endswith(\"kit/workstream.md\")) | $1" "$T/out.json"; }
@@ -109,7 +109,7 @@ q() { jq -r ".workstreams[] | select(.path | endswith(\"kit/workstream.md\")) | 
 echo "== Sanity"
 check "four commits, the paragraph's last line changed at +3h" \
   "[ \"\$(git rev-list --count HEAD)\" = 4 ] && [ \"\$(git log -1 --format=%ct -- $W)\" = $((DAY + 86400)) ]"
-check "#OG-2 sits on a wrapped line and #OG-2a is indented" "grep -q '^paragraph.s last edit' $W && grep -q '^  - \\[ \\] #OG-2a' $W"
+check "#QG-2 sits on a wrapped line and #QG-2a is indented" "grep -q '^paragraph.s last edit' $W && grep -q '^  - \\[ \\] #QG-2a' $W"
 
 echo "== The compare"
 check "the paragraph's newest commit time is +3h (the edit), not +0" '[ "$(q ".critical_path.newest_commit_time")" = "'$((DAY + 3 * 3600))'" ]'
@@ -118,12 +118,12 @@ qq() { jq -r ".workstreams[] | select(.path | endswith(\"queue/workstream.md\"))
 check "queue: a paragraph naming no task (the gate aside) is queue-shaped, reports minted_since 1 and lists no task" \
   '[ "$(qq ".shape")" = "queue" ] && [ "$(qq ".minted_since")" = "1" ] && [ "$(qq ".minted_after | length")" = "0" ] && [ "$(qq ".open_tasks")" = "2" ]'
 check "the paragraph spans 5 lines from its first" '[ "$(q ".critical_path.lines")" = "5" ]'
-check "#OG-2 (minted +5h, two hours after the edit) is reported with after_by_seconds 7200" \
-  '[ "$(q ".minted_after[] | select(.id == \"#OG-2\") | .after_by_seconds")" = "7200" ]'
-check "#OG-2a (the indented sub-task) is reported too" '[ "$(q ".minted_after[] | select(.id == \"#OG-2a\") | .id")" = "#OG-2a" ]'
-check "#OG-1 (minted before the edit, re-worded after it) is NOT reported: rewording keeps the mint" \
-  '[ "$(q "[.minted_after[] | select(.id == \"#OG-1\")] | length")" = "0" ]'
-check "the gate #G-OG is not a task and is not reported" '[ "$(q "[.minted_after[] | select(.id == \"#G-OG\")] | length")" = "0" ]'
+check "#QG-2 (minted +5h, two hours after the edit) is reported with after_by_seconds 7200" \
+  '[ "$(q ".minted_after[] | select(.id == \"#QG-2\") | .after_by_seconds")" = "7200" ]'
+check "#QG-2a (the indented sub-task) is reported too" '[ "$(q ".minted_after[] | select(.id == \"#QG-2a\") | .id")" = "#QG-2a" ]'
+check "#QG-1 (minted before the edit, re-worded after it) is NOT reported: rewording keeps the mint" \
+  '[ "$(q "[.minted_after[] | select(.id == \"#QG-1\")] | length")" = "0" ]'
+check "the gate #G-QG is not a task and is not reported" '[ "$(q "[.minted_after[] | select(.id == \"#G-QG\")] | length")" = "0" ]'
 check "open_tasks counts the three tasks, not the gate" '[ "$(q ".open_tasks")" = "3" ]'
 check "the workstream with no paragraph still counts its open task (open_tasks 1)" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"plain/workstream.md\")) | .open_tasks" "$T/out.json")" = "1" ]'
@@ -131,7 +131,7 @@ check "the workstream with no paragraph reports not found" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"plain/workstream.md\")) | .critical_path" "$T/out.json")" = "not found" ]'
 
 echo "== Vary one input: an uncommitted edit makes the file unmeasurable, not current"
-printf -- '- [ ] #OG-3: an uncommitted task\n' >> "$W"
+printf -- '- [ ] #QG-3: an uncommitted task\n' >> "$W"
 python3 "$SCRIPT" decay "$T" > "$T/out2.json"
 check "unmeasurable names the file and minted_after is empty" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"kit/workstream.md\")) | .unmeasurable" "$T/out2.json")" = "uncommitted changes in $W" ] && [ "$(jq -r ".workstreams[] | select(.path | endswith(\"kit/workstream.md\")) | .minted_after | length" "$T/out2.json")" = "0" ]'
@@ -146,7 +146,7 @@ check "queue: minted_after is null, since a queue lists no task" '[ "$(qq ".mint
 check "no paragraph: minted_since is null, since there is nothing to compare against" \
   '[ "$(jq -c ".workstreams[] | select(.path | endswith(\"plain/workstream.md\")) | .minted_since" "$T/out.json")" = "null" ]'
 git checkout -q -- "$W"
-check "after reverting, the measure is back (#OG-2 reported again, minted_since 2)" \
+check "after reverting, the measure is back (#QG-2 reported again, minted_since 2)" \
   '[ "$(python3 "$SCRIPT" decay "$T" | jq -r ".workstreams[] | select(.path | endswith(\"kit/workstream.md\")) | \"\(.minted_after | length) \(.minted_since)\"")" = "2 2" ]'
 
 echo "== Exit codes"

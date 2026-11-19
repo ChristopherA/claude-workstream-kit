@@ -48,7 +48,7 @@
 # bare; the IDs are pinned to the fixture phase codes and the paths to the temp
 # directory, so a real ID in a real sentence, or a real workstream path, still
 # reports.
-^tests/record-acceptance\.sh:[0-9]+:.*#(G-(DR|DN|BD|SK|HW)|(DR|DN|BD|PX|SK|HW|MV|DF|ZZ|V|C)-[0-9]+)\b
+^tests/record-acceptance\.sh:[0-9]+:.*#(G-(DR|DN|BD|QK|HW)|(DR|DN|BD|PX|QK|HW|MV|DF|ZZ|V|C)-[0-9]+)\b
 ^tests/record-acceptance\.sh:[0-9]+:.*\$T/(varied/|comp/)?\.state/workstreams/
 
 # The condensation script's test: one long and one short completed record, an
@@ -59,10 +59,10 @@
 # fixture workstreams as heredocs under a temp directory, one fixture
 # phase code set per suite, pinned here so a real ID still reports.
 ^tests/cites-acceptance\.sh:[0-9]+:.*#(G-BD|(BD|BT|ZZ)-[0-9]+[a-z]?)\b
-^tests/refs-acceptance\.sh:[0-9]+:.*#(G-(LV|TR|EX|XX)|(LV|OL|OT|ZZ|QQ|SW|XX)-[0-9N]+[a-z]?)\b
+^tests/refs-acceptance\.sh:[0-9]+:.*#(G-(LV|TR|QX|XX)|(LV|OL|OT|ZZ|QQ|QW|XX)-[0-9N]+[a-z]?)\b
 ^tests/refs-acceptance\.sh:[0-9]+:.*\.state/workstreams/(project/old|feature/live|feature/other)\b
 ^tests/paths-acceptance\.sh:[0-9]+:.*#(BD|XX)-[0-9N]+[a-z]?\b
-^tests/decay-acceptance\.sh:[0-9]+:.*#(G-OG|(OG|PL)-[0-9]+[a-z]?)\b
+^tests/decay-acceptance\.sh:[0-9]+:.*#(G-QG|(QG|PL)-[0-9]+[a-z]?)\b
 ^tests/decay-acceptance\.sh:[0-9]+:.*\.state/workstreams/(maintain/kit|feature/plain)\b
 ^tests/git-acceptance\.sh:[0-9]+:.*#A-[0-9]+\b
 ^tests/git-acceptance\.sh:[0-9]+:.*\.state/workstreams/feature/a\b
@@ -70,29 +70,29 @@
 ^tests/fires-acceptance\.sh:[0-9]+:.*\$T/\.state/workstreams/
 ^tests/learnings-acceptance\.sh:[0-9]+:.*#(BD|BT)-[0-9]+[a-z]?\b
 ^tests/rewrite-acceptance\.sh:[0-9]+:.*#(G-BD|BD-[0-9]+[a-z]?)\b
-^tests/rotate-acceptance\.sh:[0-9]+:.*#(G-OG|(OG|DP|OT|OB)-[0-9]+)\b
+^tests/rotate-acceptance\.sh:[0-9]+:.*#(G-QG|(QG|DP|OT|OB)-[0-9]+)\b
 ^tests/rotate-acceptance\.sh:[0-9]+:.*\.state/workstreams/(maintain/kit|feature/other)\b
 ^tests/self-check-acceptance\.sh:[0-9]+:.*#(G-BD|BD-[0-9]+[a-z]?)\b
 ^tests/damage-acceptance\.sh:[0-9]+:.*#(G-BD|BD-[0-9]+[a-z]?)\b
 ^tests/condenser-acceptance\.sh:[0-9]+:.*#(G-(BD|DT)|(BD|NX|XY|DT)-[0-9]+)\b
 ^tests/(cites|refs|paths|decay|git|fires|learnings|rewrite|rotate|record|damage|condenser)-acceptance\.sh:[0-9]+:.*(\$T/)?([a-z]+/)?\.state/workstreams/(feature|project|maintain)/[a-z]+\b
-^tests/cites-acceptance\.sh:[0-9]+:.*#G-OG\b
+^tests/cites-acceptance\.sh:[0-9]+:.*#G-QG\b
 ^tests/decay-acceptance\.sh:[0-9]+:.*commit_at .*\bOG-[0-9]\b
 
 # The gloss-check suite: fixture workstream alpha (phase AL, gate G-AL), a
 # fixture transcript naming an earlier turn's #OLD-1, and draft strings
-# under the OG code; its paths are the temp fixture's.
-^tests/bare-ids-acceptance\.sh:[0-9]+:.*#(G-(AL|OG)|(AL|OLD|OG|ZZ)-[0-9]+[a-z]?)\b
+# under the QG code; its paths are the temp fixture's.
+^tests/bare-ids-acceptance\.sh:[0-9]+:.*#(G-(AL|QG)|(AL|OLD|QG|ZZ)-[0-9]+[a-z]?)\b
 ^tests/bare-ids-acceptance\.sh:[0-9]+:.*(\$T/p/)?\.state/workstreams/feature/alpha\b
 
 # The state module's gloss pattern comment names the gate form it must
-# not miss, with the kit workstream's own gate as the example.
-^\.claude/scripts/workstream_state\.py:[0-9]+:.*#G-OG\b
+# not miss, with a fixture gate as the example.
+^\.claude/scripts/workstream_state\.py:[0-9]+:.*#G-QG\b
 
 # The record script's docstring and self-check strings quote fixture IDs
 # as examples of the word-boundary rule, and one commit message repeats
 # the docstring's sentence.
-^\.claude/scripts/workstream-record\.py:[0-9]+:.*#(G-(BD|OG)|(BD|OL|OG)-[0-9]+[a-z]?)\b
+^\.claude/scripts/workstream-record\.py:[0-9]+:.*#(G-(BD|QG)|(BD|OL|QG)-[0-9]+[a-z]?)\b
 ^commit [0-9a-f]+:[0-9]+:.*so #BD-1 does not hit #BD-10 or #BD-1a\b
 
 # This file's own entries quote the identifiers they exempt, so a diff that adds

@@ -71,11 +71,11 @@ Its second paragraph, which must survive because D2 is not named.
 - L1 (2026-01-01): an insight. APPLIED 2026-01-02 to a file.
 
 ## Archive
-### Inventory (IV) -- moved 2026-01-05
+### Inventory (QV) -- moved 2026-01-05
 FIX
-  printf -- '- [x] #IV-1: Inventory the payload. DONE 2026-01-04 at commit 5ee0aaf, with the full listing kept here: %s %s.\n' "$LONG" "$LONG"
+  printf -- '- [x] #QV-1: Inventory the payload. DONE 2026-01-04 at commit 5ee0aaf, with the full listing kept here: %s %s.\n' "$LONG" "$LONG"
   cat <<'FIX'
-- [x] #IV-2: a short archived record, DONE 2026-01-04
+- [x] #QV-2: a short archived record, DONE 2026-01-04
 FIX
 } > "$W"
 cp "$W" "$T/original.md"
@@ -103,8 +103,8 @@ OUT=$(python3 "$SCRIPT" records "$W" --write --date 2026-05-05)
 check "write reports condensed=4 and WRITTEN" "printf '%s' \"\$OUT\" | grep -q '^condensed=4 ' && printf '%s' \"\$OUT\" | grep -q WRITTEN"
 check "#BD-5 keeps its whole first sentence past the full stop inside the backtick span" \
   "grep '^- \\[x\\] #BD-5' \"\$W\" | grep -q 'then run /workstream-create\.. -- on a stamped target\. DONE 2026-02-02; at commit 0ab12cd\. Condensed 2026-05-05 at extract'"
-check "#IV-1 under Archive condenses to the note form with its commit; #IV-2 and the Archive heading are byte-identical" \
-  "[ \"\$(grep '^- \\[x\\] #IV-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #IV-1' \"\$W\" | grep -q 'DONE 2026-01-04; at commit 5ee0aaf, with the full listing kept here. Condensed 2026-05-05 at extract' && grep -qF -- '- [x] #IV-2: a short archived record, DONE 2026-01-04' \"\$W\" && grep -qF '### Inventory (IV) -- moved 2026-01-05' \"\$W\""
+check "#QV-1 under Archive condenses to the note form with its commit; #QV-2 and the Archive heading are byte-identical" \
+  "[ \"\$(grep '^- \\[x\\] #QV-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #QV-1' \"\$W\" | grep -q 'DONE 2026-01-04; at commit 5ee0aaf, with the full listing kept here. Condensed 2026-05-05 at extract' && grep -qF -- '- [x] #QV-2: a short archived record, DONE 2026-01-04' \"\$W\" && grep -qF '### Inventory (QV) -- moved 2026-01-05' \"\$W\""
 check "#BD-1 fits the completion-note form, keeps status, the date of the status word's OWN sentence (not the later release date), Decision, its unresolved hashes in their clause, and the dated marker" \
   "[ \"\$(grep '^- \\[x\\] #BD-1' \"\$W\" | wc -c)\" -lt 400 ] && grep '^- \\[x\\] #BD-1' \"\$W\" | grep -q 'DECIDED 2026-01-02; reasoning in D2; Built at commit abc1234, mirrored as 1bbfbd74 in the other repo, 1234567 bytes moved, and released 2026-01-03. Condensed 2026-05-05 at extract'"
 check "#BD-4 pairs the last status word with its own sentence's date (DONE 2026-08-22), never the block's last date (2026-07-02), and keeps both commits" \

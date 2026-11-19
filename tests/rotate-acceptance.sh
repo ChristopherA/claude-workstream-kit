@@ -50,7 +50,7 @@ maintenance has moved to a dedicated home.
 ## Backlog
 
 **Critical path.** Order only, by design (D80): status and
-measurements live on the #G-OG gate line, which every gate updates.
+measurements live on the #G-QG gate line, which every gate updates.
 Triage of new arrivals runs in parallel over both inboxes (the
 intake-channel note below); no cadence rule (D47).
 
@@ -59,16 +59,16 @@ FIX
     cat <<'FIX'
 **The intake-channel note.** The kit worktree has its own
 `.state/handoffs/` and nothing watches it, so triage covers BOTH
-inboxes (one handoff sat there unseen and became #OG-84).
+inboxes (one handoff sat there unseen and became #QG-84).
 
 FIX
   fi
   cat <<'FIX'
-### Observed Kit Gaps (OG)
-- [x] #OG-1: an evaluation, DECIDED 2026-01-01 (D1), built and released
-- [x] #OG-2: another, DECIDED 2026-01-02 (D2)
-- [ ] #OG-3: an open evaluation, reasoning in D3
-- [ ] #G-OG: USER CHECKPOINT -- approve kit changes; the queue is one item
+### Observed Kit Gaps (QG)
+- [x] #QG-1: an evaluation, DECIDED 2026-01-01 (D1), built and released
+- [x] #QG-2: another, DECIDED 2026-01-02 (D2)
+- [ ] #QG-3: an open evaluation, reasoning in D3
+- [ ] #G-QG: USER CHECKPOINT -- approve kit changes; the queue is one item
 
 ### Done phase (DP)
 - [x] #DP-1: the only task of a finished phase
@@ -91,13 +91,13 @@ Cited by the critical path.
 
 ## Learnings
 - L1 (2026-01-01): A terminal insight. APPLIED 2026-01-02 to docs/x.md.
-- L2 (2026-01-01): A second terminal insight. ROUTED 2026-01-02 to #OG-3.
-- L3 (2026-01-01): Tracked work. QUEUED 2026-01-02 for #OG-3.
+- L2 (2026-01-01): A second terminal insight. ROUTED 2026-01-02 to #QG-3.
+- L3 (2026-01-01): Tracked work. QUEUED 2026-01-02 for #QG-3.
 
 ## Open Questions
-- ~~OQ-1: Resolved question.~~ RESOLVED 2026-01-01 via #OG-1.
-- OQ-2: Still open, resolve at #OG-3.
-- OQ-3: ~~Resolved in place, the rule's form?~~ RESOLVED 2026-01-01 via #OG-1: it leaves.
+- ~~OQ-1: Resolved question.~~ RESOLVED 2026-01-01 via #QG-1.
+- OQ-2: Still open, resolve at #QG-3.
+- OQ-3: ~~Resolved in place, the rule's form?~~ RESOLVED 2026-01-01 via #QG-1: it leaves.
 
 ## Deletion Criteria
 - [ ] kit maintenance has moved to a dedicated home
@@ -171,14 +171,14 @@ check "write reports WRITTEN" 'printf "%s" "$OUT" | grep -q WRITTEN'
 check "the Rotated line is first under Purpose" \
   '[ "$(awk "/^## Purpose/{getline; print; exit}" "$W")" = "Rotated 2026-02-02; the record before it is at ws/kit-2026-02-02." ]'
 check "removed side: the done tasks, the finished phase heading, D1, D2, L1, L2, OQ-1 and OQ-3 (resolved in place) are gone" \
-  '! grep -q "#OG-1:" "$W" && ! grep -q "#OG-2:" "$W" && ! grep -q "#DP-1" "$W" && ! grep -q "^### Done phase" "$W" && ! grep -q "^### D1 " "$W" && ! grep -q "^### D2 " "$W" && ! grep -q "^- L1 " "$W" && ! grep -q "^- L2 " "$W" && ! grep -q "OQ-1" "$W" && ! grep -q "OQ-3" "$W"'
+  '! grep -q "#QG-1:" "$W" && ! grep -q "#QG-2:" "$W" && ! grep -q "#DP-1" "$W" && ! grep -q "^### Done phase" "$W" && ! grep -q "^### D1 " "$W" && ! grep -q "^### D2 " "$W" && ! grep -q "^- L1 " "$W" && ! grep -q "^- L2 " "$W" && ! grep -q "OQ-1" "$W" && ! grep -q "OQ-3" "$W"'
 check "kept: the open task, the gate, the critical path, the kept note, D3, D47, D80, L3, OQ-2, the criteria, the Analysis section" \
-  'grep -q "^- \[ \] #OG-3:" "$W" && grep -q "^- \[ \] #G-OG:" "$W" && grep -q "^\*\*Critical path" "$W" && grep -q "^\*\*The intake-channel note" "$W" && grep -q "^### D3 " "$W" && grep -q "^### D47 " "$W" && grep -q "^### D80 " "$W" && grep -q "^- L3 " "$W" && grep -q "^- OQ-2:" "$W" && grep -q "STANDING: both inboxes" "$W" && grep -q "^## Analysis" "$W" && grep -q "carried verbatim" "$W"'
+  'grep -q "^- \[ \] #QG-3:" "$W" && grep -q "^- \[ \] #G-QG:" "$W" && grep -q "^\*\*Critical path" "$W" && grep -q "^\*\*The intake-channel note" "$W" && grep -q "^### D3 " "$W" && grep -q "^### D47 " "$W" && grep -q "^### D80 " "$W" && grep -q "^- L3 " "$W" && grep -q "^- OQ-2:" "$W" && grep -q "STANDING: both inboxes" "$W" && grep -q "^## Analysis" "$W" && grep -q "carried verbatim" "$W"'
 python3 "$RECORD" "$T" | jq '.workstreams[] | select(.path | endswith("kit/workstream.md"))' > "$T/rec-after.json"
 check "the record's open count, gate count and STANDING count are identical before and after (2, 1, 3)" \
   '[ "$(jq -r "\"\(.open_total) \(.open_gates | length) \(.deletion_criteria.standing)\"" "$T/rec-before.json")" = "2 1 3" ] && [ "$(jq -r "\"\(.open_total) \(.open_gates | length) \(.deletion_criteria.standing)\"" "$T/rec-after.json")" = "2 1 3" ]'
 check "every open line's ID is present in the new file" \
-  'for id in "#OG-3" "#G-OG"; do grep -q "^- \[ \] $id:" "$W" || exit 1; done'
+  'for id in "#QG-3" "#G-QG"; do grep -q "^- \[ \] $id:" "$W" || exit 1; done'
 check "the file shrank" '[ "$(wc -c < "$W")" -lt "$(wc -c < "$T/original.md")" ]'
 check "the tag still resolves every dropped ID (git show at the tag holds D1)" 'git show ws/kit-2026-02-02:"$W" | grep -q "^### D1 "'
 check "the Learnings numbering note heads the section: L1 to L2 at the tag, the next Learning L4 (L3 stays)" \
@@ -193,7 +193,7 @@ check "second run: dropped nothing, NO CHANGE, byte-identical, no second Rotated
 
 echo "== A second rotation folds the rotation paragraph and carries the numbering note"
 # L4 goes under Learnings, after L3 (an append would land under the trailing Analysis section).
-sed -i.bak 's|^- L3 (2026-01-01): Tracked work. QUEUED 2026-01-02 for #OG-3\.$|&\
+sed -i.bak 's|^- L3 (2026-01-01): Tracked work. QUEUED 2026-01-02 for #QG-3\.$|&\
 - L4 (2026-03-01): A fourth terminal insight. APPLIED 2026-03-02 to docs/y.md.|' "$W" && rm -f "$W.bak"
 git add -A && git commit -q -m "L4" && git tag -a ws/kit-2026-03-03 -m "rotation 2"
 # The carried criterion's "2 of 2 Learnings" is a true stale claim again (2 Learnings -> 1), so the flag is passed as in the first rotation.
@@ -206,7 +206,7 @@ check "the numbering note carries both ranges and the next number: L1 to L2 at t
 git add -A && git commit -q -m "rotated twice"
 
 echo "== A non-conforming file (wrapped open line) is refused"
-printf -- '- [ ] #OG-9: a new task wrapped against\nthe convention\n' >> "$W"
+printf -- '- [ ] #QG-9: a new task wrapped against\nthe convention\n' >> "$W"
 rc=0; python3 "$SCRIPT" rotate "$W" --tag ws/kit-2026-02-02 --write --date 2026-03-03 >/dev/null 2>"$T/e.txt" || rc=$?
 check "exit 1 naming the continuation line, nothing written" '[ "$rc" -eq 1 ] && grep -q "non-conforming" "$T/e.txt" && grep -q "^the convention" "$W"'
 git checkout -q -- "$W"

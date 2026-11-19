@@ -152,7 +152,7 @@ ID_RE = re.compile(
 TASK_ID_RE = re.compile(r'#(?:' + TASK_ID_FORM + '|' + GATE_ID_FORM + r')(?![\w-])')
 
 # Every ID a gloss is owed for: tasks and gates (a gate has no digit, so
-# ID_RE alone misses #G-OG), Decisions, Learnings, Open Questions. The
+# ID_RE alone misses #G-QG), Decisions, Learnings, Open Questions. The
 # rule's metavariables (#XX-N, #G-XX) carry no digit and no real phase
 # code and are excluded by the pattern, not by a list.
 GLOSSABLE_ID_RE = re.compile(
@@ -162,7 +162,7 @@ GLOSSABLE_ID_RE = re.compile(
 # What may sit between an ID and its gloss: a closing code span, a
 # possessive, a home (`in type/name`, `in ws/tag`, `at ws/tag`), the home
 # plain or backticked, and a back-reference to a home named earlier
-# (`D12 there (the call)`, `#EX-3 here (the split)`). It is matched against the text BEFORE code spans
+# (`D12 there (the call)`, `#QX-3 here (the split)`). It is matched against the text BEFORE code spans
 # are blanked, since a backticked home is a code span and would read as
 # spaces.
 GLOSS_BRIDGE_RE = re.compile(
@@ -170,10 +170,10 @@ GLOSS_BRIDGE_RE = re.compile(
 )
 # An ID already inside parentheses cannot take a parenthetical gloss, so
 # a comma phrase before the closing parenthesis glosses it: `(D11 in
-# project/x, the split)`, `(resolve at #EX-3, the format task)`.
+# project/x, the split)`, `(resolve at #QX-3, the format task)`.
 COMMA_GLOSS_RE = re.compile(r',\s*([^()\n]*)\)')
 # The gloss itself: a parenthetical or a double-quoted phrase that
-# carries at least one letter, so `(#EX-3)` -- an ID glossing an ID --
+# carries at least one letter, so `(#QX-3)` -- an ID glossing an ID --
 # does not count.
 GLOSS_RE = re.compile(r'(?:\([^()\n]*[A-Za-z][^()\n]*\)|["“][^"”\n]*[A-Za-z][^"”\n]*["”])')
 CODE_SPAN_RE = re.compile(r'`[^`\n]*`')
@@ -182,7 +182,7 @@ FENCE_RE = re.compile(r'^\s*(?:```|~~~)')
 
 def blank_code(text):
     """Code spans replaced by spaces of the same length, so offsets hold
-    and an ID quoted as code (`#EX-3:` in a command, a backlog line
+    and an ID quoted as code (`#QX-3:` in a command, a backlog line
     quoted whole) is not read as a mention."""
     return CODE_SPAN_RE.sub(lambda m: ' ' * (m.end() - m.start()), text)
 
@@ -229,9 +229,9 @@ def bare_ids(paragraphs):
     checked on its own, so a gloss wrapped across two lines still
     counts, and within it an ID owes a gloss at its FIRST mention only
     -- a later mention in the same paragraph inherits. A mention is
-    glossed when the canonical form follows it directly: `#EX-37 (the
-    phase split question)` or `#EX-37 "the phase split question"`, with
-    a home allowed in between, plain or backticked (`#EX-30 in
+    glossed when the canonical form follows it directly: `#QX-37 (the
+    phase split question)` or `#QX-37 "the phase split question"`, with
+    a home allowed in between, plain or backticked (`#QX-30 in
     project/tier (the neutrality sort)`), or a back-reference, `there` or
     `here`. An ID already inside parentheses is glossed by a comma phrase
     before the closing parenthesis that carries a word beyond IDs (`(D11

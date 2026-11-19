@@ -115,7 +115,7 @@ EOF
 # gamma: the WRAPPED instance of every prose-bearing field, plus every
 # pattern case the consumers reported. Two same-code headings (PX) each
 # holding one task; a task whose code (MV) no heading declares, sitting
-# under a PX heading; a multi-code heading (SK / HW); a phase heading that
+# under a PX heading; a multi-code heading (QK / HW); a phase heading that
 # states a hold; a hold on the THIRD line of a wrapped open task; a
 # hyphenated compound (Held-out) and a negated clause that must not
 # register; a wrapped gate whose marker sits on its fourth line, a gate
@@ -147,16 +147,16 @@ line is blocked on feature/beta for the shared schema, citing #PX-9
 - [ ] #PX-3: evaluate the Held-out validation set before the release
 - [ ] #PX-4: ~~blocked on feature/beta for the old schema~~ (STALE 2026-02-02), and the two retired checkpoints held, so conditions that hold here carry no live hold
 
-### Split (SK / HW)
-- [ ] #SK-1: a task under a multi-code heading
+### Split (QK / HW)
+- [ ] #QK-1: a task under a multi-code heading
 - [ ] #HW-1: another task under the same multi-code heading
-- [ ] #G-SK: USER CHECKPOINT -- the split review, whose line wraps over
+- [ ] #G-QK: USER CHECKPOINT -- the split review, whose line wraps over
 several lines because a gate accretes agenda, and the marker that
 matters is not on the first line but here, the exit criterion is
 SATISFIED 2026-03-03 with the evidence recorded beside it
 - [ ] #G-HW: USER CHECKPOINT -- the build note reads "the wrap sentence
 and the SATISFIED sentence quoted", which is a mention and not a marking
-- [ ] #G-SK2: USER CHECKPOINT -- READY 2026-02-02, decided in the record
+- [ ] #G-QK2: USER CHECKPOINT -- READY 2026-02-02, decided in the record
 
 ### Deferred (DF) -- blocked on the condensed evaluation
 - [ ] #DF-1: waits for the upstream fix in ml-explore/mlx#3856 to land,
@@ -252,9 +252,9 @@ check "the live phase beside it reports done 1, open 1" \
 # An open task OUTSIDE ## Backlog is invisible to every phase count and
 # counted by the roster; the record names it by line and ID.
 mkdir -p "$T/outside/.state/workstreams/project/o"
-printf -- '## Backlog\n### Live (LV)\n- [ ] #LV-1: open\n\n## Decisions\n- [ ] #SW-9: appended after the Backlog ended\n### D1 (2026-01-01): a decision\n' > "$T/outside/.state/workstreams/project/o/workstream.md"
+printf -- '## Backlog\n### Live (LV)\n- [ ] #LV-1: open\n\n## Decisions\n- [ ] #QW-9: appended after the Backlog ended\n### D1 (2026-01-01): a decision\n' > "$T/outside/.state/workstreams/project/o/workstream.md"
 check "an open task under ## Decisions is reported in open_outside_backlog with its line, ID and section" \
-  '[ "$(python3 "$SCRIPT" "$T/outside" | jq -r ".workstreams[0].open_outside_backlog[] | \"\\(.line) \\(.id) \\(.section)\"")" = "6 #SW-9 ## Decisions" ]'
+  '[ "$(python3 "$SCRIPT" "$T/outside" | jq -r ".workstreams[0].open_outside_backlog[] | \"\\(.line) \\(.id) \\(.section)\"")" = "6 #QW-9 ## Decisions" ]'
 check "the same file: open_total 2 while the phases sum to 1 -- the gap the field names" \
   '[ "$(python3 "$SCRIPT" "$T/outside" | jq -r ".workstreams[0] | \"\\(.open_total) \\([.phases[].open_tasks] | add)\"")" = "2 1" ]'
 check "alpha, whose orphan sits inside Backlog, reports open_outside_backlog empty" \
@@ -339,19 +339,19 @@ gq() { jq -r "$G | $1" "$T/out.json"; }
 echo "== Sanity: gamma's fixture carries each planted case"
 check "gamma: the hold on #PX-2 sits on the task's THIRD line, not its first" \
   "grep -q '^line is blocked on feature/beta' \"$T/.state/workstreams/project/gamma/workstream.md\" && ! grep -q '#PX-2.*blocked' \"$T/.state/workstreams/project/gamma/workstream.md\""
-check "gamma: #G-SK's marker is on a continuation line, not the gate's first line" \
-  "grep -q '^SATISFIED 2026-03-03' \"$T/.state/workstreams/project/gamma/workstream.md\" && ! grep -q '#G-SK:.*SATISFIED' \"$T/.state/workstreams/project/gamma/workstream.md\""
+check "gamma: #G-QK's marker is on a continuation line, not the gate's first line" \
+  "grep -q '^SATISFIED 2026-03-03' \"$T/.state/workstreams/project/gamma/workstream.md\" && ! grep -q '#G-QK:.*SATISFIED' \"$T/.state/workstreams/project/gamma/workstream.md\""
 check "gamma: #G-HW carries the bare word SATISFIED with no date after it" \
   "grep -q 'the SATISFIED sentence quoted' \"$T/.state/workstreams/project/gamma/workstream.md\""
 check "gamma: two headings carry the same code PX" \
   "[ \"\$(grep -c '(PX)' \"$T/.state/workstreams/project/gamma/workstream.md\")\" = 2 ]"
 
 echo "== Phases are position-keyed: same-code headings, mismatches, named missing codes"
-check "gamma has four phase rows (two PX rows, one SK / HW, one DF; none for MV)" '[ "$(gq ".phases | length")" = "4" ]'
+check "gamma has four phase rows (two PX rows, one QK / HW, one DF; none for MV)" '[ "$(gq ".phases | length")" = "4" ]'
 check "each PX heading counts only the tasks under it (Pass 1: 2 open, Pass 2: 3 open)" \
   '[ "$(gq ".phases[0].open_tasks")" = "2" ] && [ "$(gq ".phases[1].open_tasks")" = "3" ]'
-check "the multi-code heading (SK / HW) matches and counts 2 tasks and 3 gates" \
-  '[ "$(gq ".phases[2].code")" = "SK / HW" ] && [ "$(gq ".phases[2].open_tasks")" = "2" ] && [ "$(gq ".phases[2].open_gates")" = "3" ]'
+check "the multi-code heading (QK / HW) matches and counts 2 tasks and 3 gates" \
+  '[ "$(gq ".phases[2].code")" = "QK / HW" ] && [ "$(gq ".phases[2].open_tasks")" = "2" ] && [ "$(gq ".phases[2].open_gates")" = "3" ]'
 check "tasks_outside_phases is 0 (never negative: per-heading sum plus outside equals the total)" \
   '[ "$(gq ".tasks_outside_phases")" = "0" ] && [ "$(gq ".open_total")" = "$(gq "[.phases[] | .open_tasks + .open_gates] | add")" ]'
 check "the code no heading declares is NAMED (MV), not reported as a number" '[ "$(gq ".codes_without_heading | join(\",\")")" = "MV" ]'
@@ -361,9 +361,9 @@ check "alpha reports no mismatch and no missing code except the orphan ZZ" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"project/alpha/workstream.md\")) | .codes_without_heading | join(\",\")" "$T/out.json")" = "ZZ" ]'
 
 echo "== Gate markers: the whole block is read, and only the DATED form marks"
-check "#G-SK (marker on its fourth line) is satisfied" '[ "$(gq ".open_gates[] | select(.text | contains(\"#G-SK:\")) | .satisfied_text")" = "true" ]'
+check "#G-QK (marker on its fourth line) is satisfied" '[ "$(gq ".open_gates[] | select(.text | contains(\"#G-QK:\")) | .satisfied_text")" = "true" ]'
 check "#G-HW (bare mention of SATISFIED, no date) is NOT satisfied" '[ "$(gq ".open_gates[] | select(.text | contains(\"#G-HW\")) | .satisfied_text")" = "false" ]'
-check "#G-SK2 (READY with a date) is satisfied" '[ "$(gq ".open_gates[] | select(.text | contains(\"#G-SK2\")) | .satisfied_text")" = "true" ]'
+check "#G-QK2 (READY with a date) is satisfied" '[ "$(gq ".open_gates[] | select(.text | contains(\"#G-QK2\")) | .satisfied_text")" = "true" ]'
 
 echo "== Hold lines read folded blocks and phase headings, and reject compounds and negations"
 gamma_hold_matches=$(gq '[.hold_lines[].match] | join("|")')
@@ -483,15 +483,15 @@ check "first is still the Purpose's first sentence" \
 
 echo "== An uncoded ### heading ends the coded phase above it"
 mkdir -p "$T/uncoded/.state/workstreams/feature/u"
-printf -- '## Backlog\n### Draft (DR)\n- [ ] #DR-1: a task\n### Gates\n- [ ] #G-SK: USER CHECKPOINT -- a gate no heading declares\n- [ ] #G-DR: USER CHECKPOINT -- a gate its code declares elsewhere\n- [x] #DR-2: a done task under the uncoded heading\n### Next (PX)\n- [ ] #PX-1: a task after it\n' > "$T/uncoded/.state/workstreams/feature/u/workstream.md"
+printf -- '## Backlog\n### Draft (DR)\n- [ ] #DR-1: a task\n### Gates\n- [ ] #G-QK: USER CHECKPOINT -- a gate no heading declares\n- [ ] #G-DR: USER CHECKPOINT -- a gate its code declares elsewhere\n- [x] #DR-2: a done task under the uncoded heading\n### Next (PX)\n- [ ] #PX-1: a task after it\n' > "$T/uncoded/.state/workstreams/feature/u/workstream.md"
 uq() { python3 "$SCRIPT" "$T/uncoded" | jq -r ".workstreams[0] | $1"; }
-check "fixture: #G-SK sits under the uncoded Gates heading, after the DR heading" \
-  'awk "/^### Draft/{c=1} /^### Gates/{g=c} /^- \\[ \\] #G-SK/{print g}" "$T/uncoded/.state/workstreams/feature/u/workstream.md" | grep -q 1'
+check "fixture: #G-QK sits under the uncoded Gates heading, after the DR heading" \
+  'awk "/^### Draft/{c=1} /^### Gates/{g=c} /^- \\[ \\] #G-QK/{print g}" "$T/uncoded/.state/workstreams/feature/u/workstream.md" | grep -q 1'
 check "no code/heading mismatch: neither gate is attributed to Draft" '[ "$(uq ".code_heading_mismatches | length")" = "0" ]'
 check "Gates is its own phase row, code null, with both gates and the done task" \
   '[ "$(uq ".phases[1] | \"\\(.name) \\(.code) \\(.open_gates) \\(.done_tasks)\"")" = "Gates null 2 1" ]'
 check "Draft keeps only its own task" '[ "$(uq ".phases[0] | \"\\(.open_tasks) \\(.open_gates) \\(.done_tasks)\"")" = "1 0 0" ]'
-check "the code no heading declares is still named (SK), the declared DR is not" '[ "$(uq ".codes_without_heading | join(\",\")")" = "SK" ]'
+check "the code no heading declares is still named (QK), the declared DR is not" '[ "$(uq ".codes_without_heading | join(\",\")")" = "QK" ]'
 check "a coded heading after it attributes again (#PX-1 under Next), and nothing is outside" \
   '[ "$(uq ".phases[2] | \"\\(.code) \\(.open_tasks)\"")" = "PX 1" ] && [ "$(uq .tasks_outside_phases)" = "0" ]'
 check "control: a task under the WRONG coded heading is still a mismatch" \
@@ -541,7 +541,7 @@ check "standing_breaches names the breach date" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"maintain/s-fails/workstream.md\")) | .deletion_criteria.standing_breaches[0].date" "$T/stamps.json")" = "2026-03-03" ]'
 
 echo "== Conformance detector: continuation lines under open items, column 0 and indented alike"
-check "gamma reports wrapped open items (2 continuations under #PX-2, 3 under #G-SK, 1 each under #G-HW and #DF-1)" '[ "$(gq ".wrapped_lines.open_items")" = "7" ]'
+check "gamma reports wrapped open items (2 continuations under #PX-2, 3 under #G-QK, 1 each under #G-HW and #DF-1)" '[ "$(gq ".wrapped_lines.open_items")" = "7" ]'
 check "alpha reports zero wrapped open items (its backlog lines are one line each)" \
   '[ "$(jq -r ".workstreams[] | select(.path | endswith(\"project/alpha/workstream.md\")) | .wrapped_lines.open_items" "$T/out.json")" = "0" ]'
 # Vary one input that must change the count: an indented continuation.
@@ -580,9 +580,9 @@ echo "== Digit-bearing phase codes parse; an ID-shaped token still unparsable is
 # A heading `(W3)` the heading parser accepts, with tasks `#W3-1` and the
 # gate `#G-W3a`: on 0.11.1 the task parsers refused them, so record named
 # a code `W` with no heading, reported false mismatches, and decay counted
-# fewer open tasks than the hook. `#G-SK2` keeps its old reading (phase SK,
+# fewer open tasks than the hook. `#G-QK2` keeps its old reading (phase QK,
 # second gate), and `#P8-V` has no task number, so it cannot parse at all
-# and must be NAMED. `#EX-3` is the must-parse control; a plain checkbox
+# and must be NAMED. `#QX-3` is the must-parse control; a plain checkbox
 # with no ID is the must-not-report control.
 mkdir -p "$T/digits/.state/workstreams/project/d"
 DW="$T/digits/.state/workstreams/project/d/workstream.md"
@@ -597,10 +597,10 @@ status: active
 - [ ] #W3-1: first task
 - [ ] #W3-6: sixth task
 - [ ] #G-W3a: USER CHECKPOINT -- the W3 gate
-### Pass (EX)
-- [ ] #EX-3: the control task
-### Split (SK)
-- [ ] #G-SK2: second SK gate
+### Pass (QX)
+- [ ] #QX-3: the control task
+### Split (QK)
+- [ ] #G-QK2: second QK gate
 ### Eight (P8)
 - [ ] #P8-V: a verification task with no number
 - [ ] a plain checkbox with no ID
@@ -611,19 +611,19 @@ FIX
 dq() { python3 "$SCRIPT" "$T/digits" | jq -r ".workstreams[0]$1"; }
 hook_open=$(grep -cE '^ *- \[ \] #' "$DW")
 check "the fixture's hook-form count is 6 (five tasks and gates plus #P8-V)" '[ "$hook_open" = "6" ]'
-check "digits: no code is reported without a heading (W3 and SK are declared)" '[ "$(dq ".codes_without_heading | length")" = "0" ]'
-check "digits: no code/heading mismatch for #W3-1, #W3-6, #G-W3a or #G-SK2" '[ "$(dq ".code_heading_mismatches | length")" = "0" ]'
+check "digits: no code is reported without a heading (W3 and QK are declared)" '[ "$(dq ".codes_without_heading | length")" = "0" ]'
+check "digits: no code/heading mismatch for #W3-1, #W3-6, #G-W3a or #G-QK2" '[ "$(dq ".code_heading_mismatches | length")" = "0" ]'
 check "digits: open_total equals the hook-form count" '[ "$(dq ".open_total")" = "$hook_open" ]'
 check "digits: the per-heading sum equals open_total" '[ "$(dq " | [.phases[] | .open_tasks + .open_gates] | add")" = "$hook_open" ]'
 check "digits: the W3 heading holds two tasks and one gate" \
   '[ "$(dq ".phases[] | select(.code == \"W3\") | \"\(.open_tasks) \(.open_gates)\"")" = "2 1" ]'
 check "digits: #P8-V is reported as unparsable, with its line" \
   '[ "$(dq ".unparsable_ids | map(.token) | join(\",\")")" = "#P8-V" ] && [ "$(dq ".unparsable_ids[0].line")" = "$(grep -n "#P8-V" "$DW" | cut -d: -f1)" ]'
-check "digits: #EX-3 and the plain checkbox are not reported as unparsable" \
-  '! dq ".unparsable_ids[].token" | grep -qE "EX-3|plain"'
+check "digits: #QX-3 and the plain checkbox are not reported as unparsable" \
+  '! dq ".unparsable_ids[].token" | grep -qE "QX-3|plain"'
 check "digits: fires names the unparsable ID" \
   'python3 "$SCRIPT" fires "$T/digits" | grep -q "unparsable task ID.*#P8-V"'
-check "digits: decay counts every open task line (W3-1, W3-6, EX-3, P8-V) and names the unparsable one" \
+check "digits: decay counts every open task line (W3-1, W3-6, QX-3, P8-V) and names the unparsable one" \
   '[ "$(python3 "$SCRIPT" decay "$T/digits" | jq -r ".workstreams[0] | \"\(.open_tasks) \(.unparsable_ids | map(.token) | join(\",\"))\"")" = "4 #P8-V" ]'
 check "digits: bare-ids flags an unglossed #W3-1 mention" \
   'mkdir -p "$T/digits-b/.state/workstreams/project/b" && printf -- "---\nname: b\n---\n## Purpose\nRoutes to #W3-1 next.\n\n## Backlog\n" > "$T/digits-b/.state/workstreams/project/b/workstream.md" && python3 "$SCRIPT" bare-ids "$T/digits-b" | grep -q "#W3-1"'

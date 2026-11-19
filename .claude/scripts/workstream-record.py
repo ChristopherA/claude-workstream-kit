@@ -145,9 +145,9 @@ It says what fires, never who should run the drain.
 
 `bare-ids` is the rule's gloss convention as a check: every task, gate,
 Decision, Learning or Open Question ID mentioned in live prose owes a
-few words saying what it is, in the canonical form `#EX-37 (the phase
-split question)` or `#EX-37 "the phase split question"`, a home allowed
-between (`#EX-30 in project/tier (the neutrality sort)`), at the ID's
+few words saying what it is, in the canonical form `#QX-37 (the phase
+split question)` or `#QX-37 "the phase split question"`, a home allowed
+between (`#QX-30 in project/tier (the neutrality sort)`), at the ID's
 first mention in each paragraph. Over a project root it reads
 ACTIVE.md's body and, for every workstream, the Purpose, the critical
 path, open task blocks, unresolved Open Questions and open or STANDING
@@ -343,7 +343,7 @@ def phase_records(lines):
         cm = TASK_CODE_RE.search(text)
         code = cm.group(1) if cm else None
         # A gate's code is ambiguous where a task's is not: `#G-W3a` is
-        # phase W3, while `#G-SK2` is the second gate of phase SK. Both
+        # phase W3, while `#G-QK2` is the second gate of phase QK. Both
         # readings are carried and the one a heading declares wins.
         cands = [code] if code else []
         if code and is_gate:
@@ -539,7 +539,7 @@ def open_outside_backlog_field(lines):
     ## Backlog, with its line and ID -- a task the counts cannot see.
     The Deletion Criteria section is exempt: a criterion is a checkbox
     outside the Backlog by design, and one that OPENS with a task ID
-    (`- [ ] #EX-30 in project/x names ...`) is a criterion about that
+    (`- [ ] #QX-30 in project/x names ...`) is a criterion about that
     task, not the task -- a fresh workstream's criteria fired this
     symptom within the hour of the check shipping."""
     sections = section_of(lines)
@@ -930,8 +930,8 @@ def homes_near(text, start, end):
     """Every workstream or tag named in the ID's sentence, nearest first:
     those after the ID by distance, then those before. This project's
     corpus writes the home after the ID far more often than before, and
-    a sentence naming two homes ("#EX-3 lives in project/a ... read as
-    #SW-5 in project/b") homes each ID at the wrong one if only the
+    a sentence naming two homes ("#QX-3 lives in project/a ... read as
+    #QW-5 in project/b") homes each ID at the wrong one if only the
     nearest is tried, so the caller resolves against each in turn."""
     s, e = sentence_span(text, start)
     # A name followed by an apostrophe-s ("project/x's row") is a
@@ -1029,15 +1029,15 @@ class TagReader:
 
 HOME_FORM = (r'(?:(?:explore|feature|fix|project|maintain)/[a-z0-9-]+(?:\.[a-z0-9-]+)*'
              r'|ws/[a-z0-9-]+(?:\.[a-z0-9-]+)*)')
-# A home written BESIDE the ID -- `#EX-30 in project/tier`, `D17 at ws/old`,
-# or inside its gloss, `#OG-91 (the paragraph split, at ws/kit-2026-09-04)`
+# A home written BESIDE the ID -- `#QX-30 in project/tier`, `D17 at ws/old`,
+# or inside its gloss, `#QG-91 (the paragraph split, at ws/kit-2026-09-04)`
 # -- is what the author said about that ID; a home elsewhere in the
 # sentence is a guess about it.
 ADJACENT_HOME_RE = re.compile(
     r"`?(?:'s)?(?: (?:in|at) `?(?P<h>" + HOME_FORM + r")(?![\w.-])(?!`?'s)"
     r"| \([^()]*?\b(?:in|at) `?(?P<g>" + HOME_FORM + r")(?![\w.-])`?\))"
 )
-# A provenance note -- `(was beta #FL-3.)`, ``(was `#EX-2`)`` -- says
+# A provenance note -- `(was beta #FL-3.)`, ``(was `#QX-2`)`` -- says
 # where an ID CAME FROM, and is history rather than a reference: homing
 # it to a name written after it in the block reported correct prose.
 PROVENANCE_RE = re.compile(r'\(was [^()]*\)')
@@ -1964,7 +1964,7 @@ SELF_CHECKS = [
     ("dotted name captured whole", lambda t: 'project/omlx-0.4.x-finalize' in _refs(t),
      ["then finalize in project/omlx-0.4.x-finalize"], ["then finalize in project/omlx"]),
     ("PHASE_HEADING_RE", lambda t: bool(PHASE_HEADING_RE.match(t)),
-     ["### Build (BD) -- the heading carries a suffix", "### Split (SK / HW)"],
+     ["### Build (BD) -- the heading carries a suffix", "### Split (QK / HW)"],
      ["### D3 (2026-01-01): Third decision", "## Backlog"]),
     ("TOTAL_OPEN_RE", lambda t: bool(TOTAL_OPEN_RE.match(t)),
      ["- [ ] #BD-1: a task", "  - [ ] #BD-1a: an indented sub-task"],
@@ -1989,20 +1989,20 @@ SELF_CHECKS = [
     ("needle_regex word boundaries", lambda t: bool(needle_regex('#BD-1').search(t)),
      ["cites #BD-1 and", "(#BD-1)"], ["cites #BD-10 and", "cites #BD-1a and"]),
     ("TASK_ID_RE", lambda t: bool(TASK_ID_RE.search(t)),
-     ["routed to #OG-188 there", "decided at #G-OG", "routed to #W3-1", "decided at #G-W3a"],
+     ["routed to #QG-188 there", "decided at #G-QG", "routed to #W3-1", "decided at #G-W3a"],
      ["a plain sentence", "the #hashtag", "the #P8-V line"]),
     ("bare_ids glossed", lambda t: not bare_ids([(1, [t])]),
-     ["#EX-37 (the phase split question) is open", '#G-OG "the kit change approval gate" stands',
-      "#EX-30 in project/tier (the neutrality sort) waits", "D96 (the release decision) and D96 again",
-      "#EX-30 in `project/tier` (the neutrality sort) waits", "D12 at `ws/tier-2026-01-01` (the old call) holds",
+     ["#QX-37 (the phase split question) is open", '#G-QG "the kit change approval gate" stands',
+      "#QX-30 in project/tier (the neutrality sort) waits", "D96 (the release decision) and D96 again",
+      "#QX-30 in `project/tier` (the neutrality sort) waits", "D12 at `ws/tier-2026-01-01` (the old call) holds",
       "D12 there (the authorization-rule call) holds", "routed (D11 in project/tier, the authoring-rule split) today",
-      "an OQ (resolve at #EX-3, the format task) stays",
-      "- [ ] #EX-37: a backlog line naming #EX-3 (the heuristic)", "run `rg '#EX-3'` here",
+      "an OQ (resolve at #QX-3, the format task) stays",
+      "- [ ] #QX-37: a backlog line naming #QX-3 (the heuristic)", "run `rg '#QX-3'` here",
       "#XX-N and #G-XX are metavariables"],
-     ["#EX-37 is open", "#G-OG stands", "D96 and D96 again", "the (#EX-3) form glosses nothing",
-      "#EX-37's split question", "- [ ] #EX-37: a backlog line naming #EX-3 bare",
-      "#EX-30 in `project/tier` waits", "D12 in `notes/tier` (a path, not a home)",
-      "D12 there is the call", "(D11, #EX-3) both", "(resolve at #EX-3) stays", "D11, the split, outside parentheses"]),
+     ["#QX-37 is open", "#G-QG stands", "D96 and D96 again", "the (#QX-3) form glosses nothing",
+      "#QX-37's split question", "- [ ] #QX-37: a backlog line naming #QX-3 bare",
+      "#QX-30 in `project/tier` waits", "D12 in `notes/tier` (a path, not a home)",
+      "D12 there is the call", "(D11, #QX-3) both", "(resolve at #QX-3) stays", "D11, the split, outside parentheses"]),
 ]
 
 

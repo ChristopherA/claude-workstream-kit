@@ -58,7 +58,7 @@ substantive_epoch() {
 # overstates remaining work by however many criteria a workstream carries --
 # for every workstream, permanently. The Deletion Criteria section is skipped
 # for the same reason the criteria count brackets itself: a criterion whose
-# text OPENS with a task ID (`- [ ] #EX-30 in project/x ...`) is a criterion
+# text OPENS with a task ID (`- [ ] #QX-30 in project/x ...`) is a criterion
 # about that task, and counting it here too read one high beside the criteria
 # count. An open task appended anywhere else is still counted.
 count_open()  { awk '/^## Deletion Criteria/ {f=1; next} /^## / {f=0} !f && /^ *- \[ \] #/ {n++} END {print n+0}' "$1" 2>/dev/null || true; }
@@ -279,7 +279,7 @@ if command -v python3 >/dev/null 2>&1 && [ -f "$RECORD_PY" ]; then
   # it).
   BARE=$(python3 "$RECORD_PY" bare-ids "$PROJECT_DIR" --text 2>/dev/null || true)
   if [ -n "$BARE" ]; then
-    echo "Gloss (workstream-record.py bare-ids -- an id outside its backlog line carries a few words, \`#EX-37 (the phase split question)\`):"
+    echo "Gloss (workstream-record.py bare-ids -- an id outside its backlog line carries a few words, \`#QX-37 (the phase split question)\`):"
     printf '%s\n' "$BARE" | sed 's/^/  /'
   fi
 fi

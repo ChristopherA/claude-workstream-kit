@@ -49,7 +49,7 @@ feature/beta for the shared schema, wrapped against the convention
 Opened because a set-level refactor is feature work by that
 workstream's criterion 4. The five verbs stay; a single maintenance
 skill and a pure inversion were declined there. Release approval and
-the consumer re-install stay with that workstream's #G-OG and AD
+the consumer re-install stay with that workstream's #G-QG and AD
 phase; this workstream ends at a built, verified payload. (Lifted
 2026-09-05 from feature/kit-script-core D1 in the project that built
 this sub-command: a Decision citing a Decision in another workstream.)
