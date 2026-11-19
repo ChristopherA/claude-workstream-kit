@@ -710,6 +710,42 @@ rc=0; python3 "$SCRIPT" records "$W340" --write --date 2026-03-03 >"$T/r340-2.tx
 check "a second run is a no-op: NO CHANGE, byte-identical" \
   "[ \"\$rc\" -eq 0 ] && grep -qx 'NO CHANGE' \"$T/r340-2.txt\" && cmp -s \"$W340\" \"$T/fx340-after.md\""
 
+echo "== records: a kept clause that is one item of an enumerated list"
+# On 0.11.5 a note `FLAGGED for the as-built check: (1) ... where
+# <hash> dropped it; (2) ...` condensed to `...; (1) ... where <hash>
+# dropped it`: the clause holding a hash that does not resolve here was
+# kept verbatim, its lead-in and its sibling dropped, so the note read
+# as a list of one with no frame. Such a record is now left whole and
+# reported. An enumerated note whose kept clauses open no item still
+# condenses.
+W342="$T/fx342.md"
+cat > "$W342" <<FIX
+---
+name: fx
+type: maintain
+status: active
+---
+## Purpose
+A fixture.
+
+## Backlog
+### Done (QG)
+- [x] #QG-1: the record whose kept clause is a list item
+  DONE 2026-01-01 at $SHORT in claude-workstream-kit: built the fixture. FLAGGED for the as-built check: (1) the rule is applied to every commit, so a provenance commit keeps its clause where deadbee dropped it; (2) a status word is not a verb of making. $P
+- [x] #QG-2: the record whose list items are all dropped
+  DONE 2026-01-02 at $SHORT in claude-workstream-kit: built the fixture. FLAGGED for the as-built check: (1) the rule is applied to every commit; (2) a status word is not a verb of making. $P
+
+## Decisions
+### D1 (2026-01-01): A call
+Reasoning.
+FIX
+cp "$W342" "$T/fx342-before.md"
+rc=0; python3 "$SCRIPT" records "$W342" --write --date 2026-02-02 >"$T/r342.txt" 2>&1 || rc=$?
+check "the record whose kept clause opens an item is SKIPPED, naming the item, and left byte-identical" \
+  "[ \"\$rc\" -eq 0 ] && grep -q '^SKIPPED #QG-1: a kept clause is one item of an enumerated list (\`(1)\`)' \"$T/r342.txt\" && grep -qF '(2) a status word is not a verb of making. This sentence pads' \"$W342\""
+check "the control, whose list items are all dropped, still condenses" \
+  "grep -q '^#QG-2 ' \"$T/r342.txt\" && ! grep -qF 'the rule is applied to every commit; (2)' \"$W342\""
+
 echo "== the extract skill"
 check "Move 3 names the cites step and --keep beside the records command" \
   "awk '/^## Move 3 /{on=1;next} /^## /{on=0} on' \"$SKILL\" | grep -q 'cites' && awk '/^## Move 3 /{on=1;next} /^## /{on=0} on' \"$SKILL\" | grep -q -- '--keep'"

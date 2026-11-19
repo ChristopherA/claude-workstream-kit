@@ -62,6 +62,8 @@ released, the record condensed in the same run and reported
 (`KEPT`). A note already at the completion-note form -- one sentence,
 opening with its status word or date, naming its commit and a
 backticked command or a count -- is left whole and reported SKIPPED,
+as is one whose kept clause opens an item of an enumerated list
+(`(1)`, `(a)`, `2.`), whose lead-in and siblings would drop,
 and with no commit leading a note, every lead clause carrying a
 command or a count is kept, as an issue's is. A record dated before
 its colon (`- [x] #ID (2026-01-02): ...`, any parenthetical) keeps the
@@ -683,6 +685,17 @@ def note_evidence(note, ctx):
     return made, handles + [k for k in kept if k not in handles], unresolved, unmade
 
 
+# A kept clause that is one item of an enumerated list -- `(1) ...`,
+# `(a) ...`, `2. ...`: kept alone, it reads as a list of one with its
+# lead-in and siblings gone (`FLAGGED for the as-built check: (1) ...;
+# (2) ...` condensed to `...; (1) ...`), so the record is left whole.
+ENUM_ITEM_RE = re.compile(r"^(?:\((?:[0-9]+|[a-z])\)|[0-9]+\.)\s")
+
+
+class SplitList(Exception):
+    """A record whose condensation would keep one item of a list."""
+
+
 def condensed_note(note, ctx, mark, fallback_date=None):
     """(text, notes) -- the completion-note form for one note's text:
     the status word and date of its own sentence, with the pointer its
@@ -696,6 +709,11 @@ def condensed_note(note, ctx, mark, fallback_date=None):
     dates = DATE_RE.findall(note)
     decs, absent, foreign = decisions_cited(note, ctx)
     shas, kept, unresolved, unmade = note_evidence(note, ctx)
+    for k in kept:
+        m = ENUM_ITEM_RE.match(k)
+        if m:
+            raise SplitList("a kept clause is one item of an enumerated list (`%s`), whose lead-in and "
+                            "siblings the condensation would drop -- condense by hand or leave it" % m.group(0).strip())
     mark_word, date = status_and_date(note, dates)
     if date == "n.d." and fallback_date:
         date = fallback_date
@@ -1160,7 +1178,10 @@ def condense_range(lines, start, end, mark, ctx):
         elif any(b[1] == 'item' for b in tail_blocks):
             new, changed, why = None, None, "a note with indented list items after a blank line"
         else:
-            new, changed, why = condense_record(raw, mark, ctx, " ".join(b[2] for b in tail_blocks))
+            try:
+                new, changed, why = condense_record(raw, mark, ctx, " ".join(b[2] for b in tail_blocks))
+            except SplitList as e:
+                new, changed, why = None, None, str(e)
         consumed = stop
         i = j
         if new is None:
