@@ -375,6 +375,60 @@ check "ACTIVE.md pointing at maintain/k: its home-less D1 refuses (exit 1), cite
   '[ "$rc" -eq 1 ] && grep -q "ACTIVE.md:6 (block 6, live content) cites leaving decision" "$T/home-e.txt"'
 cd "$T"
 
+echo "== A task whose own description opens with a leaving block's lead phrase is not a citation"
+# A leaving block is also searched for by its lead phrase, its first five
+# words. A sibling task that merely OPENS with the same words -- a gloss
+# pass minted in two workstreams from one template -- shares the phrase
+# without citing anything, and refused a real rotation with no
+# re-pointing able to clear it. The phrase anywhere else still refuses.
+mkdir -p "$T/sib" && cd "$T/sib"
+git init -q -b main && git config user.email fixture@example.invalid && git config user.name Fixture
+git config commit.gpgsign false && git config tag.gpgsign false && git config tag.forceSignAnnotated false
+mkdir -p .state/workstreams/maintain/k .state/workstreams/project/p
+KW=.state/workstreams/maintain/k/workstream.md
+PW=.state/workstreams/project/p/workstream.md
+cat > "$KW" <<'FIX'
+---
+name: k
+type: maintain
+status: active
+---
+## Purpose
+The workstream being rotated.
+
+## Backlog
+### Build (KB)
+- [x] #KB-1: Sweep the stale markers over this file, done long ago
+- [ ] #KB-2: Sweep the stale markers over this file again, a second pass
+FIX
+cat > "$PW" <<'FIX'
+---
+name: p
+type: project
+status: active
+---
+## Purpose
+A neighbour with a sibling task.
+
+## Backlog
+### Pass (PP)
+- [ ] #PP-1: Sweep the stale markers over this file, the neighbour's own
+FIX
+printf -- '---\nworkstream: project/p\ntask: none\n---\n## Now\nNothing here.\n' > .state/ACTIVE.md
+git add -A && git commit -q -m fixture && git tag -a ws/k-2026-02-02 -m rotation
+check "fixture: #KB-1 leaves, and both siblings open with its five-word lead" \
+  '[ "$(cat "$KW" "$PW" | grep -c "Sweep the stale markers over")" -eq 3 ]'
+rc=0; python3 "$SCRIPT" rotate "$KW" --tag ws/k-2026-02-02 --date 2026-02-02 --write >"$T/sib-o.txt" 2>"$T/sib-e.txt" || rc=$?
+check "the siblings in this file and the neighbour do not refuse: exit 0, #KB-1 gone, #KB-2 kept" \
+  '[ "$rc" -eq 0 ] && ! grep -q "reference(s) to a leaving block" "$T/sib-e.txt" && ! grep -q "#KB-1" "$KW" && grep -q "^- \[ \] #KB-2" "$KW"'
+git checkout -q -- "$KW"
+printf -- '- [ ] #PP-2: follow up the earlier sweep the stale markers over this file left in maintain/k\n' >> "$PW"
+git add -A && git commit -q -m citing && git tag -f -a ws/k-2026-02-02 -m rotation >/dev/null
+rc=0; python3 "$SCRIPT" rotate "$KW" --tag ws/k-2026-02-02 --date 2026-02-02 >"$T/sib-o.txt" 2>"$T/sib-e.txt" || rc=$?
+check "the phrase inside another task's description still refuses (exit 1), naming #PP-2's line only" \
+  '[ "$rc" -eq 1 ] && grep -q "1 reference(s) to a leaving block" "$T/sib-e.txt" && grep -q "project/p/workstream.md:12 " "$T/sib-e.txt"'
+cd "$T"
+
 echo "== Usage"
 rc=0; python3 "$SCRIPT" rotate "$W" >/dev/null 2>&1 || rc=$?
 check "rotate without --tag: exit 2" '[ "$rc" -eq 2 ]'

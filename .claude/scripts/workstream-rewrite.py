@@ -118,7 +118,9 @@ and any hit refuses the run unless the hit's sentence names the tag
 (the report's line numbers index the files on disk, never the rotated
 output, and each names the block's first line beside the citing line);
 in another file a bare-ID match is a hit only when its home is this
-workstream, and the home-less ones are listed without refusing;
+workstream, and the home-less ones are listed without refusing; a
+lead-phrase match exactly where a task line's own description begins
+is a sibling task opening with the same words and is not a hit;
 after the rewrite, every count a surviving criterion, gate line or
 critical-path sentence states about a section that was true before
 and is false after is reported with both figures and refuses the run
@@ -1964,6 +1966,10 @@ ID_HOME_RE = re.compile(
     r"`?(?:'s)?\s+(?:in|at|of)\s+`?((?:explore|feature|fix|project|maintain|docs)/[a-z0-9.-]*[a-z0-9]|ws/[\w.-]*\w)")
 
 
+# A task line up to its description: `- [ ] #XX-1: ` (a gate's ID too).
+OWN_DESCRIPTION_RE = re.compile(r'^ *- \[[ xX]\] #[A-Za-z][A-Za-z0-9]*-[A-Za-z0-9]+:\s*')
+
+
 def sweep_removed(root, path, new_lines, leaving, tag, old_lines=None):
     """Hits in the surviving text and in the live content of every other
     state file for each leaving block's ID and lead phrase. A hit whose
@@ -1982,7 +1988,9 @@ def sweep_removed(root, path, new_lines, leaving, tag, old_lines=None):
     workstream it points at. Every other home-less match is returned in
     `bare`, reported and never refusing: the first rotation of a
     workstream with low-numbered IDs was refused on some forty of other
-    workstreams' own D1s and L2s, four of them real."""
+    workstreams' own D1s and L2s, four of them real. A lead-phrase match
+    that is exactly where a task line's own description begins is a
+    sibling task opening with the same words, and is not a hit."""
     hits = []
     bare = []
     wid = workstream_id(path)
@@ -2029,10 +2037,16 @@ def sweep_removed(root, path, new_lines, leaving, tag, old_lines=None):
                 start = source_start.get(tuple(raw), start)
             text, starts = join_block(raw, start)
             blanked = blank_strikes(text)
+            # Where a task line's own description begins: a lead phrase
+            # matched exactly there is a sibling task opening with the same
+            # words, not a citation of the leaving block.
+            own = OWN_DESCRIPTION_RE.match(blanked)
             for kind, needle, rx, first, is_id in needles:
                 for m in rx.finditer(blanked):
                     if whole and raw[0] == first:
                         continue  # the block's own definition is not a reference
+                    if not is_id and own and m.start() == own.end():
+                        continue  # another task whose description opens the same way
                     s, e = sentence_span(blanked, m.start())
                     sentence = blanked[s:e]
                     if tag in sentence or re.search(r'\b(?:rotation|archive) tag\b|\bat (?:its|the) tag\b', sentence):
