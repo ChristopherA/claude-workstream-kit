@@ -32,6 +32,10 @@ Self-contained context and the requested action.
 
 The two halves are split across two actors who cannot see each other's session, so each half carries a pre-flight that assumes nothing about the other: the sender cannot know what the receiver already holds, and the receiver cannot know whether the sender's steps ran.
 
+## The convention
+
+Cross-project transfer: `from-<source>-<YYYYMMDD-HHMMSS>.md`, flat frontmatter (`from`, `date`, `blocking`, `items`, `about`, `class`; `committed: no` when filed uncommitted), then self-contained items — the receiver cannot see the sender's conversation or repo. Receive = triage each item (do now / route to a workstream backlog with provenance / decline with rationale), then delete the file. The session-start hook reports inbox count and oldest age; an aging inbox is state to reconcile, not background noise.
+
 ## Create
 
 Pre-flight, before writing into another project:

@@ -10,7 +10,7 @@ description: >-
   hook flags drift, or a long-running workstream's backlog no longer matches what
   has been decided.
   WHEN NOT: executing the backlog (use /workstream-work); capturing one session's
-  items (that is the capture sweep in the workstreams rule); creating
+  items (that is /workstream-capture's capture sweep); creating
   (/workstream-create) or closing (/workstream-close) a workstream.
 ---
 

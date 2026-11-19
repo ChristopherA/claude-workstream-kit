@@ -16,9 +16,19 @@ description: >-
 
 A session is about to cross a boundary -- most often `/clear`, then `/workstream-work` again. `/clear` fires no hook, so this is the manual sweep that would otherwise be skipped. Capture should not depend on the user asking for it. It takes no argument: the session is the unit. The reason behind each move below is in `references/failures.md`, under the move's heading; read it when a move is doubted, not on every run.
 
+## The capture sweep
+
+Before a session boundary (`/clear`, `/compact`, `/exit`) and at closure, run a three-question sweep over the session against the durable files — capture should not depend on the user asking:
+
+1. **Detection** — what decided, learned, or flagged this session is not yet in `workstream.md`, `ACTIVE.md`, memory, or a commit? And what ARRIVED: a handoff filed into `.state/handoffs/` while the session ran is already a commit, so this question cannot see it — list the inbox and read `git log` for commits the session did not author before answering, since the session-start hook reported the inbox once and cannot fire again.
+2. **Cascade** — for each, where does it belong: this workstream, another workstream's Backlog, another project (a handoff), or a named file?
+3. **Synthesis** — what general rule or pattern do this session's instances suggest, and does it extend or supersede an existing Decision or Learning?
+
+Route each finding before crossing the boundary. The sweep is three questions, not a process; it surfaces what capture-as-you-go misses — the cross-cutting and synthesis-level items that appear only when you step back.
+
 ## Move 1 -- Sweep
 
-Run the workstreams-rule **capture sweep** -- detection, cascade and synthesis as that section states them, arrived handoffs included -- over this session against the durable files, and act on each finding rather than listing it: route every item to its home now, and write any synthesis-level pattern where it extends or supersedes an existing Decision or Learning.
+Run the **capture sweep** below -- detection, cascade and synthesis, arrived handoffs included -- over this session against the durable files, and act on each finding rather than listing it: route every item to its home now, and write any synthesis-level pattern where it extends or supersedes an existing Decision or Learning.
 
 - A disagreement a `/workstream-status` run reported for ANOTHER workstream becomes one Backlog line in the owning workstream, with its provenance (`from /workstream-status <date>`), never a paragraph in ACTIVE.md's Now, Next or Blockers -- the hook shows a backlog line; hand-written cross-workstream prose is what the status skill replaces.
 - Synthesis is a different question from detection, not a harder pass at it; the test is whether anything in the sweep's output would change how a DIFFERENT piece of work is done -- if nothing would, the step is still owed.

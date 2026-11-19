@@ -39,6 +39,8 @@ For each deletion criterion, show the criterion and the evidence Move 3 gathered
 
 ## Move 5 — Archive
 
+The ledger, `.state/workstreams/ARCHIVE.md`: closure appends one line per workstream: `- YYYY-MM-DD type/name -- outcome (tag: ws/<name>)`. The cited tag has to reach the remote, or the citation resolves only on the machine that closed the workstream — pushing the tag is its own step at closure, separate from the archive commit. A closure line that records a measurement says where the measured artifact is preserved, so the next baseline is findable on purpose rather than by accident. Cite the ledger by its full path: an unqualified "ARCHIVE.md" can resolve to a stale duplicate elsewhere under `.state/`, and a check run against the wrong file reports correctly-recorded closures as missing.
+
 After approval, `ls` the workstream directory before removing anything — `workstream.md` is not always the only file there, and whatever else sits beside it needs a disposition (Move 3) rather than a discovery at `git rm`. Then run the `cites` sweep of Move 3 again with `--repo` — `docs/` and the rest included — and repoint each live citation of this workstream by name or task prefix at the archive tag it is about to have (`#XX-N in ws/<name>`) — a name that stops resolving reads exactly like one that resolves, and the closing session is the only one that knows the name is going. Then:
 
 1. Set `status: done` in `workstream.md`'s frontmatter, and append to `.state/workstreams/ARCHIVE.md`: `- YYYY-MM-DD type/name -- <one-line outcome> (tag: ws/<name>)`. The status edit is what makes the tagged snapshot read as closed: a `git show ws/<name>:...` reader otherwise gets a file claiming to be live.

@@ -45,7 +45,7 @@ Because the state is plain files in git, it is portable across machines, account
 | Delegate agents | `.claude/agents/scout.md`, `worker.md`, `verifier.md` -- each inherits the session's model |
 | Session resume | `.claude/hooks/session-start.sh` + `settings.json` hook registration |
 | Gloss check | `.claude/hooks/bare-id-guard.py`, a Stop hook: a turn whose final message mentions a task, gate, Decision, Learning or Open Question ID with no gloss (`#QX-37 (the phase split question)`) is handed back once with the bare ids named; the same detector runs over state files as `bare-ids` and prints in the session-start hook |
-| Boundary capture | workstreams-rule capture sweep + `.claude/skills/workstream-capture/` |
+| Boundary capture | `.claude/skills/workstream-capture/` |
 | State seed | `.state-seed/` in the kit, installed as `.state/` (ACTIVE.md, PROJECT.md, workstreams/, handoffs/) |
 | Status line | `.claude/scripts/status-line.sh`, registered set-if-absent by `install.sh` |
 
@@ -59,6 +59,8 @@ What the kit deliberately does NOT carry — use the native capability instead:
 | Keep-working discipline | `/goal` (the workstream-work skill derives the condition) |
 | Recurring work | `/loop`, `/schedule` |
 | Distribution/updates | Re-run `install.sh` (`/workstream-upgrade` is that order); plugin packaging is a planned follow-up |
+
+The conventions, the CLAUDE.md block and the rule, load into every session in a project that installs the kit, so the kit keeps those two files under 30,000 bytes together.
 
 ## Install
 
