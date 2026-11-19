@@ -107,8 +107,13 @@ hours after the paragraph is reported. A paragraph naming no task ID
 (gates aside) is `shape: queue`: it states order, a task minted after
 it is what it predicts, and only the count (`minted_since`) is
 reported, with `minted_after` null rather than an empty list to review.
+Any edit to the paragraph re-baselines that compare, so a named path
+also reports `unnamed_before`: the open tasks minted at or before its
+last edit that it does not name, with the edit's time -- a zero
+`minted_since` after an edit is not a path followed.
 A workstream.md with uncommitted changes is unmeasurable, not current:
-`unmeasurable` names why and `minted_since` and `minted_after` are null,
+`unmeasurable` names why and `minted_since`, `minted_after` and
+`unnamed_before` are null,
 never a 0 or [] that reads as a measured answer. `open_tasks` counts
 every open task line outside Deletion Criteria, as the hook does, and
 a line whose ID the task grammar cannot parse is listed in
@@ -1531,7 +1536,7 @@ def decay(root):
         # tree's `minted_since: 0` stood as proof a fix had worked.
         entry = {"path": rel, "critical_path": None, "unmeasurable": None,
                  "shape": None, "minted_since": None, "minted_after": None,
-                 "open_tasks": 0, "unparsable_ids": []}
+                 "unnamed_before": None, "open_tasks": 0, "unparsable_ids": []}
         # The open count is a fact about the file, reported whether or
         # not a paragraph exists to compare against: a file with seven
         # open tasks and no paragraph once read as open_tasks 0. It counts
@@ -1581,6 +1586,15 @@ def decay(root):
         entry["shape"] = "named" if named else "queue"
         entry["minted_since"] = 0
         entry["minted_after"] = [] if named else None
+        # The paragraph's newest blame time re-baselines on ANY edit to it:
+        # a word fixed, or one task named, and every earlier-minted task it
+        # still does not name stops counting, as does each task minted in
+        # the commit that touched it. A named path therefore also reports
+        # the open tasks minted at or before that edit which it does not
+        # name -- the re-baseline -- so a review that edited the path does
+        # not read the next zero as a path followed.
+        entry["unnamed_before"] = {"paragraph_edited": newest, "count": 0, "ids": []} if named else None
+        named_set = set(named)
         for oid in open_ids:
             minted = mint_time(root, rel, oid)
             if minted is not None and minted > newest:
@@ -1588,6 +1602,9 @@ def decay(root):
                 if named:
                     entry["minted_after"].append({"id": oid, "mint_time": minted,
                                                   "after_by_seconds": minted - newest})
+            elif minted is not None and named and oid not in named_set:
+                entry["unnamed_before"]["count"] += 1
+                entry["unnamed_before"]["ids"].append(oid)
         result.append(entry)
     return {"workstreams": result}
 

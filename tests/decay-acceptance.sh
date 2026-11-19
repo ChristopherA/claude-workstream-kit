@@ -149,6 +149,32 @@ git checkout -q -- "$W"
 check "after reverting, the measure is back (#QG-2 reported again, minted_since 2)" \
   '[ "$(python3 "$SCRIPT" decay "$T" | jq -r ".workstreams[] | select(.path | endswith(\"kit/workstream.md\")) | \"\(.minted_after | length) \(.minted_since)\"")" = "2 2" ]'
 
+echo "== An edit to the paragraph re-baselines the compare, and is reported"
+# On 0.11.5 any edit to a named critical path made every task minted
+# before it stop counting, and a commit that minted a task while touching
+# the paragraph counted none: a review that edited the path read the next
+# run's zero as a path followed. The re-baseline is now reported.
+mkdir -p "$T/rb" && cd "$T/rb"
+git init -q -b main && git config user.email fixture@example.invalid && git config user.name Fixture && git config commit.gpgsign false
+mkdir -p .state/workstreams/feature/rebase
+RW=.state/workstreams/feature/rebase/workstream.md
+rbfile() { # <path word> <extra tasks>
+  printf -- '---\nname: rebase\ntype: feature\nstatus: active\n---\n## Purpose\nA fixture.\n\n**Critical path.** #PL-1 leads, %s.\n\n## Backlog\n### Plan (PL)\n- [ ] #PL-1: the named task\n- [ ] #PL-2: an unnamed task from the start\n%b' "$1" "$2" > "$RW"
+}
+rbfile "then the rest" ""
+commit_at "$DAY" "the path"
+rbfile "then the rest" '- [ ] #PL-3: minted after the path\n'
+commit_at "$((DAY + 100))" "a task after the path"
+rbq() { python3 "$SCRIPT" decay "$T/rb" | jq -r ".workstreams[0] | $1"; }
+check "before the edit: one task minted after the path" '[ "$(rbq ".minted_since")" = "1" ] && [ "$(rbq "[.minted_after[].id] | join(\",\")")" = "#PL-3" ]'
+rbfile "then everything else" '- [ ] #PL-3: minted after the path\n- [ ] #PL-4: minted in the commit that edits the path\n'
+commit_at "$((DAY + 200))" "a word fixed in the path, and a task minted"
+check "after the edit the compare reads zero (the re-baseline itself)" '[ "$(rbq ".minted_since")" = "0" ]'
+check "and the re-baseline is reported: three open tasks the path does not name, minted at or before its edit" \
+  '[ "$(rbq ".unnamed_before.count")" = "3" ] && [ "$(rbq ".unnamed_before.ids | join(\",\")")" = "#PL-2,#PL-3,#PL-4" ] && [ "$(rbq ".unnamed_before.paragraph_edited")" = "$((DAY + 200))" ]'
+check "the named task is not among them" '! rbq ".unnamed_before.ids[]" | grep -qx "#PL-1"'
+cd "$T"
+
 echo "== Exit codes"
 rc=0; python3 "$SCRIPT" decay >/dev/null 2>&1 || rc=$?
 check "decay with no root: exit 2" '[ "$rc" -eq 2 ]'
