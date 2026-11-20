@@ -27,8 +27,12 @@
 # The condenser's pointer comments quote the condenser suite's fixture.
 ^\.claude/scripts/workstream-rewrite\.py:[0-9]+:.*#BD-12\b
 
-# The workstream template ships the Completion phase as literal tasks.
+# The workstream template ships the Completion phase as literal tasks, and a
+# commit message describing a fixture or a change to that phase names the same
+# public codes. The template's gate line is the placeholder #G-<XX>, so no gate
+# code is pinned.
 ^\.claude/skills/workstream-create/templates/workstream\.md:[0-9]+:.*#CL-[123]\b
+^commit [0-9a-f]+:[0-9]+:.*#CL-[123]\b
 
 # The acceptance test drives a demo workstream end to end, so it names that
 # workstream's own tasks and its state path. Both are fixtures, not references.
